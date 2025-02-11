@@ -1,0 +1,80 @@
+/* Top Banner */
+.banner {
+  background-color: black;
+  padding: 1rem;
+}
+
+.nav {
+  display: flex;
+  justify-content: center;
+  gap: 2rem;
+}
+
+.navLink {
+  color: white;
+  text-decoration: none;
+  font-size: 1.2rem;
+  font-weight: bold;
+  transition: color 0.3s;
+}
+
+.navLink:hover {
+  color: #3b82f6;
+}
+
+/* Main Content */
+.container {
+  min-height: 100vh;
+  background-color: white;
+  color: black;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+/* Header */
+.header {
+  color: black;
+  font-size: 2.5rem;
+  font-weight: bold;
+  padding-bottom: 1rem;
+}
+
+/* Button */
+.button {
+  padding: 0.5rem 1rem;
+  background-color: #3b82f6;
+  border: none;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  color: white;
+  transition: background-color 0.3s ease;
+}
+
+.button:hover {
+  background-color: #1d4ed8;
+}
+
+/* Footer */
+.footer {
+  background-color: black;
+  color: white;
+  text-align: center;
+  padding: 1rem 0;
+}
+.headerSearchContainer {
+  margin: 0 auto;
+  text-align: center;
+}
+
+.searchBarContainer {
+  width: 50%;
+  margin: 0 auto;
+}
+
+.mapContainer {
+  width: 50%;
+  margin: 20px auto;
+  border: 1px solid #ccc;
+  height: 500px;
+}
