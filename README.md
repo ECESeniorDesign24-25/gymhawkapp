@@ -1,9 +1,9 @@
 ## GymHawk Web Application
 
 #### Setup
-There are a few things you will need to do to set up the application. First, you will need a (Firebase account)[https://firebase.google.com/] and access to the project, which you can get via link. Reach out to Joe for more info on that.
+There are a few things you will need to do to set up the application. First, you will need a [Firebase account](https://firebase.google.com/) and access to the project, which you can get via link. Reach out to Joe for more info on that.
 
-Next, you will need a (Google Cloud Platform)[https://console.cloud.google.com/] account.
+Next, you will need a [Google Cloud Platform](https://console.cloud.google.com/) account.
 
 Once you have the accounts set up, you will need to do the following:
 1. Create a .env.local file in the root of this repository
@@ -36,7 +36,7 @@ To run the app locally, you just need to run:
 
 
 #### Deploying the app:
-Application deployment is handled by Firebase. To set up deployment, you will first need to install the (Firebase CLI)[https://firebase.google.com/docs/cli]. Once that is downloaded, you just need to run: 
+Application deployment is handled by Firebase. To set up deployment, you will first need to install the [Firebase CLI](https://firebase.google.com/docs/cli). Once that is downloaded, you just need to run: 
 
 `./deploy.sh` 
 
