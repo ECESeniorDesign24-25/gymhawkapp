@@ -1,36 +1,43 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+## GymHawk Web Application
 
-## Getting Started
+#### Setup
+There are a few things you will need to do to set up the application. First, you will need a (Firebase account)[https://firebase.google.com/] and access to the project, which you can get via link. Reach out to Joe for more info on that.
 
-First, run the development server:
+Next, you will need a (Google Cloud Platform)[https://console.cloud.google.com/] account.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+Once you have the accounts set up, you will need to do the following:
+1. Create a .env.local file in the root of this repository
+2. This file will need the following:
+```
+NEXT_PUBLIC_MAPS_API_KEY=
+NEXT_PUBLIC_FIREBASE_API_KEY=
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=
+NEXT_PUBLIC_FIREBASE_MESSAGE_SENDER_ID=
+NEXT_PUBLIC_FIREBASE_APP_ID=
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The MAPS_API_KEY can be generated from your GCP account. The Firebase keys are found in the project npm SDK which you can access by going to the Firebase console, selecting the GymHawk project, going to settings (general), and clicking the web app.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+#### Development:
+The application source code is in the `src/` directory. Structure:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+`src/pages`: Holds the application pages. `index.tsx` is the home page.
+`src/components`: Holds any custom javascript components.
+`src/lib`: Holds any configs for external tools (ex. Firebase).
+`src/styles`: Holds custom styles and css.
+`src/utils`: Holds util functions.
 
-## Learn More
+#### Running the app locally:
+To run the app locally, you just need to run:
 
-To learn more about Next.js, take a look at the following resources:
+`npm run dev`
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+#### Deploying the app:
+Application deployment is handled by Firebase. To set up deployment, you will first need to install the (Firebase CLI)[https://firebase.google.com/docs/cli]. Once that is downloaded, you just need to run: 
 
-## Deploy on Vercel
+`./deploy.sh` 
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+from the root of this repository. This will generate a static build of the application in the `out/` directory and will be hosted on Firebase.
