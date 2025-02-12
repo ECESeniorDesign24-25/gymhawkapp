@@ -7,6 +7,7 @@ import styles from '@/styles/index.module.css';
 import { HOME_STYLE, DARK_MAP_THEME, ZOOM_LEVEL } from '@/styles/customStyles';
 import { GYMS, MAPS_API_KEY } from '@/utils/consts';
 
+
 const GoogleMapReact = dynamic(() => import('google-map-react'), { ssr: false });
 
 export default function Home() {
