@@ -78,3 +78,112 @@
   border: 1px solid #ccc;
   height: 500px;
 }
+
+
+/* Login */
+.contentWrapper {
+  max-width: 400px;
+  width: 100%;
+  padding: 2rem;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  text-align: center;
+}
+
+.title {
+  text-align: center;
+  margin-bottom: 2rem;
+  color: var(--text-primary);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: center;
+}
+
+.input {
+  padding: 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 1rem;
+  background: var(--background-primary);
+  color: var(--text-primary);
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+}
+
+.error {
+  color: var(--error-color);
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+.divider {
+  margin: 1.5rem 0;
+  display: flex;
+  align-items: center;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.divider::before,
+.divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.divider span {
+  padding: 0 1rem;
+}
+
+.googleButton {
+  background: #db4437;
+}
+
+.googleButton:hover {
+  background: #c53929;
+}
+
+.loginContainer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: calc(100vh - 64px); /* Adjust based on your banner height */
+  padding: 2rem;
+}
+
+.button {
+  width: 200px;
+  padding: 0.75rem 1rem;
+  border: none;
+  border-radius: 4px;
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.blackButton {
+  background-color: black;
+  color: white;
+}
+
+.blackButton:hover {
+  background-color: #333;
+}
+
+.goldButton {
+  background-color: #FFCD00;
+  color: black;
+}
+
+.goldButton:hover {
+  background-color: #E6B800;
+}
