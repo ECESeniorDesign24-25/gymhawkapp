@@ -3,6 +3,7 @@ import type { AppProps } from 'next/app';
 import { useEffect, useState } from 'react';
 import { auth } from '../lib/firebase';
 import type { User } from 'firebase/auth';
+import { AuthProvider } from '../lib/auth';
 
 
 function App({ Component, pageProps }: AppProps) {
@@ -19,7 +20,11 @@ function App({ Component, pageProps }: AppProps) {
     return () => unsubscribe();
   }, []);
 
-  return <Component {...pageProps} />;
+  return (
+    <AuthProvider>
+      <Component {...pageProps} />
+    </AuthProvider>
+  );
 }
 
 export default App;
