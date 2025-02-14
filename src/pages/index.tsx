@@ -6,7 +6,7 @@ import dynamic from 'next/dynamic';
 import styles from '@/styles/index.module.css';
 import { HOME_STYLE, DARK_MAP_THEME, ZOOM_LEVEL } from '@/styles/customStyles';
 import { GYMS, MAPS_API_KEY } from '@/utils/consts';
-import { setupArduinoIoTCloud, getMachineAInUseState } from '@/utils/arduinoCloudClient';
+import { fetchProperties } from '@/utils/arduinoCloudClient';
 
 const GoogleMapReact = dynamic(() => import('google-map-react'), { ssr: false });
 
@@ -82,8 +82,10 @@ export default function Home() {
 
   useEffect(() => {
     // Poll for the machineAInUse state every second
-    const intervalId = setInterval(() => {
-      setMachineAInUse(getMachineAInUseState());
+    const intervalId = setInterval(async () => {
+      const data = await fetchProperties();
+      // assuming that data contains the property "machineAInUse"
+      setMachineAInUse(data ? true : null);
     }, 1000);
 
     return () => {
@@ -116,8 +118,7 @@ export default function Home() {
             onGoogleApiLoaded={handleApiLoaded}
             resetBoundsOnResize={true}
             onChange={({ center }) => setCenter(center)}
-          >
-          </GoogleMapReact>
+          />
         </div>
       </div>
       {/* Display machineAInUse state below the map */}
