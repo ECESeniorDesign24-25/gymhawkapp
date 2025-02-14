@@ -9,7 +9,7 @@ const ARDUINO_CLIENT_ID = defineString('ARDUINO_CLIENT_ID');
 const ARDUINO_THING_ID = defineString("ARDUINO_THING_ID");
 const ARDUINO_CLIENT_SECRET = defineString("ARDUINO_CLIENT_SECRET");
 
-if (!ARDUINO_CLIENT_ID.value || !ARDUINO_CLIENT_SECRET.value || !ARDUINO_THING_ID.value) {
+if (!ARDUINO_CLIENT_ID || !ARDUINO_CLIENT_SECRET || !ARDUINO_THING_ID) {
   logger.error("Missing required Arduino environment variables. Ensure ARDUINO_CLIENT_ID, ARDUINO_CLIENT_SECRET, and ARDUINO_THING_ID are set.");
 }
 
@@ -21,8 +21,8 @@ async function getToken() {
         json: true,
         form: {
             grant_type: 'client_credentials',
-            client_id: ARDUINO_CLIENT_ID.value,
-            client_secret: ARDUINO_CLIENT_SECRET.value,
+            client_id: ARDUINO_CLIENT_ID,
+            client_secret: ARDUINO_CLIENT_SECRET,
             audience: 'https://api2.arduino.cc/iot'
         }
     };
@@ -42,7 +42,7 @@ async function getArduinoProperties() {
   oauth2.accessToken = await getToken();
 
   const api = new IotApi.PropertiesV2Api(client);
-  const id = ARDUINO_CLIENT_ID.value;
+  const id = ARDUINO_CLIENT_ID;
 
   const opts = { 'showDeleted': false };
 

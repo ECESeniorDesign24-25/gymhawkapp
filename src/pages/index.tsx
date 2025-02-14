@@ -1,3 +1,5 @@
+// pages/index.tsx
+
 import { useState, useEffect, useRef } from 'react';
 import Select from 'react-select';
 import Footer from '@/components/footer';
@@ -81,10 +83,8 @@ export default function Home() {
   };
 
   useEffect(() => {
-    // Poll for the machineAInUse state every second
     const intervalId = setInterval(async () => {
       const data = await fetchArduinoProperties();
-      // assuming that data contains the property "machineAInUse"
       setMachineAInUse(data ? true : null);
     }, 1000);
 
