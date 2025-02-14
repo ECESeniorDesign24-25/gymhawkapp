@@ -6,7 +6,7 @@ import dynamic from 'next/dynamic';
 import styles from '@/styles/index.module.css';
 import { HOME_STYLE, DARK_MAP_THEME, ZOOM_LEVEL } from '@/styles/customStyles';
 import { GYMS, MAPS_API_KEY } from '@/utils/consts';
-
+import { setupArduinoIoTCloud, getMachineAInUseState } from '@/utils/arduinoCloudClient';
 
 const GoogleMapReact = dynamic(() => import('google-map-react'), { ssr: false });
 
@@ -17,6 +17,7 @@ export default function Home() {
   const [map, setMap] = useState<any>(null);
   const [maps, setMaps] = useState<any>(null);
   const polygonRef = useRef<any>(null);
+  const [machineAInUse, setMachineAInUse] = useState<any>(null);
 
   const handleSelect = async (option: any) => {
     setSelectedOption(option);
@@ -79,6 +80,17 @@ export default function Home() {
     setMaps(maps);
   };
 
+  useEffect(() => {
+    // Poll for the machineAInUse state every second
+    const intervalId = setInterval(() => {
+      setMachineAInUse(getMachineAInUseState());
+    }, 1000);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, []);
+
   return (
     <div className={styles.container}>
       <Banner />
@@ -107,6 +119,10 @@ export default function Home() {
           >
           </GoogleMapReact>
         </div>
+      </div>
+      {/* Display machineAInUse state below the map */}
+      <div>
+        Machine A In Use: {machineAInUse == null ? 'Not found' : machineAInUse.toString()}
       </div>
       <Footer />
     </div>
