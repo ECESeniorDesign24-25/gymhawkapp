@@ -3,21 +3,14 @@
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },
-  "functions": [
-    {
-      "source": "gymhawk-functions",
-      "codebase": "default",
-      "ignore": [
-        "node_modules",
-        ".git",
-        "firebase-debug.log",
-        "firebase-debug.*.log",
-        "*.local"
-      ]
-    }
-  ],
   "hosting": {
     "public": "out",
+    "rewrites": [
+      {
+        "source": "/api/listProperties",
+        "function": "listProperties"
+      }
+    ],
     "predeploy": [
       "npm run build"
     ],
@@ -34,6 +27,19 @@
     {
       "source": "**",
       "destination": "/index.html"
+    }
+  ],
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "*.local"
+      ]
     }
   ]
 }
