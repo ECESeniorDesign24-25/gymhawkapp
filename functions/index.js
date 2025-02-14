@@ -1,7 +1,6 @@
-const { onRequest } = require("firebase-functions/v2/https");
 const logger = require("firebase-functions/logger");
+const { onRequest } = require("firebase-functions/v2/https");
 const { defineString } = require('firebase-functions/params');
-const { onCall } = require("firebase-functions/v2/https");
 
 var IotApi = require('@arduino/arduino-iot-client');
 var rp = require('request-promise');
@@ -10,7 +9,7 @@ const ARDUINO_CLIENT_ID = defineString('ARDUINO_CLIENT_ID');
 const ARDUINO_THING_ID = defineString("ARDUINO_THING_ID");
 const ARDUINO_CLIENT_SECRET = defineString("ARDUINO_CLIENT_SECRET");
 
-if (!ARDUINO_CLIENT_ID || !ARDUINO_CLIENT_SECRET || !ARDUINO_THING_ID) {
+if (!ARDUINO_CLIENT_ID.value || !ARDUINO_CLIENT_SECRET.value || !ARDUINO_THING_ID.value) {
   logger.error("Missing required Arduino environment variables. Ensure ARDUINO_CLIENT_ID, ARDUINO_CLIENT_SECRET, and ARDUINO_THING_ID are set.");
 }
 
@@ -22,8 +21,8 @@ async function getToken() {
         json: true,
         form: {
             grant_type: 'client_credentials',
-            client_id: ARDUINO_CLIENT_ID,
-            client_secret: ARDUINO_CLIENT_SECRET,
+            client_id: ARDUINO_CLIENT_ID.value,
+            client_secret: ARDUINO_CLIENT_SECRET.value,
             audience: 'https://api2.arduino.cc/iot'
         }
     };
@@ -37,13 +36,13 @@ async function getToken() {
     }
 }
 
-async function fetchArduinoProperties() {
+async function getArduinoProperties() {
   const client = IotApi.ApiClient.instance;
   const oauth2 = client.authentications['oauth2'];
   oauth2.accessToken = await getToken();
 
   const api = new IotApi.PropertiesV2Api(client);
-  const id = ARDUINO_CLIENT_ID;
+  const id = ARDUINO_CLIENT_ID.value;
 
   const opts = { 'showDeleted': false };
 
@@ -56,12 +55,12 @@ async function fetchArduinoProperties() {
   }
 }
 
-exports.fetchArduinoProperties = onCall({ cors: true }, async (request) => {
+exports.getArduinoProperties = onRequest({ cors: true }, async (req, res) => {
   try {
-    const data = await fetchArduinoProperties();
-    return { data };
+    const data = await getArduinoProperties();
+    res.status(200).json({ data });
   } catch (error) {
-    logger.error("Error:", error);
-    throw new functions.https.HttpsError('internal', 'Error fetching properties');
+    logger.error("Error fetching Arduino properties:", error);
+    res.status(500).json({ error: 'Error fetching properties' });
   }
 });

@@ -6,7 +6,7 @@ import dynamic from 'next/dynamic';
 import styles from '@/styles/index.module.css';
 import { HOME_STYLE, DARK_MAP_THEME, ZOOM_LEVEL } from '@/styles/customStyles';
 import { GYMS, MAPS_API_KEY } from '@/utils/consts';
-import { fetchProperties } from '@/utils/arduinoCloudClient';
+import { fetchArduinoProperties } from '@/utils/arduinoCloudClient';
 
 const GoogleMapReact = dynamic(() => import('google-map-react'), { ssr: false });
 
@@ -83,7 +83,7 @@ export default function Home() {
   useEffect(() => {
     // Poll for the machineAInUse state every second
     const intervalId = setInterval(async () => {
-      const data = await fetchProperties();
+      const data = await fetchArduinoProperties();
       // assuming that data contains the property "machineAInUse"
       setMachineAInUse(data ? true : null);
     }, 1000);

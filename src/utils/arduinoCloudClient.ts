@@ -1,11 +1,11 @@
 import { functions } from "@/lib/firebase"
 import { httpsCallable } from "firebase/functions";
 
-const fetchArduinoProperties = httpsCallable(functions, 'fetchArduinoProperties');
+const getArduinoProperties = httpsCallable(functions, 'getArduinoProperties');
 
-export async function fetchProperties() {
+export async function fetchArduinoProperties() {
   try {
-    const result = await fetchArduinoProperties();
+    const result = await getArduinoProperties();
     const data = result.data;
     console.log('Properties Data:', data);
     return data;
