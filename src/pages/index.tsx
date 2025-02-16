@@ -8,9 +8,40 @@ import dynamic from 'next/dynamic';
 import styles from '@/styles/index.module.css';
 import { HOME_STYLE, DARK_MAP_THEME, ZOOM_LEVEL } from '@/styles/customStyles';
 import { GYMS, MAPS_API_KEY } from '@/utils/consts';
-import { fetchArduinoProperties } from '@/utils/arduinoCloudClient';
+import { fetchDeviceState } from '@/utils/cloudAPI';
 
 const GoogleMapReact = dynamic(() => import('google-map-react'), { ssr: false });
+
+interface MachineMarkerProps {
+  lat: number;
+  lng: number;
+  state: string;
+  text: string;
+}
+
+// marker for device
+const MachineMarker = ({ state, text }: MachineMarkerProps) => {
+  let backgroundColor = 'grey';
+  if (state == "off") {
+    backgroundColor = 'red';
+  }
+  if (state == "on") {
+    backgroundColor = 'green';
+  }
+  const markerStyle: React.CSSProperties = {
+    width: '20px',
+    height: '20px',
+    backgroundColor: backgroundColor,
+    borderRadius: '50%',
+    border: '2px solid white',
+    textAlign: 'center',
+    color: 'white',
+    fontSize: '12px',
+    lineHeight: '20px'
+  };
+
+  return <div style={markerStyle}>{text}</div>;
+};
 
 export default function Home() {
   const [selectedOption, setSelectedOption] = useState(null);
@@ -19,7 +50,14 @@ export default function Home() {
   const [map, setMap] = useState<any>(null);
   const [maps, setMaps] = useState<any>(null);
   const polygonRef = useRef<any>(null);
-  const [machineAInUse, setMachineAInUse] = useState<any>(null);
+  const [machineAState, setMachineAState] = useState<any>(null);
+  const [machineBState, setMachineBState] = useState<any>(null);
+
+  console.log(GYMS);
+
+  // testing
+  const machineACoordinates = { lat: 41.6572472, lng: -91.5389825 };
+  const machineBCoordinates = { lat: 41.6576472, lng: -91.5381925 };
 
   const handleSelect = async (option: any) => {
     setSelectedOption(option);
@@ -82,15 +120,20 @@ export default function Home() {
     setMaps(maps);
   };
 
+  // poll every 5s 
   useEffect(() => {
     const intervalId = setInterval(async () => {
-      const data = await fetchArduinoProperties();
-      setMachineAInUse(data ? true : null);
-    }, 1000);
+      try {
+        const state = await fetchDeviceState();
 
-    return () => {
-      clearInterval(intervalId);
-    };
+        setMachineAState(state["machineAInUse"]);
+        setMachineBState(state["machineBInUse"]);
+      } catch (error) {
+        console.error("Error fetching device state:", error);
+      }
+    }, 5000);
+
+    return () => clearInterval(intervalId);
   }, []);
 
   return (
@@ -118,12 +161,21 @@ export default function Home() {
             onGoogleApiLoaded={handleApiLoaded}
             resetBoundsOnResize={true}
             onChange={({ center }) => setCenter(center)}
-          />
+          >
+            <MachineMarker
+              lat={machineACoordinates.lat}
+              lng={machineACoordinates.lng}
+              state={machineAState ? machineAState : "na"}
+              text="A"
+            />
+            <MachineMarker
+              lat={machineBCoordinates.lat}
+              lng={machineBCoordinates.lng}
+              state={machineBState ? machineBState : "na"}
+              text="B"
+            />
+          </GoogleMapReact>
         </div>
-      </div>
-      {/* Display machineAInUse state below the map */}
-      <div>
-        Machine A In Use: {machineAInUse == null ? 'Not found' : machineAInUse.toString()}
       </div>
       <Footer />
     </div>
