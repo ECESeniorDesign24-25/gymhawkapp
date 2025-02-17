@@ -1,3 +1,5 @@
+
+
 export async function fetchDeviceState() {
   try {
     const response = await fetch('https://gymhawk-2ed7f.web.app/api/getDeviceStates');
@@ -8,5 +10,3 @@ export async function fetchDeviceState() {
     throw err;
   }
 }
-
-fetchDeviceState()

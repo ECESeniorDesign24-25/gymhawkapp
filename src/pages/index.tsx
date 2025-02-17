@@ -1,5 +1,3 @@
-// pages/index.tsx
-
 import { useState, useEffect, useRef } from 'react';
 import Select from 'react-select';
 import Footer from '@/components/footer';
@@ -7,8 +5,8 @@ import Banner from '@/components/banner';
 import dynamic from 'next/dynamic';
 import styles from '@/styles/index.module.css';
 import { HOME_STYLE, DARK_MAP_THEME, ZOOM_LEVEL } from '@/styles/customStyles';
-import { GYMS, MAPS_API_KEY } from '@/utils/consts';
 import { fetchDeviceState } from '@/utils/cloudAPI';
+import { fetchGyms } from '@/utils/db';
 
 const GoogleMapReact = dynamic(() => import('google-map-react'), { ssr: false });
 
@@ -52,13 +50,22 @@ export default function Home() {
   const polygonRef = useRef<any>(null);
   const [machineAState, setMachineAState] = useState<any>(null);
   const [machineBState, setMachineBState] = useState<any>(null);
-
-  console.log(GYMS);
+  const [gyms, setGyms] = useState<any[]>([]);
 
   // testing
   const machineACoordinates = { lat: 41.6572472, lng: -91.5389825 };
   const machineBCoordinates = { lat: 41.6576472, lng: -91.5381925 };
 
+  // fetch gyms from database on first render
+  useEffect(() => {
+    async function loadGyms() {
+      const gyms = await fetchGyms();
+      setGyms(gyms || []);
+    }
+    loadGyms();
+  }, []);
+
+  // pan map
   const handleSelect = async (option: any) => {
     setSelectedOption(option);
     if (option) {
@@ -77,6 +84,7 @@ export default function Home() {
     }
   };
 
+  // draw building outline on map change
   useEffect(() => {
     if (map && maps && buildingOutline) {
       if (polygonRef.current) {
@@ -115,12 +123,13 @@ export default function Home() {
     }
   }, [buildingOutline, map, maps, center]);
 
-  const handleApiLoaded = ({ map, maps }: { map: any, maps: any }) => {
+  // set initial map
+  const handleApiLoaded = ({ map, maps }: {map: any, maps: any}) => {
     setMap(map);
     setMaps(maps);
   };
 
-  // poll every 5s 
+  // poll machine state every 5s 
   useEffect(() => {
     const intervalId = setInterval(async () => {
       try {
@@ -136,6 +145,8 @@ export default function Home() {
     return () => clearInterval(intervalId);
   }, []);
 
+
+  // render page
   return (
     <div className={styles.container}>
       <Banner />
@@ -144,7 +155,7 @@ export default function Home() {
           <header className={styles.header}>GymHawk</header>
           <div className={styles.searchBarContainer}>
             <Select
-              options={GYMS}
+              options={gyms}
               onChange={handleSelect}
               placeholder="Search gyms..."
               styles={HOME_STYLE}
@@ -153,7 +164,7 @@ export default function Home() {
         </div>
         <div className={styles.mapContainer}>
           <GoogleMapReact
-            bootstrapURLKeys={{ key: MAPS_API_KEY! }}
+            bootstrapURLKeys={{ key: process.env.NEXT_PUBLIC_MAPS_API_KEY! }}
             center={center}
             defaultZoom={ZOOM_LEVEL}
             yesIWantToUseGoogleMapApiInternals

@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { MAPS_API_KEY, MAPS_ENDPOINT } from './consts';
+import { MAPS_ENDPOINT } from './consts';
 
 interface GeocodeResponse {
   results: {
@@ -20,15 +20,15 @@ interface GeocodeResponse {
 
 export const getCoords = async (id: string) => {
     try {
-        if (!MAPS_API_KEY) {
-          console.error('API key is missing!');
+        if (!process.env.NEXT_PUBLIC_MAPS_API_KEY) {
+          console.error('NEXT_PUBLIC_MAPS_API_KEY environment variable is missing');
           return null;
         }
 
         const response = await axios.get<GeocodeResponse>(MAPS_ENDPOINT, {
           params: {
               place_id: id,
-              key: MAPS_API_KEY,
+              key: process.env.NEXT_PUBLIC_MAPS_API_KEY,
           },
         });
 
@@ -47,15 +47,15 @@ export const getCoords = async (id: string) => {
 
 export const getBuildingOutline = async (id: string) => {
     try {
-        if (!MAPS_API_KEY) {
-          console.error('API key is missing!');
+        if (!process.env.NEXT_PUBLIC_MAPS_API_KEY) {
+          console.error('NEXT_PUBLIC_MAPS_API_KEY environment variable is missing!');
           return null;
         }
 
         const response = await axios.get<GeocodeResponse>(MAPS_ENDPOINT + "?extra_computations=BUILDING_AND_ENTRANCES", {
         params: {
             place_id: id,
-            key: MAPS_API_KEY
+            key: process.env.NEXT_PUBLIC_MAPS_API_KEY
         },
         });
 
