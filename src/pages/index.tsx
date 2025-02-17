@@ -1,5 +1,3 @@
-// pages/index.tsx
-
 import { useState, useEffect, useRef } from 'react';
 import Select from 'react-select';
 import Footer from '@/components/footer';
@@ -7,41 +5,12 @@ import Banner from '@/components/banner';
 import dynamic from 'next/dynamic';
 import styles from '@/styles/index.module.css';
 import { HOME_STYLE, DARK_MAP_THEME, ZOOM_LEVEL } from '@/styles/customStyles';
-import { GYMS, MAPS_API_KEY } from '@/utils/consts';
+import { fetchGyms, fetchMachines } from '@/utils/db';
 import { fetchDeviceState } from '@/utils/cloudAPI';
+import { MachineMarker } from '@/components/marker';
 
 const GoogleMapReact = dynamic(() => import('google-map-react'), { ssr: false });
 
-interface MachineMarkerProps {
-  lat: number;
-  lng: number;
-  state: string;
-  text: string;
-}
-
-// marker for device
-const MachineMarker = ({ state, text }: MachineMarkerProps) => {
-  let backgroundColor = 'grey';
-  if (state == "off") {
-    backgroundColor = 'red';
-  }
-  if (state == "on") {
-    backgroundColor = 'green';
-  }
-  const markerStyle: React.CSSProperties = {
-    width: '20px',
-    height: '20px',
-    backgroundColor: backgroundColor,
-    borderRadius: '50%',
-    border: '2px solid white',
-    textAlign: 'center',
-    color: 'white',
-    fontSize: '12px',
-    lineHeight: '20px'
-  };
-
-  return <div style={markerStyle}>{text}</div>;
-};
 
 export default function Home() {
   const [selectedOption, setSelectedOption] = useState(null);
@@ -50,15 +19,31 @@ export default function Home() {
   const [map, setMap] = useState<any>(null);
   const [maps, setMaps] = useState<any>(null);
   const polygonRef = useRef<any>(null);
-  const [machineAState, setMachineAState] = useState<any>(null);
-  const [machineBState, setMachineBState] = useState<any>(null);
+  const [gyms, setGyms] = useState<any[]>([]);
+  const [machines, setMachines] = useState<any[]>([]);
 
-  console.log(GYMS);
 
-  // testing
-  const machineACoordinates = { lat: 41.6572472, lng: -91.5389825 };
-  const machineBCoordinates = { lat: 41.6576472, lng: -91.5381925 };
+  // fetch gyms from database on first render
+  useEffect(() => {
+    async function loadGyms() {
+      const gyms = await fetchGyms();
+      setGyms(gyms || []);
+    }
+    loadGyms();
+  }, []);
 
+  
+  // fetch machines on first render also
+  useEffect(() => {
+    async function loadMachines() {
+      const machines = await fetchMachines();
+      setMachines(machines || []);
+    }
+    loadMachines();
+  }, []);
+
+
+  // pan map
   const handleSelect = async (option: any) => {
     setSelectedOption(option);
     if (option) {
@@ -77,6 +62,8 @@ export default function Home() {
     }
   };
 
+
+  // draw building outline on map change
   useEffect(() => {
     if (map && maps && buildingOutline) {
       if (polygonRef.current) {
@@ -115,27 +102,39 @@ export default function Home() {
     }
   }, [buildingOutline, map, maps, center]);
 
-  const handleApiLoaded = ({ map, maps }: { map: any, maps: any }) => {
+
+  // set initial map
+  const handleApiLoaded = ({ map, maps }: {map: any, maps: any}) => {
     setMap(map);
     setMaps(maps);
   };
 
-  // poll every 5s 
+  // poll machine states every 5s and update dict
   useEffect(() => {
-    const intervalId = setInterval(async () => {
-      try {
-        const state = await fetchDeviceState();
-
-        setMachineAState(state["machineAInUse"]);
-        setMachineBState(state["machineBInUse"]);
-      } catch (error) {
-        console.error("Error fetching device state:", error);
-      }
+    const intervalId = setInterval(() => {
+      setMachines(prevMachines => {
+        if (prevMachines.length === 0) {
+          return prevMachines;
+        }
+        Promise.all(
+          prevMachines.map(async (machine) => {
+            try {
+              const state = await fetchDeviceState(machine.machine);
+              return { ...machine, state };
+            } catch (err) {
+              console.error('Error fetching device state for', machine.machine, err);
+              return machine;
+            }
+          })
+        ).then(updatedMachines => setMachines(updatedMachines));
+        return prevMachines;
+      });
     }, 5000);
-
     return () => clearInterval(intervalId);
   }, []);
 
+
+  // render page
   return (
     <div className={styles.container}>
       <Banner />
@@ -144,7 +143,7 @@ export default function Home() {
           <header className={styles.header}>GymHawk</header>
           <div className={styles.searchBarContainer}>
             <Select
-              options={GYMS}
+              options={gyms}
               onChange={handleSelect}
               placeholder="Search gyms..."
               styles={HOME_STYLE}
@@ -153,7 +152,7 @@ export default function Home() {
         </div>
         <div className={styles.mapContainer}>
           <GoogleMapReact
-            bootstrapURLKeys={{ key: MAPS_API_KEY! }}
+            bootstrapURLKeys={{ key: process.env.NEXT_PUBLIC_MAPS_API_KEY! }}
             center={center}
             defaultZoom={ZOOM_LEVEL}
             yesIWantToUseGoogleMapApiInternals
@@ -162,18 +161,15 @@ export default function Home() {
             resetBoundsOnResize={true}
             onChange={({ center }) => setCenter(center)}
           >
-            <MachineMarker
-              lat={machineACoordinates.lat}
-              lng={machineACoordinates.lng}
-              state={machineAState ? machineAState : "na"}
-              text="A"
-            />
-            <MachineMarker
-              lat={machineBCoordinates.lat}
-              lng={machineBCoordinates.lng}
-              state={machineBState ? machineBState : "na"}
-              text="B"
-            />
+          {machines.map((machineObj) => (
+              <MachineMarker
+                key={machineObj.machine}
+                lat={machineObj.lat}
+                lng={machineObj.lng}
+                state={machineObj.state ? machineObj.state : "na"}
+                machine={machineObj.machine}
+              />
+            ))}
           </GoogleMapReact>
         </div>
       </div>
