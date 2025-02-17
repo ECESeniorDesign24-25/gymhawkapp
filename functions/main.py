@@ -10,7 +10,6 @@ from iot_api_client.models import *
 from firebase_functions.params import StringParam
 import os
 import json
-import jwt
 
 # set up firebase app
 initialize_app()
@@ -45,7 +44,7 @@ def get_thing_id(machine):
 
 
 @https_fn.on_request()
-def getDeviceStates(req: https_fn.Request) -> https_fn.Response:
+def getDeviceState(req: https_fn.Request) -> https_fn.Response:
     HOST = "https://api2.arduino.cc"
     TOKEN_URL = "https://api2.arduino.cc/iot/v1/clients/token"
 
@@ -63,7 +62,6 @@ def getDeviceStates(req: https_fn.Request) -> https_fn.Response:
     # config for arduino cloud api
     client_config = Configuration(HOST)
     token = get_token()
-    print(jwt.decode(token, options={"verify_signature": False}))
     client_config.access_token = token
     client = iot.ApiClient(client_config)
 
@@ -74,19 +72,16 @@ def getDeviceStates(req: https_fn.Request) -> https_fn.Response:
     machine = req.args.get("machine")
     thing_id = get_thing_id(machine)
 
-
     property_dict = {}
     try:
         things = things_api.things_v2_list()
-        print([thing.name for thing in things])
         for thing in things:
-            if thing.name == "gymhawk":
-                print("thing name: ", thing.name)
+            if thing.name == machine:
                 properties = properties_api.properties_v2_list(id=thing_id)
 
-                print("checkpoint 2")
                 for property in properties:
                     name = property.name
+
                     if "Use" in name:
                         ptype = property.type
                         value = property.last_value
@@ -96,24 +91,24 @@ def getDeviceStates(req: https_fn.Request) -> https_fn.Response:
                             value = "on"
                         else:
                             value = "off"
-                        property_dict[name] = value
+                        property_dict["state"] = value
 
     except ApiException as e:
         return https_fn.Response(
             json.dumps({"error": e}), mimetype="application/json", status=500
         )
 
-    return https_fn.Response(
-        json.dumps(property_dict), mimetype="application/json", status=200
-    )
+    output = json.dumps(property_dict)
+    return https_fn.Response(output, mimetype="application/json", status=200)
 
 
 # for local debugging
-# if __name__ == "__main__":
-#     class DummyRequest:
-#         def __init__(self):
-#             self.method = None
-#             self.args = {"machine": "d1Green"}
-#     req = DummyRequest()
-#     print(getDeviceStates(req).data)
+if __name__ == "__main__":
 
+    class DummyRequest:
+        def __init__(self):
+            self.method = None
+            self.args = {"machine": "d1Green"}
+
+    req = DummyRequest()
+    print(getDeviceState(req).data)
