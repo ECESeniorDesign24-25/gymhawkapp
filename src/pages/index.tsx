@@ -55,7 +55,6 @@ export default function Home() {
     loadGyms();
   }, []);
 
-  
   // fetch machines on first render also
   useEffect(() => {
     async function loadMachines() {
@@ -65,7 +64,6 @@ export default function Home() {
     loadMachines();
   }, []);
 
-  
   // callback for user zoom
   useEffect(() => {
     if (map && maps) {
@@ -77,7 +75,6 @@ export default function Home() {
       };
     }
   }, [map, maps]);
-  
 
   // pan map
   const handleSelect = async (option: any) => {
@@ -106,7 +103,6 @@ export default function Home() {
       setSelectPlaceholder(option.label);
     }
   };
-
 
   // draw building outline on map change
   useEffect(() => {
@@ -181,7 +177,6 @@ export default function Home() {
     return () => clearInterval(intervalId);
   }, []);
 
-
   // render page
   return (
     <div className={styles.container}>
@@ -209,7 +204,7 @@ export default function Home() {
             resetBoundsOnResize={true}
             onChange={({ center }) => setCenter(center)}
           >
-          {machines.map((machineObj) => (
+            {machines.map((machineObj) => (
               <MachineMarker
                 key={machineObj.machine}
                 lat={machineObj.lat}
