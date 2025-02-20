@@ -48,15 +48,17 @@ def getDeviceState(req: https_fn.Request) -> https_fn.Response:
     HOST = "https://api2.arduino.cc"
     TOKEN_URL = "https://api2.arduino.cc/iot/v1/clients/token"
 
+    cors_headers = {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+    }
+
     if req.method == "OPTIONS":
         return https_fn.Response(
             "",
             status=204,
-            headers={
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type",
-            },
+            headers=cors_headers
         )
 
     # config for arduino cloud api
@@ -99,7 +101,7 @@ def getDeviceState(req: https_fn.Request) -> https_fn.Response:
         )
 
     output = json.dumps(property_dict)
-    return https_fn.Response(output, mimetype="application/json", status=200)
+    return https_fn.Response(output, mimetype="application/json", status=200, headers=cors_headers)
 
 
 # for local debugging

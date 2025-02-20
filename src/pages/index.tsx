@@ -11,23 +11,46 @@ import { MachineMarker } from '@/components/marker';
 
 const GoogleMapReact = dynamic(() => import('google-map-react'), { ssr: false });
 
-
 export default function Home() {
+
+  // states
   const [selectedOption, setSelectedOption] = useState(null);
   const [center, setCenter] = useState({ lat: 41.6611, lng: -91.5302 });
   const [buildingOutline, setBuildingOutline] = useState<any[] | null>(null);
   const [map, setMap] = useState<any>(null);
   const [maps, setMaps] = useState<any>(null);
-  const polygonRef = useRef<any>(null);
+  const [userZoomed, setUserZoomed] = useState(false);
   const [gyms, setGyms] = useState<any[]>([]);
   const [machines, setMachines] = useState<any[]>([]);
+  const [selectPlacholder, setSelectPlaceholder] = useState<any>("Select a gym");
 
+  const polygonRef = useRef<any>(null);
 
   // fetch gyms from database on first render
   useEffect(() => {
     async function loadGyms() {
       const gyms = await fetchGyms();
       setGyms(gyms || []);
+
+      // check if we have a past gym saved in the browser 
+      const lastGym = localStorage.getItem("lastGym");
+      if (lastGym) {
+        const gymData = JSON.parse(lastGym);
+        setSelectedOption(gymData);
+        const newCenter = { 
+          lat: gymData.coords.lat, 
+          lng: gymData.coords.lng 
+        };
+        setCenter(newCenter);
+  
+        if (map && maps) {
+          map.panTo(newCenter);
+        }
+  
+        let outline = gymData.building;
+        setBuildingOutline(outline);
+        setSelectPlaceholder(gymData.label);
+      }
     }
     loadGyms();
   }, []);
@@ -42,11 +65,32 @@ export default function Home() {
     loadMachines();
   }, []);
 
+  
+  // callback for user zoom
+  useEffect(() => {
+    if (map && maps) {
+      const listener = maps.event.addListener(map, 'zoom_changed', () => {
+        setUserZoomed(true);
+      });
+      return () => {
+        maps.event.removeListener(listener);
+      };
+    }
+  }, [map, maps]);
+  
 
   // pan map
   const handleSelect = async (option: any) => {
     setSelectedOption(option);
+
+    // save to browser
+    localStorage.setItem("lastGym", JSON.stringify(option));
     if (option) {
+
+      // reset zoom
+      setUserZoomed(false);
+
+      // update map center
       const newCenter = { 
         lat: option.coords.lat, 
         lng: option.coords.lng 
@@ -59,6 +103,7 @@ export default function Home() {
 
       let outline = option.building;
       setBuildingOutline(outline);
+      setSelectPlaceholder(option.label);
     }
   };
 
@@ -69,20 +114,20 @@ export default function Home() {
       if (polygonRef.current) {
         polygonRef.current.setMap(null);
       }
-
-      let convertedPath: { lat: number; lng: number }[];
+  
+      let convertedPath;
       if (Array.isArray(buildingOutline[0])) {
-        convertedPath = buildingOutline[0].map((coord: number[]) => ({
+        convertedPath = buildingOutline[0].map((coord) => ({
           lat: coord[1],
           lng: coord[0]
         }));
       } else {
-        convertedPath = buildingOutline.map((coord: number[]) => ({
+        convertedPath = buildingOutline.map((coord) => ({
           lat: coord[1],
           lng: coord[0]
         }));
       }
-
+  
       polygonRef.current = new maps.Polygon({
         paths: convertedPath,
         strokeColor: "#0000FF",
@@ -90,18 +135,21 @@ export default function Home() {
         strokeWeight: 2,
         map: map
       });
+  
+      // fit bounds if not zoomed
+      if (!userZoomed) {
+        const bounds = new maps.LatLngBounds();
+        convertedPath.forEach(coord => bounds.extend(coord));
+        bounds.extend(center);
+        map.fitBounds(bounds);
+      }
 
-      const bounds = new maps.LatLngBounds();
-      convertedPath.forEach(coord => bounds.extend(coord));
-      bounds.extend(center);
-      map.fitBounds(bounds);
     } else {
       if (!map) console.log("Map instance not set");
       if (!maps) console.log("Maps API not set");
       if (!buildingOutline) console.log("Building outline is null or undefined");
     }
-  }, [buildingOutline, map, maps, center]);
-
+  }, [buildingOutline, map, maps, center, userZoomed]);
 
   // set initial map
   const handleApiLoaded = ({ map, maps }: {map: any, maps: any}) => {
@@ -145,7 +193,7 @@ export default function Home() {
             <Select
               options={gyms}
               onChange={handleSelect}
-              placeholder="Search gyms..."
+              placeholder={selectPlacholder}
               styles={HOME_STYLE}
             />
           </div>
