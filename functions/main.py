@@ -55,11 +55,7 @@ def getDeviceState(req: https_fn.Request) -> https_fn.Response:
     }
 
     if req.method == "OPTIONS":
-        return https_fn.Response(
-            "",
-            status=204,
-            headers=cors_headers
-        )
+        return https_fn.Response("", status=204, headers=cors_headers)
 
     # config for arduino cloud api
     client_config = Configuration(HOST)
@@ -74,34 +70,44 @@ def getDeviceState(req: https_fn.Request) -> https_fn.Response:
     machine = req.args.get("machine")
     thing_id = get_thing_id(machine)
 
+    if not thing_id:
+        return https_fn.Response(
+            json.dumps({"error": "Machine not found"}),
+            mimetype="application/json",
+            status=404,
+            headers=cors_headers,
+        )
+
     property_dict = {}
     try:
-        things = things_api.things_v2_list()
-        for thing in things:
-            if thing.name == machine:
-                properties = properties_api.properties_v2_list(id=thing_id)
+        properties = properties_api.properties_v2_list(id=thing_id)
 
-                for property in properties:
-                    name = property.name
+        for property in properties:
+            name = property.name
 
-                    if "Use" in name:
-                        ptype = property.type
-                        value = property.last_value
+            if "Use" in name:
+                ptype = property.type
+                value = property.last_value
 
-                        # store states as on/off to allow for missing data state
-                        if value:
-                            value = "on"
-                        else:
-                            value = "off"
-                        property_dict["state"] = value
+                # store states as on/off to allow for missing data state
+                value = property.last_value
+                if value is None:
+                    property_dict["state"] = "unknown"
+                else:
+                    property_dict["state"] = "on" if value else "off"
 
     except ApiException as e:
         return https_fn.Response(
-            json.dumps({"error": e}), mimetype="application/json", status=500
+            json.dumps({"error": e}),
+            mimetype="application/json",
+            status=500,
+            headers=cors_headers,
         )
 
     output = json.dumps(property_dict)
-    return https_fn.Response(output, mimetype="application/json", status=200, headers=cors_headers)
+    return https_fn.Response(
+        output, mimetype="application/json", status=200, headers=cors_headers
+    )
 
 
 # for local debugging
