@@ -29,7 +29,7 @@ export default function Banner() {
         {isAuthenticated && (
           <button 
             onClick={handleLogout} 
-            className={styles.navLink}
+            className={`${styles.navLink} ${styles.logoutButton}`}
           >
             Logout
           </button>
