@@ -19,7 +19,11 @@ export default function Login() {
       await signInWithEmailAndPassword(auth, email, password);
       router.push("/"); // Redirect on successful login
     } catch (err: any) {
-      setError(err.message);
+      if (err.code === 'auth/invalid-credential') {
+        setError("Invalid email or password");
+      } else {
+        setError(err.message);
+      }
     }
   };
 
@@ -72,6 +76,17 @@ export default function Login() {
             className={`${styles.button} ${styles.goldButton}`}
           >
             Sign in with Google
+          </button>
+
+          <div className={styles.divider}>
+            <span>Need an account?</span>
+          </div>
+
+          <button 
+            onClick={() => router.push('/create-account')} 
+            className={`${styles.button} ${styles.blackButton}`}
+          >
+            Create Account
           </button>
         </div>
       </div>

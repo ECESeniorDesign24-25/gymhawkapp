@@ -82,6 +82,17 @@ export default function CreateAccount() {
           >
             Sign up with Google
           </button>
+
+          <div className={styles.divider}>
+            <span>Already have an account?</span>
+          </div>
+
+          <button 
+            onClick={() => router.push('/login')} 
+            className={`${styles.button} ${styles.blackButton}`}
+          >
+            Login
+          </button>
         </div>
       </div>
     </div>
