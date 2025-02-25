@@ -8,6 +8,7 @@ import { HOME_STYLE, DARK_MAP_THEME, ZOOM_LEVEL } from '@/styles/customStyles';
 import { fetchGyms, fetchMachines } from '@/utils/db';
 import { fetchDeviceState } from '@/utils/cloudAPI';
 import { MachineMarker } from '@/components/marker';
+import { RequireAuth } from '@/components/requireAuth';
 
 const GoogleMapReact = dynamic(() => import('google-map-react'), { ssr: false });
 
@@ -179,44 +180,46 @@ export default function Home() {
 
   // render page
   return (
-    <div className={styles.container}>
-      <Banner />
-      <div className="flex flex-col md:flex-row items-start justify-between">
-        <div className={styles.headerSearchContainer}>
-          <header className={styles.header}>GymHawk</header>
-          <div className={styles.searchBarContainer}>
-            <Select
-              options={gyms}
-              onChange={handleSelect}
-              placeholder={selectPlacholder}
-              styles={HOME_STYLE}
-            />
+    <RequireAuth>
+      <div className={styles.container}>
+        <Banner />
+        <div className="flex flex-col md:flex-row items-start justify-between">
+          <div className={styles.headerSearchContainer}>
+            <header className={styles.header}>GymHawk</header>
+            <div className={styles.searchBarContainer}>
+              <Select
+                options={gyms}
+                onChange={handleSelect}
+                placeholder={selectPlacholder}
+                styles={HOME_STYLE}
+              />
+            </div>
+          </div>
+          <div className={styles.mapContainer}>
+            <GoogleMapReact
+              bootstrapURLKeys={{ key: process.env.NEXT_PUBLIC_MAPS_API_KEY! }}
+              center={center}
+              defaultZoom={ZOOM_LEVEL}
+              yesIWantToUseGoogleMapApiInternals
+              options={DARK_MAP_THEME}
+              onGoogleApiLoaded={handleApiLoaded}
+              resetBoundsOnResize={true}
+              onChange={({ center }) => setCenter(center)}
+            >
+              {machines.map((machineObj) => (
+                <MachineMarker
+                  key={machineObj.machine}
+                  lat={machineObj.lat}
+                  lng={machineObj.lng}
+                  state={machineObj.state ? machineObj.state : "na"}
+                  machine={machineObj.machine}
+                />
+              ))}
+            </GoogleMapReact>
           </div>
         </div>
-        <div className={styles.mapContainer}>
-          <GoogleMapReact
-            bootstrapURLKeys={{ key: process.env.NEXT_PUBLIC_MAPS_API_KEY! }}
-            center={center}
-            defaultZoom={ZOOM_LEVEL}
-            yesIWantToUseGoogleMapApiInternals
-            options={DARK_MAP_THEME}
-            onGoogleApiLoaded={handleApiLoaded}
-            resetBoundsOnResize={true}
-            onChange={({ center }) => setCenter(center)}
-          >
-            {machines.map((machineObj) => (
-              <MachineMarker
-                key={machineObj.machine}
-                lat={machineObj.lat}
-                lng={machineObj.lng}
-                state={machineObj.state ? machineObj.state : "na"}
-                machine={machineObj.machine}
-              />
-            ))}
-          </GoogleMapReact>
-        </div>
+        <Footer />
       </div>
-      <Footer />
-    </div>
+    </RequireAuth>
   );
 }
