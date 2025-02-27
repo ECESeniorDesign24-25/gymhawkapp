@@ -64,7 +64,7 @@ export default function Home() {
 
   const handleAdminApplication = () => {
     // Create a mailto link with pre-filled subject and body
-    const email = 'user@example.com';
+    const email = 'eceseniordesign20242025@gmail.com';
     const subject = 'Admin Access Request';
     const body = `User Email: ${user?.email}\n\nI would like to request admin access to GymHawk.`;
     window.location.href = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
