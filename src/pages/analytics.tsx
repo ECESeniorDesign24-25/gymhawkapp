@@ -6,17 +6,15 @@ import styles from '@/styles/index.module.css';
 import { HOME_STYLE, DARK_MAP_THEME, ZOOM_LEVEL } from '@/styles/customStyles';
 import { fetchGyms, fetchMachines } from '@/utils/db';
 import { fetchDeviceState } from '@/utils/cloudAPI';
+import { useAuth } from '@/lib/auth';
+import MachineUsageChart from '@/components/usage-chart';
 
 
 export default function Home() {
-  const [selectedOption, setSelectedOption] = useState(null);
-  const [center, setCenter] = useState({ lat: 41.6611, lng: -91.5302 });
-  const [buildingOutline, setBuildingOutline] = useState<any[] | null>(null);
-  const [map, setMap] = useState<any>(null);
-  const [maps, setMaps] = useState<any>(null);
-  const polygonRef = useRef<any>(null);
+  const [activeTab, setActiveTab] = useState('user');
   const [gyms, setGyms] = useState<any[]>([]);
   const [machines, setMachines] = useState<any[]>([]);
+  const { user, isAdmin } = useAuth();
 
 
   // fetch gyms from database on first render
@@ -39,21 +37,12 @@ export default function Home() {
   }, []);
 
 
-  // selection
-  const handleSelect = async (option: any) => {
-    setSelectedOption(option);
-  };
-
-
   // poll machine states every 5s and update dict
   useEffect(() => {
-    const intervalId = setInterval(() => {
-      setMachines(prevMachines => {
-        if (prevMachines.length === 0) {
-          return prevMachines;
-        }
-        Promise.all(
-          prevMachines.map(async (machine) => {
+    const intervalId = setInterval(async () => {
+      const updateMachineStates = async () => {
+        const updatedMachines = await Promise.all(
+          machines.map(async (machine) => {
             try {
               const state = await fetchDeviceState(machine.machine);
               return { ...machine, state };
@@ -62,31 +51,107 @@ export default function Home() {
               return machine;
             }
           })
-        ).then(updatedMachines => setMachines(updatedMachines));
-        return prevMachines;
-      });
-    }, 5000);
+        );
+        setMachines(updatedMachines);
+      };
+
+      updateMachineStates();
+    }, 1000);
+
     return () => clearInterval(intervalId);
-  }, []);
+  }, [machines]);
+
+
+  const handleAdminApplication = () => {
+    // Create a mailto link with pre-filled subject and body
+    const email = 'user@example.com';
+    const subject = 'Admin Access Request';
+    const body = `User Email: ${user?.email}\n\nI would like to request admin access to GymHawk.`;
+    window.location.href = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  };
 
 
   // render page
   return (
     <div className={styles.container}>
       <Banner />
-      <div className="flex flex-col md:flex-row items-start justify-between">
-        <div className={styles.headerSearchContainer}>
-          <header className={styles.header}>GymHawk</header>
-          <div className={styles.searchBarContainer}>
-            <Select
-              options={gyms}
-              onChange={handleSelect}
-              placeholder="Search gyms..."
-              styles={HOME_STYLE}
-            />
+      <div style={{ display: 'flex', flexDirection: 'row', minHeight: '100vh' }}>
+  <div
+    className={styles.sidebar}
+    style={{ width: '250px', flexShrink: 0, backgroundColor: '#f0f0f0' }}
+  >
+    <button 
+      className={`${styles.tabButton} ${activeTab === 'user' ? styles.activeTab : ''}`}
+      onClick={() => setActiveTab('user')}
+    >
+      User Analytics
+    </button>
+    {isAdmin ? (
+      <button 
+        className={`${styles.tabButton} ${activeTab === 'admin' ? styles.activeTab : ''}`}
+        onClick={() => setActiveTab('admin')}
+      >
+        Admin Analytics
+      </button>
+    ) : (
+      <button 
+        className={styles.adminRequestButton}
+        onClick={handleAdminApplication}
+      >
+        Apply for Admin Access
+      </button>
+    )}
+  </div>
+  <div
+    className={styles.mainContent}
+    style={{
+      flexGrow: 1,
+      backgroundColor: '#fff',
+      padding: '0 20px',
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'center' // vertically centers the content
+    }}
+  >
+    <div className={styles.searchBarContainer} style={{ marginBottom: '20px' }}>
+      <Select
+        options={gyms}
+        placeholder="Search gyms..."
+        styles={HOME_STYLE}
+      />
+    </div>
+    {activeTab === 'user' && (
+      <div className={styles.userAnalytics}>
+        <MachineUsageChart />
+        <h2>Machine Status</h2>
+        {machines.map(machine => (
+          <div key={machine.id} className={styles.machineStatus}>
+            <h3>{machine.name}</h3>
+            <p>
+              Current State:{" "}
+              {machine.state instanceof Promise ? 'Loading...' : machine.state}
+            </p>
+            <p>
+              Last Used:{" "}
+              {machine.lastUsed instanceof Promise ? 'Loading...' : machine.lastUsed}
+            </p>
           </div>
-        </div>
+        ))}
       </div>
+    )}
+    {activeTab === 'admin' && isAdmin && (
+      <div className={styles.adminAnalytics}>
+        <h2>Daily Usage Statistics</h2>
+        {machines.map(machine => (
+          <div key={machine.id} className={styles.machineUsage}>
+            <h3>{machine.name}</h3>
+            <p>Usage Rate: {machine.usagePercentage}%</p>
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
+</div>
       <Footer />
     </div>
   );
