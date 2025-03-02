@@ -8,6 +8,7 @@ import { fetchGyms, fetchMachines } from '@/utils/db';
 import { fetchDeviceState } from '@/utils/cloudAPI';
 import { useAuth } from '@/lib/auth';
 import MachineUsageChart from '@/components/usage-chart';
+import AdminUsageChart from "@/components/daily-usage-chart";
 
 
 export default function Home() {
@@ -110,7 +111,7 @@ export default function Home() {
       padding: '0 20px',
       display: 'flex',
       flexDirection: 'column',
-      justifyContent: 'center' // vertically centers the content
+      justifyContent: 'center'
     }}
   >
     <div className={styles.searchBarContainer} style={{ marginBottom: '20px' }}>
@@ -124,9 +125,10 @@ export default function Home() {
       <div className={styles.userAnalytics}>
         <MachineUsageChart />
         <h2>Machine Status</h2>
+        &nbsp;
         {machines.map(machine => (
           <div key={machine.id} className={styles.machineStatus}>
-            <h3>{machine.name}</h3>
+            <h3>{machine.machine}</h3>
             <p>
               Current State:{" "}
               {machine.state instanceof Promise ? 'Loading...' : machine.state}
@@ -141,10 +143,12 @@ export default function Home() {
     )}
     {activeTab === 'admin' && isAdmin && (
       <div className={styles.adminAnalytics}>
+        <AdminUsageChart />
         <h2>Daily Usage Statistics</h2>
+        &nbsp;
         {machines.map(machine => (
           <div key={machine.id} className={styles.machineUsage}>
-            <h3>{machine.name}</h3>
+            <h3>{machine.machine}</h3>
             <p>Usage Rate: {machine.usagePercentage}%</p>
           </div>
         ))}
