@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import {redirect} from "next/navigation";
 
 interface MachineMarkerProps {
     lat: number;
@@ -58,8 +59,8 @@ export const MachineMarker = ({ lat, lng, state, machine }: MachineMarkerProps) 
 
   return (
     <div style={{ position: 'relative' }} onMouseEnter={() => setShowPopup(true)} onMouseLeave={() => setShowPopup(false)}>
-      <div style={markerStyle} onClick={() => setShowPopup(!showPopup)}>
-        <img src="/gym-icon.webp" alt="Marker" style={imageStyle} />
+      <div style={markerStyle} onClick={() => window.location.href = "/analytics"}>
+        <img src="/gym-icon.webp" alt="Marker" style={imageStyle}/>
       </div>
       {showPopup && (
         <div style={popupStyle}>

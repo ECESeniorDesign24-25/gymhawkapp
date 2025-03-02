@@ -223,10 +223,11 @@
   cursor: pointer;
   font-size: 1rem;
   transition: background-color 0.3s ease;
+  background-color: #FFCD00FF;
 }
 
 .tabButton:hover {
-  background-color: #e5e7eb;
+  background-color: #2f2f3a;
 }
 
 .activeTab {

@@ -36,17 +36,40 @@ const MachineUsageChart = () => {
   };
 
   // Update the chart data periodically (every minute)
-  useEffect(() => {
-    const updateChart = async () => {
-      const now = new Date();
-      const state = await fetchMachineState();
-      setUsageData((prevData) => [...prevData, { time: now, state }]);
-    };
+  // useEffect(() => {
+  //   const updateChart = async () => {
+  //     const now = new Date();
+  //     const state = await fetchMachineState();
+  //     setUsageData((prevData) => [...prevData, { time: now, state }]);
+  //   };
 
-    // Get an initial data point
-    updateChart();
-    const intervalId = setInterval(updateChart, 60000);
-    return () => clearInterval(intervalId);
+  //   // Get an initial data point
+  //   updateChart();
+  //   const intervalId = setInterval(updateChart, 60000);
+  //   return () => clearInterval(intervalId);
+  // }, []);
+   // Create artificial data points for debugging
+   useEffect(() => {
+    const now = new Date();
+    // Start at 6 AM
+    let currentTime = new Date(now.setHours(6, 0, 0, 0));
+    const debugData = [];
+    
+    // Start with machine off
+    debugData.push({ time: currentTime, state: 0 });
+    
+    // Generate random on/off cycles throughout the day
+    while (currentTime.getHours() < 16) { // Until 4 PM
+      // Random duration between 30 mins to 2.5 hours for each state
+      const durationMinutes = Math.floor(Math.random() * (150 - 30 + 1) + 30);
+      currentTime = new Date(currentTime.getTime() + durationMinutes * 60 * 1000);
+      
+      // Add type annotation for prevState
+      const prevState: number = debugData[debugData.length - 1].state;
+      debugData.push({ time: currentTime, state: prevState === 0 ? 1 : 0 });
+    }
+
+    setUsageData(debugData);
   }, []);
 
   // Calculate dynamic x-axis boundaries
@@ -64,6 +87,7 @@ const MachineUsageChart = () => {
         borderColor: 'rgb(0, 0, 0)',
         tension: 0.1,
         stepped: true,
+        pointRadius: 0,
       },
     ],
   };
@@ -92,7 +116,10 @@ const MachineUsageChart = () => {
         ticks: {
           stepSize: 1,
           callback: function(this: any, tickValue: number | string) {
-            return Number(tickValue) === 1 ? "On" : "Off";
+            // Only show labels for 0 and 1
+            if (Number(tickValue) === 0) return "Off";
+            if (Number(tickValue) === 1) return "On";
+            return ""; // Return empty string for boundary values (-0.1 and 1.1)
           }
         },
         title: {
