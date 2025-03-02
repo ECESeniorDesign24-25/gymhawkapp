@@ -1,13 +1,15 @@
+// auth.tsx
 import { createContext, useContext, ReactNode, useState, useEffect } from 'react';
-import { auth } from './firebase';
+import { auth, db } from './firebase';
 import { useRouter } from 'next/router';
 import { User } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
 
 interface AuthContextType {
   isAuthenticated: boolean;
   logout: () => Promise<void>;
   loading: boolean;
-  user: any;
+  user: User | null;
   isAdmin: boolean;
 }
 
@@ -16,7 +18,7 @@ const AuthContext = createContext<AuthContextType>({
   logout: async () => {},
   loading: true,
   user: null,
-  isAdmin: false
+  isAdmin: false,
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -33,6 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(null);
       setIsAdmin(false);
       router.push('/login');
+      router.replace('/login');
     } catch (error) {
       console.error('Logout error:', error);
       throw error;
@@ -44,10 +47,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsAuthenticated(!!user);
       setUser(user);
       setLoading(false);
-      
+
       if (user) {
-        const token = await user.getIdTokenResult();
-        setIsAdmin(!!token.claims.admin);
+        // Reference to the admin document with the user's UID
+        const adminDocRef = doc(db, "admins", user.uid);
+        const adminDocSnap = await getDoc(adminDocRef);
+        // Set isAdmin to true if the document exists and has isAdmin: true
+        setIsAdmin(adminDocSnap.exists() && adminDocSnap.data().isAdmin === true);
       } else {
         setIsAdmin(false);
       }
@@ -57,12 +63,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, logout, loading, user, isAdmin }}>
-      {children}
-    </AuthContext.Provider>
+      <AuthContext.Provider value={{ isAuthenticated, logout, loading, user, isAdmin }}>
+        {children}
+      </AuthContext.Provider>
   );
 }
 
 export function useAuth() {
   return useContext(AuthContext);
-} 
+}
