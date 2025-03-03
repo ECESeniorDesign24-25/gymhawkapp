@@ -1,6 +1,10 @@
-export async function fetchDeviceState(machine: string) {
+export async function fetchDeviceState(machine: string, signal?: AbortSignal) {
   try {
-    const response = await fetch(`https://gymhawk-2ed7f.web.app/api/getDeviceState?machine=${machine}`);
+    const response = await fetch(`https://gymhawk-2ed7f.web.app/api/getDeviceState?machine=${machine}`, { signal });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
 
     // decode to utf8
     const buffer = await response.arrayBuffer();
@@ -8,8 +12,12 @@ export async function fetchDeviceState(machine: string) {
     const data = JSON.parse(utf8Text);
 
     return data.state;
-  } catch (err) {
-    console.error('Failed to fetch data:', err);
-    throw err;
+  } catch (err: any) {
+    if (err.name === 'AbortError') {
+      console.log('Fetch aborted for machine:', machine);
+    } else {
+      console.error('Failed to fetch device state:', err);
+      return "loading";
+    }
   }
 }

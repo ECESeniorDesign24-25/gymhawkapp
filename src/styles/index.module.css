@@ -264,6 +264,20 @@
   margin-bottom: 1rem;
 }
 
+.machineInUse {
+  background-color: rgba(139, 0, 0, 0.75);  /* darkred with 75% opacity */
+  border-bottom: 3px solid #dc2626;  /* red border */
+}
+
+.machineAvailable {
+  background-color: rgba(0, 100, 0, 0.75);  /* darkgreen with 75% opacity */
+  border-bottom: 3px solid #16a34a;  /* green border */
+}
+
+.machineUnknown {
+  border-bottom: 3px solid #9ca3af;  /* gray border for unknown state */
+}
+
 .userAnalytics, .adminAnalytics {
   margin-top: 1rem;
 }
