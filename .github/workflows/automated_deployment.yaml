@@ -1,0 +1,30 @@
+name: Deployment
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  deployment:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '23'
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Ensure deploy script is executable
+        run: chmod +x ./scripts/deploy.sh
+
+      - name: Run Deployment Script
+        run: ./scripts/deploy.sh
