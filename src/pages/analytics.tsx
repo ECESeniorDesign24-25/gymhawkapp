@@ -38,30 +38,35 @@ export default function Home() {
   }, []);
 
 
-  // poll machine states every 5s and update dict
-  useEffect(() => {
-    const intervalId = setInterval(async () => {
-      const updateMachineStates = async () => {
-        const updatedMachines = await Promise.all(
-          machines.map(async (machine) => {
-            try {
-              const state = await fetchDeviceState(machine.machine);
-              return { ...machine, state };
-            } catch (err) {
-              console.error('Error fetching device state for', machine.machine, err);
-              return machine;
-            }
-          })
-        );
-        setMachines(updatedMachines);
-      };
+ // poll machine states every 1s and update dict
+ useEffect(() => {
+  const controller = new AbortController();
+  const intervalId = setInterval(() => {
+    setMachines(prevMachines => {
+      // return empty if no machines
+      if (prevMachines.length === 0) {
+        return prevMachines;
+      }
+      Promise.all(
+        prevMachines.map(async (machine) => {
+          try {
+            const state = await fetchDeviceState(machine.machine, controller.signal);
+            // return existing machine properties plus updated state
+            return { ...machine, state };
+          } catch (err) {
+            console.error('Error fetching device state for', machine.machine, err);
+            return machine;
+          }
+        })
+      ).then(updatedMachines => setMachines(updatedMachines));
+      
+      // updates are async return old when processing
+      return prevMachines;
+    });
+  }, 1000);
 
-      updateMachineStates();
-    }, 1000);
-
-    return () => clearInterval(intervalId);
-  }, [machines]);
-
+  return () => clearInterval(intervalId);
+}, []);
 
   const handleAdminApplication = () => {
     // Create a mailto link with pre-filled subject and body
@@ -126,19 +131,40 @@ export default function Home() {
         <MachineUsageChart />
         <h2>Machine Status</h2>
         &nbsp;
-        {machines.map(machine => (
-          <div key={machine.id} className={styles.machineStatus}>
-            <h3>{machine.machine}</h3>
-            <p>
-              Current State:{" "}
-              {machine.state instanceof Promise ? 'Loading...' : machine.state}
-            </p>
-            <p>
-              Last Used:{" "}
-              {machine.lastUsed instanceof Promise ? 'Loading...' : machine.lastUsed}
-            </p>
-          </div>
-        ))}
+        {machines.map(machine => {
+          const state = machine.state instanceof Promise ? 'loading' : machine.state;
+          let bgColor;
+          let statusText;
+          let machineClass;
+
+          if (state === 'off') {
+            machineClass = styles.machineAvailable;
+            statusText = 'Available';
+          } else if (state === 'on') {
+            machineClass = styles.machineInUse;
+            statusText = 'In Use';
+          } else {
+            machineClass = styles.machineUnknown;
+            statusText = state === 'loading' ? 'Loading...' : 'Unknown';
+          }
+
+          return (
+            <div 
+              key={machine.id} 
+              className={`${styles.machineStatus} ${machineClass}`}
+            >
+              <h3 className="text-lg font-bold">{machine.machine}</h3>
+              <p className="mt-2">
+                Status: <span className="font-bold">{statusText}</span>
+              </p>
+              <p className="mt-1 font-bold">
+                Last Used:{" "}
+                {machine.lastUsed instanceof Promise ? 'Loading...' : machine.lastUsed}
+              </p>
+            </div>
+          );
+        })}
+
       </div>
     )}
     {activeTab === 'admin' && isAdmin && (

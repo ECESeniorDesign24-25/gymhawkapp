@@ -154,17 +154,20 @@ export default function Home() {
     setMaps(maps);
   };
 
-  // poll machine states every 5s and update dict
+  // poll machine states every 1s and update dict
   useEffect(() => {
+    const controller = new AbortController();
     const intervalId = setInterval(() => {
       setMachines(prevMachines => {
+        // return empty if no machines
         if (prevMachines.length === 0) {
           return prevMachines;
         }
         Promise.all(
           prevMachines.map(async (machine) => {
             try {
-              const state = await fetchDeviceState(machine.machine);
+              const state = await fetchDeviceState(machine.machine, controller.signal);
+              // return existing machine properties plus updated state
               return { ...machine, state };
             } catch (err) {
               console.error('Error fetching device state for', machine.machine, err);
@@ -172,9 +175,13 @@ export default function Home() {
             }
           })
         ).then(updatedMachines => setMachines(updatedMachines));
+        
+        // updates are async return old when processing
         return prevMachines;
       });
-    }, 5000);
+    }, 1000);
+
+    // Cleanup function to clear the interval when component unmounts
     return () => clearInterval(intervalId);
   }, []);
 

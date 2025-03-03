@@ -9,7 +9,7 @@ import {
   Tooltip,
   Legend,
   Filler,
-  TimeScale,
+  TimeScale
 } from "chart.js";
 import { Line } from "react-chartjs-2";
 import 'chartjs-adapter-date-fns';
@@ -83,12 +83,33 @@ const MachineUsageChart = () => {
       {
         label: 'Machine Usage',
         data: usageData.map((point) => ({ x: point.time, y: point.state })),
-        fill: false,
-        borderColor: 'rgb(0, 0, 0)',
+        fill: {
+          target: 'origin',
+          above: 'rgba(0, 100, 0, 0.1)',  // green fill from bottom when available
+          below: 'rgba(0, 0, 0, 0)'
+        },
+        segment: {
+          borderColor: 'black',
+        },
         tension: 0.1,
         stepped: true,
         pointRadius: 0,
       },
+      {
+        data: usageData.map((point) => ({ x: point.time, y: point.state })),
+        fill: {
+          target: {
+            value: 1  // Fill down from y=1
+          },
+          above: 'rgba(0, 0, 0, 0)',
+          below: 'rgba(139, 0, 0, 0.1)'  // red fill from top when in use
+        },
+        borderWidth: 0,
+        tension: 0.1,
+        stepped: true,
+        pointRadius: 0,
+        showLine: false
+      }
     ],
   };
 
@@ -117,14 +138,14 @@ const MachineUsageChart = () => {
           stepSize: 1,
           callback: function(this: any, tickValue: number | string) {
             // Only show labels for 0 and 1
-            if (Number(tickValue) === 0) return "Off";
-            if (Number(tickValue) === 1) return "On";
+            if (Number(tickValue) === 0) return "In Use";
+            if (Number(tickValue) === 1) return "Available";
             return ""; // Return empty string for boundary values (-0.1 and 1.1)
           }
         },
         title: {
           display: true,
-          text: 'Usage (On/Off)',
+          text: 'Usage',
         },
       },
     },
@@ -133,8 +154,43 @@ const MachineUsageChart = () => {
         display: true,
         text: 'Machine Usage Over the Day',
       },
+      tooltip: {
+        enabled: true,
+        mode: 'index' as const,
+        intersect: false,
+        backgroundColor: function(context: any) {
+          const value = context.tooltip.dataPoints[0].raw.y;
+          return value === 1 ? 'rgba(0, 100, 0, 0.75)' : 'rgba(139, 0, 0, 0.75)';
+        },
+        titleColor: 'white',
+        bodyColor: 'white',
+        padding: 10,
+        callbacks: {
+          // show time on hover
+          title: function(tooltipItems: any[]) {
+            if (tooltipItems.length > 0) {
+              const time = new Date(tooltipItems[0].raw.x).toLocaleTimeString([], { 
+                hour: '2-digit', 
+                minute: '2-digit' 
+              });
+              return `Time: ${time}`;
+            }
+            return '';
+          },
+          // show status on hover
+          label: function(tooltipItem: any) {
+            
+            // get status from first "dataset"
+            if (tooltipItem.datasetIndex === 0) {
+              const value = tooltipItem.raw.y;
+              return value === 1 ? 'Status: Available' : 'Status: In Use';
+            }
+            return '';
+          }
+        }
+      },
       legend: {
-        position: 'top' as const,
+        display: false
       },
     },
   };

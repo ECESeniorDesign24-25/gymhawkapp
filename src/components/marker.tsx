@@ -11,9 +11,9 @@ interface MachineMarkerProps {
 // marker for device on map
 export const MachineMarker = ({ lat, lng, state, machine }: MachineMarkerProps) => {
   let backgroundColor = 'grey';
-  if (state === "off") {
+  if (state === "on") {
     backgroundColor = 'red';
-  } else if (state === "on") {
+  } else if (state === "off") {
     backgroundColor = 'green';
   }
   
