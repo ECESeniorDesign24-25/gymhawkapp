@@ -3,7 +3,7 @@ export async function fetchDeviceState(machine: string, signal?: AbortSignal) {
     const response = await fetch(`https://gymhawk-2ed7f.web.app/api/getDeviceState?machine=${machine}`, { signal });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      return "loading";
     }
 
     // decode to utf8
