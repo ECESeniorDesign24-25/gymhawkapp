@@ -1,20 +1,25 @@
 from oauthlib.oauth2 import BackendApplicationClient
 from requests_oauthlib import OAuth2Session
-from firebase_functions import https_fn
+from firebase_functions import https_fn, scheduler_fn
 from firebase_admin import initialize_app, firestore
 import iot_api_client as iot
 from iot_api_client.rest import ApiException
 from iot_api_client.configuration import Configuration
-from iot_api_client.api import ThingsV2Api, PropertiesV2Api, SeriesV2Api
+from iot_api_client.api import PropertiesV2Api
 from iot_api_client.models import *
 from firebase_functions.params import StringParam
 import os
 import json
 from google.cloud.sql.connector import Connector, IPTypes
-import pg8000
 from sqlalchemy import create_engine, text
-import time 
 from dotenv import load_dotenv
+from datetime import datetime, timezone
+from google.cloud import logging
+
+logging_client = logging.Client()
+log_name = "cron-logs"
+cron_logger = logging_client.logger(log_name)
+
 load_dotenv('.env.gymhawk-2ed7f') 
 
 # set up firebase app
@@ -30,6 +35,11 @@ DB_PASS = os.environ.get("DB_PASS") or StringParam("DB_PASS").value
 DB_INSTANCE_NAME = os.environ.get("DB_INSTANCE_NAME") or StringParam("DB_INSTANCE_NAME").value
 
 connection_pool = None
+
+class ManualRequest:
+    def __init__(self, thing_id: str):
+        self.method = None
+        self.args = {"thing_id": thing_id}
 
 
 # =============================================================================
@@ -86,6 +96,7 @@ def test_connection():
 def write_state_to_db(thing_id, state, timestamp):
     try:
         engine = init_db_connection()
+        cron_logger.log_text(f"Adding time step for {thing_id}. Time: {timestamp}")
         with engine.connect() as conn:
             conn.execute(
                 text(
@@ -98,6 +109,7 @@ def write_state_to_db(thing_id, state, timestamp):
     except Exception as e:
         print(f"Error writing to db: {e}")
         raise 
+
 
 
 # Adapted from: https://github.com/arduino/iot-client-py/blob/master/example/main.py
@@ -152,8 +164,7 @@ def getDeviceState(req: https_fn.Request) -> https_fn.Response:
     client = iot.ApiClient(client_config)
     properties_api = PropertiesV2Api(client)
 
-    machine = req.args.get("machine")
-    thing_id = get_thing_id(machine)
+    thing_id = req.args.get("thing_id")
     if not thing_id:
         return https_fn.Response(
             json.dumps({"error": "Machine not found"}),
@@ -180,23 +191,17 @@ def getDeviceState(req: https_fn.Request) -> https_fn.Response:
     return https_fn.Response(output, mimetype="application/json", status=200, headers=cors_headers)
 
 
-# =============================================================================
-# local debug
-# =============================================================================
+# cron job to add a time step to the database for each machine every 2 minutes
+@scheduler_fn.on_schedule(schedule="*/2 * * * *")
+def addTimeStep(event: scheduler_fn.ScheduledEvent) -> None:
+    thing_ids = db.collection("thing_ids").list_documents()
+    thing_ids = [thing_id.id for thing_id in thing_ids]
 
-if __name__ == "__main__":
+    for thing_id in thing_ids:
+        timestamp = datetime.now(timezone.utc).isoformat()
+        req = ManualRequest(thing_id=thing_id)
+        state = json.loads(getDeviceState(req).data.decode('utf-8')).get("state")
 
-    class DummyRequest:
-        def __init__(self):
-            self.method = None
-            self.args = {"machine": "d1Green"}
-
-    req = DummyRequest()
-    print(getDeviceState(req).data)
-
-    test_machine = "d1Green"
-    test_state = "on"
-    test_timestamp = int(time.time())
-    test_connection()
-
-
+        # only write if on or off
+        if state in ["on", "off"]:
+            write_state_to_db(thing_id, state, timestamp)

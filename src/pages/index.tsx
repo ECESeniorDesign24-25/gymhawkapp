@@ -23,7 +23,7 @@ export default function Home() {
   const [userZoomed, setUserZoomed] = useState(false);
   const [gyms, setGyms] = useState<any[]>([]);
   const [machines, setMachines] = useState<any[]>([]);
-  const [selectPlacholder, setSelectPlaceholder] = useState<any>("Select a gym");
+  const [selectPlaceholder, setSelectPlaceholder] = useState<any>("Select a gym");
 
   const polygonRef = useRef<any>(null);
 
@@ -197,7 +197,7 @@ export default function Home() {
               <Select
                 options={gyms}
                 onChange={handleSelect}
-                placeholder={selectPlacholder}
+                placeholder={selectPlaceholder}
                 styles={HOME_STYLE}
               />
             </div>

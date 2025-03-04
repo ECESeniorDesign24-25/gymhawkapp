@@ -3,7 +3,7 @@ import Select from 'react-select';
 import Footer from '@/components/footer';
 import Banner from '@/components/banner';
 import styles from '@/styles/index.module.css';
-import { HOME_STYLE, DARK_MAP_THEME, ZOOM_LEVEL } from '@/styles/customStyles';
+import { HOME_STYLE } from '@/styles/customStyles';
 import { fetchGyms, fetchMachines } from '@/utils/db';
 import { fetchDeviceState } from '@/utils/cloudAPI';
 import { useAuth } from '@/lib/auth';
@@ -11,11 +11,13 @@ import MachineUsageChart from '@/components/usage-chart';
 import AdminUsageChart from "@/components/daily-usage-chart";
 
 
-export default function Home() {
+export default function Analytics() {
+  const [selectedOption, setSelectedOption] = useState(null);
   const [activeTab, setActiveTab] = useState('user');
   const [gyms, setGyms] = useState<any[]>([]);
   const [machines, setMachines] = useState<any[]>([]);
   const { user, isAdmin } = useAuth();
+  const [selectPlaceholder, setSelectPlaceholder] = useState<any>("Select a gym");
 
 
   // fetch gyms from database on first render
@@ -23,6 +25,14 @@ export default function Home() {
     async function loadGyms() {
       const gyms = await fetchGyms();
       setGyms(gyms || []);
+
+      // check if we have a past gym saved in the browser 
+      const lastGym = localStorage.getItem("lastGym");
+      if (lastGym) {
+        const gymData = JSON.parse(lastGym);
+        setSelectedOption(gymData);
+        setSelectPlaceholder(gymData.label);
+      }
     }
     loadGyms();
   }, []);
@@ -122,7 +132,7 @@ export default function Home() {
     <div className={styles.searchBarContainer} style={{ marginBottom: '20px' }}>
       <Select
         options={gyms}
-        placeholder="Search gyms..."
+        placeholder={selectPlaceholder}
         styles={HOME_STYLE}
       />
     </div>
