@@ -157,6 +157,9 @@ export default function Home() {
   // poll machine states every 1s and update dict
   useEffect(() => {
     const controller = new AbortController();
+
+    // store old states
+    const oldStates: any = {};
     const intervalId = setInterval(() => {
       setMachines(prevMachines => {
         // return empty if no machines
@@ -166,9 +169,15 @@ export default function Home() {
         Promise.all(
           prevMachines.map(async (machine) => {
             try {
-              const state = await fetchDeviceState(machine.machine, controller.signal);
-              // return existing machine properties plus updated state
-              return { ...machine, state };
+              const state = await fetchDeviceState(machine.machine, controller.signal, oldStates[machine.machine]);
+
+              // store new state with old state
+              const newState = { ...machine, state, oldState: oldStates[machine.machine] };
+
+              // update old state
+              oldStates[machine.machine] = state;
+
+              return newState;
             } catch (err) {
               console.error('Error fetching device state for', machine.machine, err);
               return machine;
