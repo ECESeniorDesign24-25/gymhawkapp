@@ -18,6 +18,7 @@ export default function Analytics() {
   const [machines, setMachines] = useState<any[]>([]);
   const { user, isAdmin } = useAuth();
   const [selectPlaceholder, setSelectPlaceholder] = useState<any>("Select a gym");
+  const [oldStates, setOldStates] = useState<any>({});
 
 
   // fetch gyms from database on first render
@@ -51,6 +52,7 @@ export default function Analytics() {
  // poll machine states every 1s and update dict
  useEffect(() => {
   const controller = new AbortController();
+  const oldStates: any = {};
   const intervalId = setInterval(() => {
     setMachines(prevMachines => {
       // return empty if no machines
@@ -60,9 +62,15 @@ export default function Analytics() {
       Promise.all(
         prevMachines.map(async (machine) => {
           try {
-            const state = await fetchDeviceState(machine.machine, controller.signal);
+            const state = await fetchDeviceState(machine.machine, controller.signal, oldStates[machine.machine]);
+            
             // return existing machine properties plus updated state
-            return { ...machine, state };
+            const newState = { ...machine, state, oldState: oldStates[machine.machine] };
+
+            // store new state with old state
+            oldStates[machine.machine] = state;
+
+            return newState;
           } catch (err) {
             console.error('Error fetching device state for', machine.machine, err);
             return machine;

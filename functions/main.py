@@ -37,9 +37,9 @@ DB_INSTANCE_NAME = os.environ.get("DB_INSTANCE_NAME") or StringParam("DB_INSTANC
 connection_pool = None
 
 class ManualRequest:
-    def __init__(self, thing_id: str):
+    def __init__(self, args):
         self.method = None
-        self.args = {"thing_id": thing_id}
+        self.args = args
 
 
 # =============================================================================
@@ -93,7 +93,7 @@ def test_connection():
         return False
 
 
-def write_state_to_db(thing_id, state, timestamp):
+def write_state_to_db(thing_id: str, state: str, timestamp: str) -> None:
     try:
         engine = init_db_connection()
         cron_logger.log_text(f"Adding time step for {thing_id}. Time: {timestamp}")
@@ -110,6 +110,20 @@ def write_state_to_db(thing_id, state, timestamp):
         print(f"Error writing to db: {e}")
         raise 
 
+def fetch_state_from_db(machine: str, start_time: str) -> list:
+    try:
+        engine = init_db_connection()
+        with engine.connect() as conn: 
+            result = conn.execute(
+                text("SELECT state, timestamp FROM machine_states WHERE thing_id = :machine AND timestamp >= :start_time ORDER BY timestamp"),
+                {"machine": machine, "start_time": start_time}
+            )
+
+            # serializeable format
+            return [{"state": row[0], "timestamp": row[1].isoformat()} for row in result]
+    except Exception as e:
+        print(f"Error fetching from db: {e}")
+        raise
 
 
 # Adapted from: https://github.com/arduino/iot-client-py/blob/master/example/main.py
@@ -205,3 +219,26 @@ def addTimeStep(event: scheduler_fn.ScheduledEvent) -> None:
         # only write if on or off
         if state in ["on", "off"]:
             write_state_to_db(thing_id, state, timestamp)
+
+
+@https_fn.on_request()
+def getStateTimeseries(req: https_fn.Request) -> https_fn.Response:
+    cors_headers = {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+    }
+
+    thing_id = req.args.get("thing_id")
+    start_time = req.args.get("start_time")
+    if not thing_id:
+        return https_fn.Response(
+            json.dumps({"error": "Thing ID not found"}),
+            mimetype="application/json",
+            status=404,
+            headers=cors_headers,
+        )
+
+    # fetch all time steps for current machine
+    timeseries = fetch_state_from_db(thing_id, start_time)
+    return https_fn.Response(json.dumps(timeseries), mimetype="application/json", status=200, headers=cors_headers)
