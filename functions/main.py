@@ -213,12 +213,15 @@ def addTimeStep(event: scheduler_fn.ScheduledEvent) -> None:
 
     for thing_id in thing_ids:
         timestamp = datetime.now(timezone.utc).isoformat()
-        req = ManualRequest(thing_id=thing_id)
+        req = ManualRequest(args={"thing_id": thing_id})
         state = json.loads(getDeviceState(req).data.decode('utf-8')).get("state")
 
         # only write if on or off
         if state in ["on", "off"]:
             write_state_to_db(thing_id, state, timestamp)
+            cron_logger.log_text(f"Successfully wrote state {state} to DB for {thing_id}")
+        else:
+            cron_logger.log_text(f"Skipping DB write for {thing_id} - invalid state: {state}")
 
 
 @https_fn.on_request()
@@ -241,9 +244,3 @@ def getStateTimeseries(req: https_fn.Request) -> https_fn.Response:
     # fetch all time steps for current machine
     timeseries = fetch_state_from_db(thing_id)
     return https_fn.Response(json.dumps(timeseries), mimetype="application/json", status=200, headers=cors_headers)
-
-
-if __name__ == "__main__":
-    req = ManualRequest({"thing_id": "0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8"})
-    response = getStateTimeseries(req)
-    print(response.data)
