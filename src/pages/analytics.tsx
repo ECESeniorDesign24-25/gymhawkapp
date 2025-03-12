@@ -28,7 +28,7 @@ interface GymOption {
 interface Machine {
   machine: string;
   thing_id: string;
-  state: { current: number | null; state: string } | Promise<{ current: number | null; state: string }>;
+  state: string | Promise<string>;
   lat: number;
   lng: number;
   usagePercentage?: number; 
@@ -250,23 +250,19 @@ export default function Analytics() {
                   if (!machine) {
                     return null;
                   }
-                  const stateData = typeof machine.state === 'string' 
-                    ? { current: null, state: machine.state } 
-                    : machine.state instanceof Promise 
-                      ? { current: null, state: 'loading' }
-                      : machine.state;
+                  const state = typeof machine.state === 'string' ? machine.state : 'loading';
                   let statusText;
                   let machineClass;
 
-                  if (stateData.state === 'off') {
+                  if (state === 'off') {
                     machineClass = styles.machineAvailable;
                     statusText = 'Available';
-                  } else if (stateData.state === 'on') {
+                  } else if (state === 'on') {
                     machineClass = styles.machineInUse;
                     statusText = 'In Use';
                   } else {
                     machineClass = styles.machineUnknown;
-                    statusText = stateData.state === 'loading' ? 'Loading...' : 'Unknown';
+                    statusText = state === 'loading' ? 'Loading...' : 'Unknown';
                   }
 
                   return (
@@ -282,9 +278,6 @@ export default function Analytics() {
                       <h3 className="text-lg font-bold">{machine.machine}</h3>
                       <p className="mt-2">
                         Status: <span className="font-bold">{statusText}</span>
-                        {stateData.current !== null && (
-                          <span className="ml-2">Current: {stateData.current}</span>
-                        )}
                       </p>
                     </div>
                   );

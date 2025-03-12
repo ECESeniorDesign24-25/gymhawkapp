@@ -110,7 +110,7 @@ export async function fetchDeviceState(machine: string, signal?: AbortSignal, ol
       const buffer = await response.arrayBuffer();
       const utf8Text = new TextDecoder('utf-8').decode(buffer);
       const data = JSON.parse(utf8Text);
-      return data;  // Return the full data object with both current and state
+      return data.state;
     } catch (err: any) {
       if (err.name === 'AbortError') {
         return oldState || "loading";
