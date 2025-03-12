@@ -28,6 +28,7 @@ export async function fetchMachines() {
                 machine: doc.id,
                 lat: lat,
                 lng: lng,
+                thingId: data.thingId,
                 state: fetchDeviceState(doc.id)
             }
         })
@@ -60,5 +61,20 @@ export async function fetchGyms(){
         return gymArray;
     } catch (e) {
         console.error("error fetching gyms: ", e);
+    }
+}
+
+export async function fetchMachineTimeseries(machineId: string) {
+    try {
+        // get state timeseries for given machine
+        const response = await fetch(`/api/getStateTimeseries?thing_id=${machineId}`);
+        if (!response.ok) {
+            throw new Error('Network response was not ok');
+        }
+        const data = await response.json();
+        return data;
+    } catch (e) {
+        console.error('Error fetching timeseries:', e);
+        return [];
     }
 }
