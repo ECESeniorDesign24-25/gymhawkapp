@@ -13,6 +13,7 @@ import {
 } from "chart.js";
 import { Line } from "react-chartjs-2";
 import 'chartjs-adapter-date-fns';
+import { fetchMachineTimeseries } from "@/utils/db";
 
 ChartJS.register(
   CategoryScale,
@@ -26,51 +27,36 @@ ChartJS.register(
   TimeScale
 );
 
-const MachineUsageChart = () => {
-  // Store data points with a Date for x and a number (0 or 1) for y.
+interface MachineUsageChartProps {
+  machineId: string;
+}
+
+const MachineUsageChart: React.FC<MachineUsageChartProps> = ({ machineId }) => {
   const [usageData, setUsageData] = useState<{ time: Date; state: number }[]>([]);
 
-  // Simulated fetch for machine state (0 for off, 1 for on)
-  const fetchMachineState = async () => {
-    return Math.random() < 0.5 ? 0 : 1;
-  };
-
-  // Update the chart data periodically (every minute)
-  // useEffect(() => {
-  //   const updateChart = async () => {
-  //     const now = new Date();
-  //     const state = await fetchMachineState();
-  //     setUsageData((prevData) => [...prevData, { time: now, state }]);
-  //   };
-
-  //   // Get an initial data point
-  //   updateChart();
-  //   const intervalId = setInterval(updateChart, 60000);
-  //   return () => clearInterval(intervalId);
-  // }, []);
-   // Create artificial data points for debugging
-   useEffect(() => {
-    const now = new Date();
-    // Start at 6 AM
-    let currentTime = new Date(now.setHours(6, 0, 0, 0));
-    const debugData = [];
-    
-    // Start with machine off
-    debugData.push({ time: currentTime, state: 0 });
-    
-    // Generate random on/off cycles throughout the day
-    while (currentTime.getHours() < 16) { // Until 4 PM
-      // Random duration between 30 mins to 2.5 hours for each state
-      const durationMinutes = Math.floor(Math.random() * (150 - 30 + 1) + 30);
-      currentTime = new Date(currentTime.getTime() + durationMinutes * 60 * 1000);
+  // Fetch timeseries data for the machine
+  useEffect(() => {
+    const fetchData = async () => {
+      // Get data from 6 AM today
+      const today = new Date();
+      today.setHours(6, 0, 0, 0);
+      const startTime = today.toISOString();
       
-      // Add type annotation for prevState
-      const prevState: number = debugData[debugData.length - 1].state;
-      debugData.push({ time: currentTime, state: prevState === 0 ? 1 : 0 });
-    }
+      const timeseries = await fetchMachineTimeseries(machineId, startTime);
+      
+      // convert timeseries to plottable format
+      const formattedData = timeseries.map((point: { state: string; timestamp: string }) => ({
+        time: new Date(point.timestamp),
+        state: point.state === "on" ? 0 : 1
+      }));
+      
+      setUsageData(formattedData);
+    };
 
-    setUsageData(debugData);
-  }, []);
+    if (machineId) {
+      fetchData();
+    }
+  }, [machineId]);
 
   // Calculate dynamic x-axis boundaries
   const now = new Date();
@@ -140,7 +126,7 @@ const MachineUsageChart = () => {
             // Only show labels for 0 and 1
             if (Number(tickValue) === 0) return "In Use";
             if (Number(tickValue) === 1) return "Available";
-            return ""; // Return empty string for boundary values (-0.1 and 1.1)
+            return "";
           }
         },
         title: {
