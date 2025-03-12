@@ -110,13 +110,13 @@ def write_state_to_db(thing_id: str, state: str, timestamp: str) -> None:
         print(f"Error writing to db: {e}")
         raise 
 
-def fetch_state_from_db(machine: str, start_time: str) -> list:
+def fetch_state_from_db(machine: str) -> list:
     try:
         engine = init_db_connection()
         with engine.connect() as conn: 
             result = conn.execute(
-                text("SELECT state, timestamp FROM machine_states WHERE thing_id = :machine AND timestamp >= :start_time ORDER BY timestamp"),
-                {"machine": machine, "start_time": start_time}
+                text("SELECT state, timestamp FROM machine_states WHERE thing_id = :machine ORDER BY timestamp"),
+                {"machine": machine}
             )
 
             # serializeable format
@@ -230,7 +230,6 @@ def getStateTimeseries(req: https_fn.Request) -> https_fn.Response:
     }
 
     thing_id = req.args.get("thing_id")
-    start_time = req.args.get("start_time")
     if not thing_id:
         return https_fn.Response(
             json.dumps({"error": "Thing ID not found"}),
@@ -240,5 +239,11 @@ def getStateTimeseries(req: https_fn.Request) -> https_fn.Response:
         )
 
     # fetch all time steps for current machine
-    timeseries = fetch_state_from_db(thing_id, start_time)
+    timeseries = fetch_state_from_db(thing_id)
     return https_fn.Response(json.dumps(timeseries), mimetype="application/json", status=200, headers=cors_headers)
+
+
+if __name__ == "__main__":
+    req = ManualRequest({"thing_id": "0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8"})
+    response = getStateTimeseries(req)
+    print(response.data)

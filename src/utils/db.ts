@@ -28,6 +28,7 @@ export async function fetchMachines() {
                 machine: doc.id,
                 lat: lat,
                 lng: lng,
+                thingId: data.thingId,
                 state: fetchDeviceState(doc.id)
             }
         })
@@ -63,10 +64,10 @@ export async function fetchGyms(){
     }
 }
 
-export async function fetchMachineTimeseries(machineId: string, startTime: string) {
+export async function fetchMachineTimeseries(machineId: string) {
     try {
         // get state timeseries for given machine
-        const response = await fetch(`/api/getStateTimeseries?thing_id=${machineId}&start_time=${startTime}`);
+        const response = await fetch(`/api/getStateTimeseries?thing_id=${machineId}`);
         if (!response.ok) {
             throw new Error('Network response was not ok');
         }
