@@ -42,7 +42,7 @@ const MachineUsageChart: React.FC<MachineUsageChartProps> = ({ machineId }) => {
       today.setHours(6, 0, 0, 0);
       const startTime = today.toISOString();
       
-      const timeseries = await fetchMachineTimeseries(machineId, startTime);
+      const timeseries = await fetchMachineTimeseries(machineId);
       
       // convert timeseries to plottable format
       const formattedData = timeseries.map((point: { state: string; timestamp: string }) => ({

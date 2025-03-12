@@ -67,9 +67,9 @@ export async function fetchGyms(){
 export async function fetchMachineTimeseries(machineId: string) {
     try {
         // get state timeseries for given machine
-        const response = await fetch(`/api/getStateTimeseries?thing_id=${machineId}`);
+        const response = await fetch(`https://gymhawk-2ed7f.web.app/api/getStateTimeseries?thing_id=${machineId}`);
         if (!response.ok) {
-            throw new Error('Network response was not ok');
+            throw new Error(`Network response was not ok: ${response.statusText}`);
         }
         const data = await response.json();
         return data;
