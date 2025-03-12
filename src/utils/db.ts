@@ -62,3 +62,18 @@ export async function fetchGyms(){
         console.error("error fetching gyms: ", e);
     }
 }
+
+export async function fetchMachineTimeseries(machineId: string, startTime: string) {
+    try {
+        // get state timeseries for given machine
+        const response = await fetch(`/api/getStateTimeseries?thing_id=${machineId}&start_time=${startTime}`);
+        if (!response.ok) {
+            throw new Error('Network response was not ok');
+        }
+        const data = await response.json();
+        return data;
+    } catch (e) {
+        console.error('Error fetching timeseries:', e);
+        return [];
+    }
+}
