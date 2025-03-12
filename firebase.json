@@ -1,8 +1,4 @@
 {
-  "firestore": {
-    "rules": "firestore.rules",
-    "indexes": "firestore.indexes.json"
-  },
   "hosting": {
     "public": "out",
     "predeploy": [
@@ -17,18 +13,20 @@
       {
         "source": "/api/getDeviceState",
         "function": "getDeviceState"
+      },
+      {
+        "source": "/api/getStateTimeseries",
+        "function": "getStateTimeseries"
       }
     ]
+  },
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
   },
   "storage": {
     "rules": "storage.rules"
   },
-  "rewrites": [
-    {
-      "source": "**",
-      "destination": "/index.html"
-    }
-  ],
   "functions": [
     {
       "source": "functions",
@@ -40,6 +38,12 @@
         "firebase-debug.*.log",
         "*.local"
       ]
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "**",
+      "destination": "/index.html"
     }
   ]
 }
