@@ -110,13 +110,13 @@ def write_state_to_db(thing_id: str, state: str, timestamp: str) -> None:
         print(f"Error writing to db: {e}")
         raise 
 
-def fetch_state_from_db(machine: str) -> list:
+def fetch_state_from_db(machine: str, startTime: str) -> list:
     try:
         engine = init_db_connection()
         with engine.connect() as conn: 
             result = conn.execute(
-                text("SELECT state, timestamp FROM machine_states WHERE thing_id = :machine ORDER BY timestamp"),
-                {"machine": machine}
+                text("SELECT state, timestamp FROM machine_states WHERE thing_id = :machine AND timestamp >= ':startTime' ORDER BY timestamp"),
+                {"machine": machine, "startTime": startTime}
             )
 
             # serializeable format
@@ -191,9 +191,18 @@ def getDeviceState(req: https_fn.Request) -> https_fn.Response:
     try:
         properties = properties_api.properties_v2_list(id=thing_id)
         for property in properties:
+            # assume state property is always present
             if "Use" in property.name:
                 value = property.last_value
                 property_dict["state"] = "on" if value else "off" if value is not None else "unknown"
+            
+            # current property is optional
+            if "Current" in property.name:
+                property_dict["current"] = property.last_value
+
+        if "current" not in property_dict:
+            property_dict["current"] = None
+
     except ApiException as e:
         return https_fn.Response(
             json.dumps({"error": str(e)}),
@@ -204,6 +213,7 @@ def getDeviceState(req: https_fn.Request) -> https_fn.Response:
     output = json.dumps(property_dict)
     return https_fn.Response(output, mimetype="application/json", status=200, headers=cors_headers)
 
+    
 
 # cron job to add a time step to the database for each machine every 2 minutes
 @scheduler_fn.on_schedule(schedule="*/2 * * * *")
@@ -214,12 +224,14 @@ def addTimeStep(event: scheduler_fn.ScheduledEvent) -> None:
     for thing_id in thing_ids:
         timestamp = datetime.now(timezone.utc).isoformat()
         req = ManualRequest(args={"thing_id": thing_id})
-        state = json.loads(getDeviceState(req).data.decode('utf-8')).get("state")
+        device_state = getDeviceState(req)
+        state = json.loads(device_state.data.decode('utf-8')).get("state")
+        current = json.loads(device_state.data.decode('utf-8')).get("current")
 
         # only write if on or off
         if state in ["on", "off"]:
-            write_state_to_db(thing_id, state, timestamp)
-            cron_logger.log_text(f"Successfully wrote state {state} to DB for {thing_id}")
+            write_state_to_db(thing_id, state, current, timestamp)
+            cron_logger.log_text(f"Successfully wrote state {state} and current {current} to DB for {thing_id}")
         else:
             cron_logger.log_text(f"Skipping DB write for {thing_id} - invalid state: {state}")
 
@@ -233,6 +245,7 @@ def getStateTimeseries(req: https_fn.Request) -> https_fn.Response:
     }
 
     thing_id = req.args.get("thing_id")
+    startTime = req.args.get("startTime")
     if not thing_id:
         return https_fn.Response(
             json.dumps({"error": "Thing ID not found"}),
@@ -242,5 +255,11 @@ def getStateTimeseries(req: https_fn.Request) -> https_fn.Response:
         )
 
     # fetch all time steps for current machine
-    timeseries = fetch_state_from_db(thing_id)
+    timeseries = fetch_state_from_db(thing_id, startTime)
     return https_fn.Response(json.dumps(timeseries), mimetype="application/json", status=200, headers=cors_headers)
+
+
+if __name__ == "__main__":
+    req = ManualRequest(args={"thing_id": "0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8", "startTime": "2025-03-12T00:00:00Z"})
+    device_state = getDeviceState(req)
+    print(device_state.data)

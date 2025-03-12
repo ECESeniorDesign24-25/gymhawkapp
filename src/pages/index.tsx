@@ -5,8 +5,7 @@ import Banner from '@/components/banner';
 import dynamic from 'next/dynamic';
 import styles from '@/styles/index.module.css';
 import { HOME_STYLE, DARK_MAP_THEME, ZOOM_LEVEL } from '@/styles/customStyles';
-import { fetchGyms, fetchMachines } from '@/utils/db';
-import { fetchDeviceState } from '@/utils/cloudAPI';
+import { fetchGyms, fetchMachines, fetchDeviceState } from '@/utils/db';
 import { MachineMarker } from '@/components/marker';
 import { RequireAuth } from '@/components/requireAuth';
 
@@ -59,11 +58,14 @@ export default function Home() {
   // fetch machines on first render also
   useEffect(() => {
     async function loadMachines() {
-      const machines = await fetchMachines();
+      if (!selectedOption) {
+        return;
+      }
+      const machines = await fetchMachines(selectedOption.id);
       setMachines(machines || []);
     }
     loadMachines();
-  }, []);
+  }, [selectedOption]);
 
   // callback for user zoom
   useEffect(() => {
@@ -229,6 +231,7 @@ export default function Home() {
                   lng={machineObj.lng}
                   state={machineObj.state ? machineObj.state : "na"}
                   machine={machineObj.machine}
+                  thing_id={machineObj.thing_id}
                 />
               ))}
             </GoogleMapReact>

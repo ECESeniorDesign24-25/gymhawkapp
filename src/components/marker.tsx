@@ -6,10 +6,11 @@ interface MachineMarkerProps {
     lng: number;
     state: string;
     machine: string;
+    thing_id: string;
 }
 
 // marker for device on map
-export const MachineMarker = ({ lat, lng, state, machine }: MachineMarkerProps) => {
+export const MachineMarker = ({ lat, lng, state, machine, thing_id }: MachineMarkerProps) => {
   let backgroundColor = 'grey';
   if (state === "on") {
     backgroundColor = 'red';
@@ -57,9 +58,13 @@ export const MachineMarker = ({ lat, lng, state, machine }: MachineMarkerProps) 
 
   const [showPopup, setShowPopup] = useState(false);
 
+  const handleClick = () => {
+    localStorage.setItem("lastMachine", JSON.stringify({ thing_id: thing_id, machine: machine }));
+    window.location.href = "/analytics";
+  }
   return (
     <div style={{ position: 'relative' }} onMouseEnter={() => setShowPopup(true)} onMouseLeave={() => setShowPopup(false)}>
-      <div style={markerStyle} onClick={() => window.location.href = "/analytics"}>
+      <div style={markerStyle} onClick={handleClick}>
         <img src="/gym-icon.webp" alt="Marker" style={imageStyle}/>
       </div>
       {showPopup && (

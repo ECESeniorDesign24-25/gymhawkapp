@@ -29,26 +29,52 @@ ChartJS.register(
 
 interface MachineUsageChartProps {
   machineId: string;
+  machineName: string;
 }
 
-const MachineUsageChart: React.FC<MachineUsageChartProps> = ({ machineId }) => {
+const getOffset = (date: Date) => {
+  const offset = date.getTimezoneOffset();
+  return offset * 60000;
+}
+
+const formatDate = (date: Date) => {
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Chicago'});
+}
+
+const formatTime = (date: Date) => {
+  return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'America/Chicago' });
+}
+
+const get5amToday = () => {
+  const today = new Date();
+  today.setHours(5, 0, 0, 0);
+  return today.toISOString();
+}
+
+const MachineUsageChart: React.FC<MachineUsageChartProps> = ({ machineId, machineName }) => {
   const [usageData, setUsageData] = useState<{ time: Date; state: number }[]>([]);
 
   // Fetch timeseries data for the machine
   useEffect(() => {
     const fetchData = async () => {
-      // Get data from 6 AM today
-      const today = new Date();
-      today.setHours(6, 0, 0, 0);
-      const startTime = today.toISOString();
+
+      // start at 5am today
+      const startTime = get5amToday();
       
-      const timeseries = await fetchMachineTimeseries(machineId);
+      const timeseries = await fetchMachineTimeseries(machineId, startTime);
       
-      // convert timeseries to plottable format
-      const formattedData = timeseries.map((point: { state: string; timestamp: string }) => ({
-        time: new Date(point.timestamp),
-        state: point.state === "on" ? 0 : 1
-      }));
+      // convert timeseries to plottable format and convert to Central Time
+      const formattedData = timeseries.map((point: { state: string; timestamp: string }) => {
+        const utcDate = new Date(point.timestamp);
+        const centralDate = new Date(utcDate.getTime() - getOffset(utcDate));
+        
+        return {
+          time: centralDate,
+
+          // state mapping
+          state: point.state === "on" ? 0 : 1
+        };
+      });
       
       setUsageData(formattedData);
     };
@@ -58,16 +84,17 @@ const MachineUsageChart: React.FC<MachineUsageChartProps> = ({ machineId }) => {
     }
   }, [machineId]);
 
-  // Calculate dynamic x-axis boundaries
+  // x axis boundaries
   const now = new Date();
-  const minTime = new Date(new Date().setHours(5, 0, 0, 0)); // Today at 5:00 AM
-  const maxTime = new Date(now.getTime() + 30 * 60 * 1000); // 30 minutes from now
+  const centralNow = new Date(now.getTime());
+  const minTime = new Date(centralNow);
+  minTime.setHours(5, 0, 0, 0);
+  const maxTime = new Date(centralNow);
 
-  // Prepare the chart data using data points with x and y properties
   const chartData = {
     datasets: [
       {
-        label: 'Machine Usage',
+        label: machineName + ': ' + formatDate(now) + ' ' + formatTime(now),
         data: usageData.map((point) => ({ x: point.time, y: point.state })),
         fill: {
           target: 'origin',
@@ -85,7 +112,7 @@ const MachineUsageChart: React.FC<MachineUsageChartProps> = ({ machineId }) => {
         data: usageData.map((point) => ({ x: point.time, y: point.state })),
         fill: {
           target: {
-            value: 1  // Fill down from y=1
+            value: 1  // fill down from y=1
           },
           above: 'rgba(0, 0, 0, 0)',
           below: 'rgba(139, 0, 0, 0.1)'  // red fill from top when in use
@@ -106,14 +133,16 @@ const MachineUsageChart: React.FC<MachineUsageChartProps> = ({ machineId }) => {
       x: {
         type: 'time' as const,
         time: {
-          // Adjust format here
-          displayFormats: { minute: 'HH:mm', hour: 'HH:mm' },
+          displayFormats: { 
+            minute: 'h:mm a', 
+            hour: 'h:mm a'
+          },
         },
         min: minTime.getTime(),
         max: maxTime.getTime(),
         title: {
           display: true,
-          text: 'Time of Day',
+          text: 'Time of Day (Central Time)',
         },
       },
       y: {
@@ -123,7 +152,6 @@ const MachineUsageChart: React.FC<MachineUsageChartProps> = ({ machineId }) => {
         ticks: {
           stepSize: 1,
           callback: function(this: any, tickValue: number | string) {
-            // Only show labels for 0 and 1
             if (Number(tickValue) === 0) return "In Use";
             if (Number(tickValue) === 1) return "Available";
             return "";
@@ -138,7 +166,7 @@ const MachineUsageChart: React.FC<MachineUsageChartProps> = ({ machineId }) => {
     plugins: {
       title: {
         display: true,
-        text: 'Machine Usage Over the Day',
+        text: machineName + ': ' + formatDate(now) + ' ' + formatTime(now),
       },
       tooltip: {
         enabled: true,
@@ -149,24 +177,17 @@ const MachineUsageChart: React.FC<MachineUsageChartProps> = ({ machineId }) => {
           return value === 1 ? 'rgba(0, 100, 0, 0.75)' : 'rgba(139, 0, 0, 0.75)';
         },
         titleColor: 'white',
-        bodyColor: 'white',
+        bodyColor: 'white', 
         padding: 10,
         callbacks: {
-          // show time on hover
           title: function(tooltipItems: any[]) {
             if (tooltipItems.length > 0) {
-              const time = new Date(tooltipItems[0].raw.x).toLocaleTimeString([], { 
-                hour: '2-digit', 
-                minute: '2-digit' 
-              });
-              return `Time: ${time}`;
+              const date = new Date(tooltipItems[0].raw.x);
+              return `${formatDate(date)} at ${formatTime(date)} CT`;
             }
             return '';
           },
-          // show status on hover
           label: function(tooltipItem: any) {
-            
-            // get status from first "dataset"
             if (tooltipItem.datasetIndex === 0) {
               const value = tooltipItem.raw.y;
               return value === 1 ? 'Status: Available' : 'Status: In Use';
