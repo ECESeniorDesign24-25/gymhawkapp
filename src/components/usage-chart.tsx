@@ -13,6 +13,7 @@ import {
 } from "chart.js";
 import { Line } from "react-chartjs-2";
 import 'chartjs-adapter-date-fns';
+import { fetchMachineTimeseries } from "@/utils/db";
 
 ChartJS.register(
   CategoryScale,
@@ -26,62 +27,74 @@ ChartJS.register(
   TimeScale
 );
 
-const MachineUsageChart = () => {
-  // Store data points with a Date for x and a number (0 or 1) for y.
+interface MachineUsageChartProps {
+  machineId: string;
+  machineName: string;
+}
+
+const getOffset = (date: Date) => {
+  const offset = date.getTimezoneOffset();
+  return offset * 60000;
+}
+
+const formatDate = (date: Date) => {
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Chicago'});
+}
+
+const formatTime = (date: Date) => {
+  return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'America/Chicago' });
+}
+
+const get5amToday = () => {
+  const today = new Date();
+  today.setHours(5, 0, 0, 0);
+  return today.toISOString();
+}
+
+const MachineUsageChart: React.FC<MachineUsageChartProps> = ({ machineId, machineName }) => {
   const [usageData, setUsageData] = useState<{ time: Date; state: number }[]>([]);
 
-  // Simulated fetch for machine state (0 for off, 1 for on)
-  const fetchMachineState = async () => {
-    return Math.random() < 0.5 ? 0 : 1;
-  };
+  // Fetch timeseries data for the machine
+  useEffect(() => {
+    const fetchData = async () => {
 
-  // Update the chart data periodically (every minute)
-  // useEffect(() => {
-  //   const updateChart = async () => {
-  //     const now = new Date();
-  //     const state = await fetchMachineState();
-  //     setUsageData((prevData) => [...prevData, { time: now, state }]);
-  //   };
-
-  //   // Get an initial data point
-  //   updateChart();
-  //   const intervalId = setInterval(updateChart, 60000);
-  //   return () => clearInterval(intervalId);
-  // }, []);
-   // Create artificial data points for debugging
-   useEffect(() => {
-    const now = new Date();
-    // Start at 6 AM
-    let currentTime = new Date(now.setHours(6, 0, 0, 0));
-    const debugData = [];
-    
-    // Start with machine off
-    debugData.push({ time: currentTime, state: 0 });
-    
-    // Generate random on/off cycles throughout the day
-    while (currentTime.getHours() < 16) { // Until 4 PM
-      // Random duration between 30 mins to 2.5 hours for each state
-      const durationMinutes = Math.floor(Math.random() * (150 - 30 + 1) + 30);
-      currentTime = new Date(currentTime.getTime() + durationMinutes * 60 * 1000);
+      // start at 5am today
+      const startTime = get5amToday();
       
-      // Add type annotation for prevState
-      const prevState: number = debugData[debugData.length - 1].state;
-      debugData.push({ time: currentTime, state: prevState === 0 ? 1 : 0 });
+      const timeseries = await fetchMachineTimeseries(machineId, startTime);
+      
+      // convert timeseries to plottable format and convert to Central Time
+      const formattedData = timeseries.map((point: { state: string; timestamp: string }) => {
+        const utcDate = new Date(point.timestamp);
+        const centralDate = new Date(utcDate.getTime() - getOffset(utcDate));
+        
+        return {
+          time: centralDate,
+
+          // state mapping
+          state: point.state === "on" ? 0 : 1
+        };
+      });
+      
+      setUsageData(formattedData);
+    };
+
+    if (machineId) {
+      fetchData();
     }
+  }, [machineId]);
 
-    setUsageData(debugData);
-  }, []);
-
-  // Calculate dynamic x-axis boundaries
+  // x axis boundaries
   const now = new Date();
-  const minTime = new Date(new Date().setHours(5, 0, 0, 0)); // Today at 5:00 AM
-  const maxTime = new Date(now.getTime() + 30 * 60 * 1000); // 30 minutes from now
+  const centralNow = new Date(now.getTime());
+  const minTime = new Date(centralNow);
+  minTime.setHours(5, 0, 0, 0);
+  const maxTime = new Date(centralNow);
 
-  // Prepare the chart data using data points with x and y properties
   const chartData = {
     datasets: [
       {
-        label: 'Machine Usage',
+        label: machineName + ': ' + formatDate(now) + ' ' + formatTime(now),
         data: usageData.map((point) => ({ x: point.time, y: point.state })),
         fill: {
           target: 'origin',
@@ -99,7 +112,7 @@ const MachineUsageChart = () => {
         data: usageData.map((point) => ({ x: point.time, y: point.state })),
         fill: {
           target: {
-            value: 1  // Fill down from y=1
+            value: 1  // fill down from y=1
           },
           above: 'rgba(0, 0, 0, 0)',
           below: 'rgba(139, 0, 0, 0.1)'  // red fill from top when in use
@@ -120,14 +133,16 @@ const MachineUsageChart = () => {
       x: {
         type: 'time' as const,
         time: {
-          // Adjust format here
-          displayFormats: { minute: 'HH:mm', hour: 'HH:mm' },
+          displayFormats: { 
+            minute: 'h:mm a', 
+            hour: 'h:mm a'
+          },
         },
         min: minTime.getTime(),
         max: maxTime.getTime(),
         title: {
           display: true,
-          text: 'Time of Day',
+          text: 'Time of Day (Central Time)',
         },
       },
       y: {
@@ -137,10 +152,9 @@ const MachineUsageChart = () => {
         ticks: {
           stepSize: 1,
           callback: function(this: any, tickValue: number | string) {
-            // Only show labels for 0 and 1
             if (Number(tickValue) === 0) return "In Use";
             if (Number(tickValue) === 1) return "Available";
-            return ""; // Return empty string for boundary values (-0.1 and 1.1)
+            return "";
           }
         },
         title: {
@@ -152,7 +166,7 @@ const MachineUsageChart = () => {
     plugins: {
       title: {
         display: true,
-        text: 'Machine Usage Over the Day',
+        text: machineName + ': ' + formatDate(now) + ' ' + formatTime(now),
       },
       tooltip: {
         enabled: true,
@@ -163,24 +177,17 @@ const MachineUsageChart = () => {
           return value === 1 ? 'rgba(0, 100, 0, 0.75)' : 'rgba(139, 0, 0, 0.75)';
         },
         titleColor: 'white',
-        bodyColor: 'white',
+        bodyColor: 'white', 
         padding: 10,
         callbacks: {
-          // show time on hover
           title: function(tooltipItems: any[]) {
             if (tooltipItems.length > 0) {
-              const time = new Date(tooltipItems[0].raw.x).toLocaleTimeString([], { 
-                hour: '2-digit', 
-                minute: '2-digit' 
-              });
-              return `Time: ${time}`;
+              const date = new Date(tooltipItems[0].raw.x);
+              return `${formatDate(date)} at ${formatTime(date)} CT`;
             }
             return '';
           },
-          // show status on hover
           label: function(tooltipItem: any) {
-            
-            // get status from first "dataset"
             if (tooltipItem.datasetIndex === 0) {
               const value = tooltipItem.raw.y;
               return value === 1 ? 'Status: Available' : 'Status: In Use';

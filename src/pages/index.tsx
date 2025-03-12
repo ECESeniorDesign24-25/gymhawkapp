@@ -5,25 +5,46 @@ import Banner from '@/components/banner';
 import dynamic from 'next/dynamic';
 import styles from '@/styles/index.module.css';
 import { HOME_STYLE, DARK_MAP_THEME, ZOOM_LEVEL } from '@/styles/customStyles';
-import { fetchGyms, fetchMachines } from '@/utils/db';
-import { fetchDeviceState } from '@/utils/cloudAPI';
+import { fetchGyms, fetchMachines, fetchDeviceState } from '@/utils/db';
 import { MachineMarker } from '@/components/marker';
 import { RequireAuth } from '@/components/requireAuth';
+
+interface Gym {
+  id: string;
+  label: string;
+  floors: any[];
+  coords: {
+    lat: number;
+    lng: number;
+  } | null;
+  building: any;
+}
+
+interface GymOption {
+  value: string;
+  label: string;
+  id: string;
+  coords: {
+    lat: number;
+    lng: number;
+  };
+  building: any[];
+}
 
 const GoogleMapReact = dynamic(() => import('google-map-react'), { ssr: false });
 
 export default function Home() {
 
   // states
-  const [selectedOption, setSelectedOption] = useState(null);
+  const [selectedOption, setSelectedOption] = useState<GymOption | null>(null);
   const [center, setCenter] = useState({ lat: 41.6611, lng: -91.5302 });
   const [buildingOutline, setBuildingOutline] = useState<any[] | null>(null);
   const [map, setMap] = useState<any>(null);
   const [maps, setMaps] = useState<any>(null);
   const [userZoomed, setUserZoomed] = useState(false);
-  const [gyms, setGyms] = useState<any[]>([]);
+  const [gyms, setGyms] = useState<Gym[]>([]);
   const [machines, setMachines] = useState<any[]>([]);
-  const [selectPlaceholder, setSelectPlaceholder] = useState<any>("Select a gym");
+  const [selectPlaceholder, setSelectPlaceholder] = useState<string>("Select a gym");
 
   const polygonRef = useRef<any>(null);
 
@@ -59,11 +80,14 @@ export default function Home() {
   // fetch machines on first render also
   useEffect(() => {
     async function loadMachines() {
-      const machines = await fetchMachines();
+      if (!selectedOption) {
+        return;
+      }
+      const machines = await fetchMachines(selectedOption.id);
       setMachines(machines || []);
     }
     loadMachines();
-  }, []);
+  }, [selectedOption]);
 
   // callback for user zoom
   useEffect(() => {
@@ -229,6 +253,7 @@ export default function Home() {
                   lng={machineObj.lng}
                   state={machineObj.state ? machineObj.state : "na"}
                   machine={machineObj.machine}
+                  thing_id={machineObj.thing_id}
                 />
               ))}
             </GoogleMapReact>
