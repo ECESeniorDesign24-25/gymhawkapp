@@ -18,18 +18,50 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Install dependencies
+      - name: Install Node.js dependencies
         run: npm install
+
+      - name: Setup Python and install Functions dependencies
+        uses: actions/setup-python@v3
+        with:
+          python-version: '3.12'
+      - name: Install Python dependencies for Firebase Functions
+        run: |
+          pwd
+          python -m venv functions/venv
+          source functions/venv/bin/activate
+          python -m pip install -r functions/requirements.txt
 
       - name: Deploy to Firebase
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           NEXT_PUBLIC_FIREBASE_API_KEY: ${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }}
           NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ secrets.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
           NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
           NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ${{ secrets.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }}
           NEXT_PUBLIC_FIREBASE_MESSAGE_SENDER_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_MESSAGE_SENDER_ID }}
           NEXT_PUBLIC_FIREBASE_APP_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID }}
+          ARDUINO_CLIENT_ID: ${{ secrets.ARDUINO_CLIENT_ID }}   
+          ARDUINO_CLIENT_SECRET: ${{ secrets.ARDUINO_CLIENT_SECRET }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASS: ${{ secrets.DB_PASS }}
+          DB_INSTANCE_NAME: ${{ secrets.DB_INSTANCE_NAME }}
         run: |
+          echo "$FIREBASE_SERVICE_ACCOUNT" > serviceAccount.json
+          
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$(pwd)/serviceAccount.json" >> $GITHUB_ENV
+          
+          cat << EOF > functions/.env.gymhawk-2ed7f
+          ARDUINO_CLIENT_ID=$ARDUINO_CLIENT_ID
+          ARDUINO_CLIENT_SECRET=$ARDUINO_CLIENT_SECRET
+          DB_NAME=$DB_NAME
+          DB_USER=$DB_USER
+          DB_PASS=$DB_PASS
+          DB_INSTANCE_NAME=$DB_INSTANCE_NAME
+          EOF
+          
+          source functions/venv/bin/activate
           npm install -g firebase-tools@13.31.1
-          firebase deploy --token $FIREBASE_TOKEN
+          firebase deploy --token $FIREBASE_TOKEN --non-interactive
