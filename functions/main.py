@@ -179,22 +179,6 @@ def addTimeStepUtil(thing_id: str, timestamp: str) -> None:
         if state in ["on", "off"]:
             write_state_to_db(thing_id, state, current, timestamp)
 
-        # if state is on, continue polling every 1 seconds for the next 30 seconds or until state is off for 5s
-        if state == "on":
-            off_count = 0
-            for i in range(30):
-                time.sleep(1)
-                device_state = getDeviceState(req)
-                if device_state and device_state.data:
-                    state_data = json.loads(device_state.data.decode("utf-8"))
-                    state = state_data.get("state")
-                    current = state_data.get("current")
-                    write_state_to_db(thing_id, state, current, timestamp)
-
-                if state == "off":
-                    off_count += 1
-                    if off_count >= 5:
-                        break
     else:
         print("Device state is None")
 
