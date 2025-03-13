@@ -15,7 +15,7 @@ from sqlalchemy import create_engine, text
 from dotenv import load_dotenv
 from datetime import datetime, timezone
 
-load_dotenv('.env.gymhawk-2ed7f') 
+load_dotenv(".env.gymhawk-2ed7f")
 
 # set up firebase app
 initialize_app()
@@ -27,9 +27,12 @@ ARDUINO_CLIENT_SECRET = StringParam("ARDUINO_CLIENT_SECRET").value
 DB_NAME = os.environ.get("DB_NAME") or StringParam("DB_NAME").value
 DB_USER = os.environ.get("DB_USER") or StringParam("DB_USER").value
 DB_PASS = os.environ.get("DB_PASS") or StringParam("DB_PASS").value
-DB_INSTANCE_NAME = os.environ.get("DB_INSTANCE_NAME") or StringParam("DB_INSTANCE_NAME").value
+DB_INSTANCE_NAME = (
+    os.environ.get("DB_INSTANCE_NAME") or StringParam("DB_INSTANCE_NAME").value
+)
 
 connection_pool = None
+
 
 class ManualRequest:
     def __init__(self, args):
@@ -40,6 +43,7 @@ class ManualRequest:
 # =============================================================================
 # Util functions
 # =============================================================================
+
 
 def init_db_connection():
     """
@@ -97,24 +101,34 @@ def write_state_to_db(thing_id: str, state: str, current: int, timestamp: str) -
                     "INSERT INTO machine_states (thing_id, state, current, timestamp) "
                     "VALUES (:thing_id, :state, :current, :timestamp)"
                 ),
-                {"thing_id": thing_id, "state": state, "current": current, "timestamp": timestamp},
+                {
+                    "thing_id": thing_id,
+                    "state": state,
+                    "current": current,
+                    "timestamp": timestamp,
+                },
             )
             conn.commit()
     except Exception as e:
         print(f"Error writing to db: {e}")
-        raise 
+        raise
+
 
 def fetch_state_from_db(machine: str, startTime: str) -> list:
     try:
         engine = init_db_connection()
-        with engine.connect() as conn: 
+        with engine.connect() as conn:
             result = conn.execute(
-                text("SELECT state, timestamp FROM machine_states WHERE thing_id = :machine AND timestamp >= ':startTime' ORDER BY timestamp"),
-                {"machine": machine, "startTime": startTime}
+                text(
+                    "SELECT state, timestamp FROM machine_states WHERE thing_id = :machine AND timestamp >= :startTime ORDER BY timestamp"
+                ),
+                {"machine": machine, "startTime": startTime},
             )
 
             # serializeable format
-            return [{"state": row[0], "timestamp": row[1].isoformat()} for row in result]
+            return [
+                {"state": row[0], "timestamp": row[1].isoformat()} for row in result
+            ]
     except Exception as e:
         print(f"Error fetching from db: {e}")
         raise
@@ -188,8 +202,10 @@ def getDeviceState(req: https_fn.Request) -> https_fn.Response:
             # assume state property is always present
             if "Use" in property.name:
                 value = property.last_value
-                property_dict["state"] = "on" if value else "off" if value is not None else "unknown"
-            
+                property_dict["state"] = (
+                    "on" if value else "off" if value is not None else "unknown"
+                )
+
             # current property is optional
             if "Current" in property.name:
                 property_dict["current"] = property.last_value
@@ -205,34 +221,37 @@ def getDeviceState(req: https_fn.Request) -> https_fn.Response:
             headers=cors_headers,
         )
     output = json.dumps(property_dict)
-    return https_fn.Response(output, mimetype="application/json", status=200, headers=cors_headers)
+    return https_fn.Response(
+        output, mimetype="application/json", status=200, headers=cors_headers
+    )
 
-    
+
 def addTimeStepUtil(thing_id: str, timestamp: str) -> None:
     req = ManualRequest(args={"thing_id": thing_id})
     device_state = getDeviceState(req)
+    print("Attempting to add time step for", thing_id, "at", timestamp)
     if device_state and device_state.data:
-        state_data = json.loads(device_state.data.decode('utf-8'))
+        print("Device state:", device_state.data)
+        state_data = json.loads(device_state.data.decode("utf-8"))
         state = state_data.get("state")
         current = state_data.get("current")
 
         # Only write if state is on or off
         if state in ["on", "off"]:
             write_state_to_db(thing_id, state, current, timestamp)
+    else:
+        print("Device state is None")
 
 
 # cron job to add a time step to the database for each machine every 2 minutes
 @scheduler_fn.on_schedule(schedule="*/2 * * * *")
 def addTimeStep(event: scheduler_fn.ScheduledEvent = None) -> None:
     try:
-        # Initialize database connection
         init_db_connection()
-        
-        # Get all thing IDs from Firestore
+
         thing_ids = db.collection("thing_ids").list_documents()
         thing_ids = [thing_id.id for thing_id in thing_ids]
-        
-        # Get current timestamp in UTC
+
         current_time = datetime.now(timezone.utc)
         timestamp = current_time.isoformat()
 
@@ -241,25 +260,9 @@ def addTimeStep(event: scheduler_fn.ScheduledEvent = None) -> None:
                 addTimeStepUtil(thing_id, timestamp)
             except Exception as e:
                 print(f"Error processing thing_id {thing_id}: {str(e)}")
-                
     except Exception as e:
-        print(f"Error in addTimeStep: {str(e)}")
+        print(f"Error adding time step: {str(e)}")
         raise
-
-def _test_addTimeStep():
-        init_db_connection()
-        
-        thing_ids = db.collection("thing_ids").list_documents()
-        thing_ids = [thing_id.id for thing_id in thing_ids]
-        
-        current_time = datetime.now(timezone.utc)
-        timestamp = current_time.isoformat()
-
-        for thing_id in thing_ids:
-            try:
-                addTimeStepUtil(thing_id, timestamp)
-            except Exception as e:
-                print(f"Error processing thing_id {thing_id}: {str(e)}")
 
 
 @https_fn.on_request()
@@ -282,10 +285,29 @@ def getStateTimeseries(req: https_fn.Request) -> https_fn.Response:
 
     # fetch all time steps for current machine
     timeseries = fetch_state_from_db(thing_id, startTime)
-    return https_fn.Response(json.dumps(timeseries), mimetype="application/json", status=200, headers=cors_headers)
+    return https_fn.Response(
+        json.dumps(timeseries),
+        mimetype="application/json",
+        status=200,
+        headers=cors_headers,
+    )
 
 
+def _test_addTimeStep() -> None:
+    try:
+        init_db_connection()
 
-if __name__ == "__main__":
-    _test_addTimeStep()
+        thing_ids = db.collection("thing_ids").list_documents()
+        thing_ids = [thing_id.id for thing_id in thing_ids]
 
+        current_time = datetime.now(timezone.utc)
+        timestamp = current_time.isoformat()
+
+        for thing_id in thing_ids:
+            try:
+                addTimeStepUtil(thing_id, timestamp)
+            except Exception as e:
+                print(f"Error processing thing_id {thing_id}: {str(e)}")
+    except Exception as e:
+        print(f"Error adding time step: {str(e)}")
+        raise
