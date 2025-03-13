@@ -38,6 +38,6 @@ To run the app locally, you just need to run:
 #### Deploying the app:
 Application deployment is handled by Firebase. To set up deployment, you will first need to install the [Firebase CLI](https://firebase.google.com/docs/cli). Once that is downloaded, you just need to run: 
 
-`./deploy.sh` 
+`./scripts/deploy.sh` 
 
 from the root of this repository. This will generate a static build of the application in the `out/` directory and will be hosted on Firebase.
