@@ -35,7 +35,7 @@ jobs:
       - name: Deploy to Firebase
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          APPLICATION_DEFAULT_CREDENTIALS: ${{ secrets.APPLICATION_DEFAULT_CREDENTIALS }}
           NEXT_PUBLIC_FIREBASE_API_KEY: ${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }}
           NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ secrets.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
           NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
@@ -49,19 +49,18 @@ jobs:
           DB_PASS: ${{ secrets.DB_PASS }}
           DB_INSTANCE_NAME: ${{ secrets.DB_INSTANCE_NAME }}
         run: |
-          echo "$FIREBASE_SERVICE_ACCOUNT" > serviceAccount.json
+          echo "$APPLICATION_DEFAULT_CREDENTIALS" > serviceAccount.json
           
-          echo "GOOGLE_APPLICATION_CREDENTIALS=$(pwd)/serviceAccount.json" >> $GITHUB_ENV
+          export GOOGLE_APPLICATION_CREDENTIALS=$(pwd)/serviceAccount.json
           
-          cat << EOF > functions/.env.gymhawk-2ed7f
-          ARDUINO_CLIENT_ID=$ARDUINO_CLIENT_ID
-          ARDUINO_CLIENT_SECRET=$ARDUINO_CLIENT_SECRET
-          DB_NAME=$DB_NAME
-          DB_USER=$DB_USER
-          DB_PASS=$DB_PASS
-          DB_INSTANCE_NAME=$DB_INSTANCE_NAME
-          EOF
+          echo "ARDUINO_CLIENT_ID=$ARDUINO_CLIENT_ID" > functions/.env.gymhawk-2ed7f
+          echo "ARDUINO_CLIENT_SECRET=$ARDUINO_CLIENT_SECRET" >> functions/.env.gymhawk-2ed7f
+          echo "DB_NAME=$DB_NAME" >> functions/.env.gymhawk-2ed7f
+          echo "DB_USER=$DB_USER" >> functions/.env.gymhawk-2ed7f
+          echo "DB_PASS=$DB_PASS" >> functions/.env.gymhawk-2ed7f
+          echo "DB_INSTANCE_NAME=$DB_INSTANCE_NAME" >> functions/.env.gymhawk-2ed7f
           
           source functions/venv/bin/activate
+          
           npm install -g firebase-tools@13.31.1
           firebase deploy --token $FIREBASE_TOKEN --non-interactive
