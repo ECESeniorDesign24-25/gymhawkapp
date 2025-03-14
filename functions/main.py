@@ -171,12 +171,10 @@ def get_thing_id(machine):
 def addTimeStepUtil(thing_id: str, timestamp: str) -> tuple[str, float]:
     req = ManualRequest(args={"thing_id": thing_id})
     device_state = getDeviceState(req)
-    print("Attempting to add time step for", thing_id, "at", timestamp)
     if device_state and device_state.data:
         state_data = json.loads(device_state.data.decode("utf-8"))
         state = state_data.get("state")
         current = state_data.get("current")
-
         return state, current 
 
     else:
@@ -316,23 +314,3 @@ def getStateTimeseries(req: https_fn.Request) -> https_fn.Response:
         status=200,
         headers=cors_headers,
     )
-
-
-def _test_addTimeStep() -> None:
-    try:
-        init_db_connection()
-
-        thing_ids = db.collection("thing_ids").list_documents()
-        thing_ids = [thing_id.id for thing_id in thing_ids]
-
-        current_time = datetime.now(timezone.utc)
-        timestamp = current_time.isoformat()
-
-        for thing_id in thing_ids:
-            try:
-                addTimeStepUtil(thing_id, timestamp)
-            except Exception as e:
-                print(f"Error processing thing_id {thing_id}: {str(e)}")
-    except Exception as e:
-        print(f"Error adding time step: {str(e)}")
-        raise
