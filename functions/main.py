@@ -93,20 +93,22 @@ def test_connection():
         return False
 
 
-def write_state_to_db(thing_id: str, state: str, current: int, timestamp: str) -> None:
+def write_state_to_db(thing_id: str, state: str, current: int, n_on: int, n_off: int, timestamp: str) -> None:
     try:
         engine = init_db_connection()
         with engine.connect() as conn:
             conn.execute(
                 text(
-                    "INSERT INTO machine_states (thing_id, state, current, timestamp) "
-                    "VALUES (:thing_id, :state, :current, :timestamp)"
+                    "INSERT INTO machine_states (thing_id, state, current, timestamp, n_on, n_off) "
+                    "VALUES (:thing_id, :state, :current, :timestamp, :n_on, :n_off)"
                 ),
                 {
                     "thing_id": thing_id,
                     "state": state,
                     "current": current,
                     "timestamp": timestamp,
+                    "n_on": n_on,
+                    "n_off": n_off,
                 },
             )
             conn.commit()
@@ -166,18 +168,14 @@ def get_thing_id(machine):
 
 
 
-def addTimeStepUtil(thing_id: str, timestamp: str) -> None:
+def addTimeStepUtil(thing_id: str, timestamp: str) -> tuple[str, float]:
     req = ManualRequest(args={"thing_id": thing_id})
     device_state = getDeviceState(req)
-    print("Attempting to add time step for", thing_id, "at", timestamp)
     if device_state and device_state.data:
         state_data = json.loads(device_state.data.decode("utf-8"))
         state = state_data.get("state")
         current = state_data.get("current")
-
-        # Only write if state is on or off
-        if state in ["on", "off"]:
-            write_state_to_db(thing_id, state, current, timestamp)
+        return state, current 
 
     else:
         print("Device state is None")
@@ -251,19 +249,44 @@ def addTimeStep(event: scheduler_fn.ScheduledEvent = None) -> None:
     try:
         init_db_connection()
 
+        # Get all thing IDs from firestore
         thing_ids = db.collection("thing_ids").list_documents()
         thing_ids = [thing_id.id for thing_id in thing_ids]
 
         current_time = datetime.now(timezone.utc)
         timestamp = current_time.isoformat()
 
+        # Initialize state counts for each machine,
+        state_counts = {thing_id: {"on": 0, "off": 0} for thing_id in thing_ids}
+        current_sums = {thing_id: 0 for thing_id in thing_ids}
+        current_counts = {thing_id: 0 for thing_id in thing_ids}
+
+        # Poll for 1 minute 
+        for _ in range(60):
+            for thing_id in thing_ids:
+                try:
+                    # fetch state and analog current
+                    state, current = addTimeStepUtil(thing_id, timestamp)
+                    if state in ["on", "off"]:  # Only count valid states
+                        state_counts[thing_id][state] += 1
+                        if not current:
+                            current = 0
+                        current_sums[thing_id] += current
+                        current_counts[thing_id] += 1
+                except Exception as e:
+                    print(f"Error polling thing_id {thing_id}: {str(e)}")
+            time.sleep(1)
+
+        # Write the most common state for each machine to the database and the average current
         for thing_id in thing_ids:
-            try:
-                addTimeStepUtil(thing_id, timestamp)
-            except Exception as e:
-                print(f"Error processing thing_id {thing_id}: {str(e)}")
+            counts = state_counts[thing_id]
+            most_common_state = max(counts.items(), key=lambda x: x[1])[0]
+            current = current_sums[thing_id] / current_counts[thing_id]
+            
+            write_state_to_db(thing_id=thing_id, state=most_common_state, current=current, n_on=counts["on"], n_off=counts["off"], timestamp=timestamp)
+            
     except Exception as e:
-        print(f"Error adding time step: {str(e)}")
+        print(f"Error in addTimeStep: {str(e)}")
         raise
 
 
@@ -293,23 +316,3 @@ def getStateTimeseries(req: https_fn.Request) -> https_fn.Response:
         status=200,
         headers=cors_headers,
     )
-
-
-def _test_addTimeStep() -> None:
-    try:
-        init_db_connection()
-
-        thing_ids = db.collection("thing_ids").list_documents()
-        thing_ids = [thing_id.id for thing_id in thing_ids]
-
-        current_time = datetime.now(timezone.utc)
-        timestamp = current_time.isoformat()
-
-        for thing_id in thing_ids:
-            try:
-                addTimeStepUtil(thing_id, timestamp)
-            except Exception as e:
-                print(f"Error processing thing_id {thing_id}: {str(e)}")
-    except Exception as e:
-        print(f"Error adding time step: {str(e)}")
-        raise
