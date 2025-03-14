@@ -259,6 +259,7 @@ def addTimeStep(event: scheduler_fn.ScheduledEvent = None) -> None:
         # Initialize state counts for each machine,
         state_counts = {thing_id: {"on": 0, "off": 0} for thing_id in thing_ids}
         current_sums = {thing_id: 0 for thing_id in thing_ids}
+        current_counts = {thing_id: 0 for thing_id in thing_ids}
 
         # Poll for 1 minute 
         for _ in range(60):
@@ -271,6 +272,7 @@ def addTimeStep(event: scheduler_fn.ScheduledEvent = None) -> None:
                         if not current:
                             current = 0
                         current_sums[thing_id] += current
+                        current_counts[thing_id] += 1
                 except Exception as e:
                     print(f"Error polling thing_id {thing_id}: {str(e)}")
             time.sleep(1)
@@ -279,7 +281,7 @@ def addTimeStep(event: scheduler_fn.ScheduledEvent = None) -> None:
         for thing_id in thing_ids:
             counts = state_counts[thing_id]
             most_common_state = max(counts.items(), key=lambda x: x[1])[0]
-            current = current_sums[thing_id] / 60
+            current = current_sums[thing_id] / current_counts[thing_id]
             
             write_state_to_db(thing_id=thing_id, state=most_common_state, current=current, n_on=counts["on"], n_off=counts["off"], timestamp=timestamp)
             
