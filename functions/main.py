@@ -13,8 +13,8 @@ import json
 from google.cloud.sql.connector import Connector, IPTypes
 from sqlalchemy import create_engine, text
 from dotenv import load_dotenv
-from datetime import datetime, timezone
-import time
+from datetime import datetime, timezone, time
+import time as t
 
 load_dotenv(".env.gymhawk-2ed7f")
 
@@ -180,6 +180,14 @@ def addTimeStepUtil(thing_id: str, timestamp: str) -> tuple[str, float]:
     else:
         print("Device state is None")
 
+
+def is_time_between(begin_time, end_time, current_time):
+    current_time = current_time.time()
+    if begin_time < end_time:
+        return current_time >= begin_time and current_time <= end_time
+    else:
+        return current_time >= begin_time or current_time <= end_time
+
 # =============================================================================
 # Cloud Functions
 # =============================================================================
@@ -247,13 +255,19 @@ def getDeviceState(req: https_fn.Request) -> https_fn.Response:
 @scheduler_fn.on_schedule(schedule="*/2 * * * *")
 def addTimeStep(event: scheduler_fn.ScheduledEvent = None) -> None:
     try:
+
+        # fitness east is open between 5:00am and 7:00pm
+        open_time = time(5,0)
+        close_time = time(19,0)
+        current_time = datetime.now(timezone.utc)
+        if not is_time_between(open_time, close_time, current_time):
+            return
+
         init_db_connection()
 
         # Get all thing IDs from firestore
         thing_ids = db.collection("thing_ids").list_documents()
         thing_ids = [thing_id.id for thing_id in thing_ids]
-
-        current_time = datetime.now(timezone.utc)
         timestamp = current_time.isoformat()
 
         # Initialize state counts for each machine,
@@ -275,7 +289,7 @@ def addTimeStep(event: scheduler_fn.ScheduledEvent = None) -> None:
                         current_counts[thing_id] += 1
                 except Exception as e:
                     print(f"Error polling thing_id {thing_id}: {str(e)}")
-            time.sleep(1)
+            t.sleep(1)
 
         # Write the most common state for each machine to the database and the average current
         for thing_id in thing_ids:
@@ -316,3 +330,13 @@ def getStateTimeseries(req: https_fn.Request) -> https_fn.Response:
         status=200,
         headers=cors_headers,
     )
+
+# for testing
+# if __name__ == "__main__":
+#     open_time = time(5,0)
+#     close_time = time(19,0)
+#     current_time = datetime.now(timezone.utc)
+#     print("Open: ", open_time)
+#     print("Close: ", close_time)
+#     print("Is between: ", is_time_between(open_time, close_time, current_time))
+        
