@@ -123,7 +123,11 @@ def addTimeStep(event: scheduler_fn.ScheduledEvent = None) -> None:
         for thing_id in thing_ids:
             counts = state_counts[thing_id]
             most_common_state = max(counts.items(), key=lambda x: x[1])[0]
-            current = current_sums[thing_id] / current_counts[thing_id]
+            try:
+                current = current_sums[thing_id] / current_counts[thing_id]
+            except Exception as e:
+                print(f"Error calculating current for {thing_id}: {str(e)}")
+                current = None
             
             write_state_to_db(thing_id=thing_id, state=most_common_state, current=current, n_on=counts["on"], n_off=counts["off"], timestamp=timestamp)
             
