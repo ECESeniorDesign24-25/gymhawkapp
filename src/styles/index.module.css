@@ -97,6 +97,12 @@
   color: var(--text-primary);
 }
 
+.subtitle {
+  text-align: left;
+  margin-bottom: 2rem;
+  color: var(--text-primary);
+}
+
 .form {
   display: flex;
   flex-direction: column;
@@ -280,4 +286,27 @@
 
 .userAnalytics, .adminAnalytics {
   margin-top: 1rem;
+}
+
+.aboutContainer {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  max-width: 1200px;
+  width: 100%;
+  padding: 2rem;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  text-align: center;
+  margin: 0 auto; 
+}
+
+
+
+.teamLink {
+  color: #0070f3;
+  text-decoration: underline;
+  font-weight: bold;
 }
