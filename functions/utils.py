@@ -9,6 +9,7 @@ import json
 connection_pool = None
 global_connector = None
 
+
 def init_db_connection():
     """
     Initialize the database connection using a single global Connector instance.
@@ -47,9 +48,17 @@ def is_time_between(begin_time, end_time, current_time):
         return begin_time <= current_time_only <= end_time
     else:
         return current_time_only >= begin_time or current_time_only <= end_time
-    
 
-def write_state_to_db(thing_id: str, state: str, timestamp: str, n_on: int, n_off: int, current: int, table_name: str) -> None:
+
+def write_state_to_db(
+    thing_id: str,
+    state: str,
+    timestamp: str,
+    n_on: int,
+    n_off: int,
+    current: int,
+    table_name: str,
+) -> None:
     """
     Write the state of a device to the specified table.
     """
@@ -74,7 +83,7 @@ def write_state_to_db(thing_id: str, state: str, timestamp: str, n_on: int, n_of
                     "timestamp": timestamp,
                     "n_on": n_on,
                     "n_off": n_off,
-                    "current": current
+                    "current": current,
                 },
             )
             conn.commit()
@@ -156,6 +165,6 @@ def addTimeStepUtil(thing_id: str, timestamp: str) -> tuple[str, float]:
         state_data = json.loads(device_state.data.decode("utf-8"))
         state = state_data.get("state")
         current = state_data.get("current")
-        return state, current 
+        return state, current
     else:
         print("Device state is None")
