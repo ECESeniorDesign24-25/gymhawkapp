@@ -78,13 +78,12 @@ export async function fetchMachineTimeseries(machineId: string, startTime: strin
 
         let endpoint = "";
         if (devMode) {
-            console.log("using dummy timeseries");
             endpoint = `${API_ENDPOINT}/getStateTimeseriesDummy?thing_id=${machineId}&startTime=${startTime}`;
         }
         else {
-            console.log("using real timeseries");
             endpoint = `${API_ENDPOINT}/getStateTimeseries?thing_id=${machineId}&startTime=${startTime}`;
         }
+        console.log("Using timeseries endpoint: ", endpoint);
         // get state timeseries for given machine
         const response = await fetch(endpoint);
         if (!response.ok) {

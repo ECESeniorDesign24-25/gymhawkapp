@@ -145,8 +145,17 @@ def getTimeseries(req: https_fn.Request, table_name: str) -> https_fn.Response:
             status=404,
             headers=CORS_HEADERS,
         )
-    timeseries = fetch_state_from_db(thing_id, startTime, table_name)
-    return https_fn.Response(json.dumps(timeseries), mimetype="application/json", status=200, headers=CORS_HEADERS)
+    try:
+        timeseries = fetch_state_from_db(thing_id, startTime, table_name)
+        return https_fn.Response(json.dumps(timeseries), mimetype="application/json", status=200, headers=CORS_HEADERS)
+    except Exception as e:
+        print(f"Error fetching timeseries: {str(e)}")
+        return https_fn.Response(
+            json.dumps({"error": f"Database error: {str(e)}"}),
+            mimetype="application/json",
+            status=500,
+            headers=CORS_HEADERS,
+        )
 
 @https_fn.on_request()
 def getStateTimeseries(req: https_fn.Request) -> https_fn.Response:
