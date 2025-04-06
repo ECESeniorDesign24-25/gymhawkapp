@@ -2,6 +2,7 @@ import { getDocs, collection, query } from "firebase/firestore";
 import { db } from "@/lib/firebase"
 import { getCoords, getBuildingOutline } from "./mapsAPI";
 import { API_ENDPOINT } from "./consts";
+// const cors = require('cors')({origin: true});
 
 export async function fetchMachines(gymId: string) {
     try {
@@ -72,10 +73,20 @@ export async function fetchGyms(){
     }
 }
 
-export async function fetchMachineTimeseries(machineId: string, startTime: string) {
+export async function fetchMachineTimeseries(machineId: string, startTime: string, devMode: boolean) {
     try {
+        console.log("fetching timeseries for machine: ", machineId, " at time: ", startTime);
+
+        let endpoint = "";
+        if (devMode) {
+            endpoint = `${API_ENDPOINT}/getStateTimeseriesDummy?thing_id=${machineId}&startTime=${startTime}`;
+        }
+        else {
+            endpoint = `${API_ENDPOINT}/getStateTimeseries?thing_id=${machineId}&startTime=${startTime}`;
+        }
+        console.log("Using timeseries endpoint: ", endpoint);
         // get state timeseries for given machine
-        const response = await fetch(`${API_ENDPOINT}/getStateTimeseries?thing_id=${machineId}&startTime=${startTime}`);
+        const response = await fetch(endpoint);
         if (!response.ok) {
             throw new Error(`Network response was not ok: ${response.statusText}`);
         }
@@ -86,6 +97,7 @@ export async function fetchMachineTimeseries(machineId: string, startTime: strin
         return [];
     }
 }
+
 
 export async function fetchDeviceState(machine: string, signal?: AbortSignal, oldState?: string) {
     try {

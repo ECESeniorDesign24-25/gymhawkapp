@@ -218,6 +218,7 @@ export default function Analytics() {
             justifyContent: 'center'
           }}
         >
+          <br></br>
           {/* search bar */}
           <div className={styles.searchBarContainer} style={{ marginBottom: '20px' }}>
             <DynamicSelect

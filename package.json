@@ -18,6 +18,7 @@
     "chart": "^0.1.2",
     "chart.js": "^4.4.8",
     "chartjs-adapter-date-fns": "^3.0.0",
+    "cors": "^2.8.5",
     "crypto-browserify": "^3.12.1",
     "dotenv": "^16.4.7",
     "firebase": "^11.3.0",
@@ -27,13 +28,13 @@
     "google-map-react": "^2.2.1",
     "install": "^0.13.0",
     "net": "^1.0.2",
-    "next": "15.1.6",
+    "next": "^15.2.4",
     "node-fetch": "^3.3.2",
     "react": "^18.3.1",
     "react-chartjs-2": "^5.3.0",
     "react-dom": "^18.3.1",
     "react-select": "^5.10.0",
-    "request-promise": "^4.2.6",
+    "request-promise": "^0.0.1",
     "tls": "^0.0.1"
   },
   "devDependencies": {
