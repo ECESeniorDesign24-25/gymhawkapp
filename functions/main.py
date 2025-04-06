@@ -6,10 +6,12 @@ from iot_api_client.configuration import Configuration
 from iot_api_client.api import PropertiesV2Api
 from iot_api_client.models import *
 import json
-from datetime import datetime, timezone, time
+from datetime import datetime, timezone, time, timedelta
 import time as t
 from utils import *
 from consts import *
+from analytics import *
+import pandas as pd
 
 # set up firebase app
 initialize_app()
@@ -20,6 +22,7 @@ class ManualRequest:
     def __init__(self, args):
         self.method = None
         self.args = args
+
 
 # =============================================================================
 # Cloud Functions
@@ -78,15 +81,13 @@ def getDeviceState(req: https_fn.Request) -> https_fn.Response:
     )
 
 
-
 # cron job to add a time step to the database for each machine every 2 minutes
 @scheduler_fn.on_schedule(schedule="*/2 * * * *")
 def addTimeStep(event: scheduler_fn.ScheduledEvent = None) -> None:
     try:
-
         # fitness east is open between 5:00am and 7:00pm
-        open_time = time(5,0)
-        close_time = time(19,0)
+        open_time = time(5, 0)
+        close_time = time(19, 0)
         current_time = datetime.now(timezone.utc)
         if not is_time_between(open_time, close_time, current_time):
             return
@@ -103,7 +104,7 @@ def addTimeStep(event: scheduler_fn.ScheduledEvent = None) -> None:
         current_sums = {thing_id: 0 for thing_id in thing_ids}
         current_counts = {thing_id: 0 for thing_id in thing_ids}
 
-        # Poll for 1 minute 
+        # Poll for 1 minute
         for _ in range(60):
             for thing_id in thing_ids:
                 try:
@@ -124,20 +125,28 @@ def addTimeStep(event: scheduler_fn.ScheduledEvent = None) -> None:
             counts = state_counts[thing_id]
             most_common_state = max(counts.items(), key=lambda x: x[1])[0]
             current = current_sums[thing_id] / current_counts[thing_id]
-            
-            write_state_to_db(thing_id=thing_id, state=most_common_state, current=current, n_on=counts["on"], n_off=counts["off"], timestamp=timestamp)
-            
+
+            write_state_to_db(
+                thing_id=thing_id,
+                state=most_common_state,
+                current=current,
+                n_on=counts["on"],
+                n_off=counts["off"],
+                timestamp=timestamp,
+            )
+
     except Exception as e:
         print(f"Error in addTimeStep: {str(e)}")
         raise
 
+
 def getTimeseries(req: https_fn.Request, table_name: str) -> https_fn.Response:
     if req.method == "OPTIONS":
         return https_fn.Response("", status=204, headers=CORS_HEADERS)
-    
+
     thing_id = req.args.get("thing_id")
     startTime = req.args.get("startTime")
-    
+
     if not thing_id:
         return https_fn.Response(
             json.dumps({"error": "Thing ID not found"}),
@@ -147,7 +156,12 @@ def getTimeseries(req: https_fn.Request, table_name: str) -> https_fn.Response:
         )
     try:
         timeseries = fetch_state_from_db(thing_id, startTime, table_name)
-        return https_fn.Response(json.dumps(timeseries), mimetype="application/json", status=200, headers=CORS_HEADERS)
+        return https_fn.Response(
+            json.dumps(timeseries),
+            mimetype="application/json",
+            status=200,
+            headers=CORS_HEADERS,
+        )
     except Exception as e:
         print(f"Error fetching timeseries: {str(e)}")
         return https_fn.Response(
@@ -157,20 +171,119 @@ def getTimeseries(req: https_fn.Request, table_name: str) -> https_fn.Response:
             headers=CORS_HEADERS,
         )
 
+
 @https_fn.on_request()
 def getStateTimeseries(req: https_fn.Request) -> https_fn.Response:
     return getTimeseries(req, "machine_states")
+
 
 @https_fn.on_request()
 def getStateTimeseriesDummy(req: https_fn.Request) -> https_fn.Response:
     return getTimeseries(req, "machine_states_dummy")
 
+
+@https_fn.on_request()
+def predictGymTimes(req: https_fn.Request) -> https_fn.Response:
+    if req.method == "OPTIONS":
+        return https_fn.Response("", status=204, headers=CORS_HEADERS)
+
+    machine_id = req.args.get("thing_id")
+    metric = req.args.get(
+        "metric"
+    )  # "optimal_time" or "peak_hours" or "off_peak_hours"
+    start_time = req.args.get("startTime")
+    if not start_time:
+        start_time = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+
+    if not machine_id:
+        return https_fn.Response(
+            json.dumps({"error": "thing_id not provided"}),
+            mimetype="application/json",
+            status=400,
+            headers=CORS_HEADERS,
+        )
+
+    try:
+        # get timeseries as dataframe
+        data_json = fetch_state_from_db(machine_id, start_time, "machine_states")
+        data = pd.DataFrame(data_json)
+        if data.empty:
+            return https_fn.Response(
+                json.dumps({"error": "No data found for the provided machine."}),
+                mimetype="application/json",
+                status=404,
+                headers=CORS_HEADERS,
+            )
+    except Exception as e:
+        return https_fn.Response(
+            json.dumps({"error": f"Error fetching data: {str(e)}"}),
+            mimetype="application/json",
+            status=500,
+            headers=CORS_HEADERS,
+        )
+
+    # fit model on last 30 days of data
+    update_model(data)
+    today_date = datetime.fromisoformat(start_time.replace("Z", "+00:00")).date()
+    tomorrow_date = today_date + timedelta(days=1)
+
+    if metric == "optimal_time":
+        optimal_time_today, prob_today = predict(today_date)
+        optimal_time_tomorrow, prob_tomorrow = predict(tomorrow_date)
+        response = {
+            "machine_id": machine_id,
+            "today": {
+                "optimal_time": optimal_time_today.isoformat()
+                if optimal_time_today
+                else None,
+                "probability": prob_today,
+            },
+            "tomorrow": {
+                "optimal_time": optimal_time_tomorrow.isoformat()
+                if optimal_time_tomorrow
+                else None,
+                "probability": prob_tomorrow,
+            },
+        }
+
+    else:
+        peak_hours, off_peak_hours = predict(today_date, predict_peak_hours=True)
+        peak_hours_tomorrow, off_peak_hours_tomorrow = predict(
+            tomorrow_date, predict_peak_hours=True
+        )
+        response = {
+            "machine_id": machine_id,
+            "today": {
+                "peak_hours": [t.isoformat() for t in peak_hours],
+                "off_peak_hours": [t.isoformat() for t in off_peak_hours],
+            },
+            "tomorrow": {
+                "peak_hours": [t.isoformat() for t in peak_hours_tomorrow],
+                "off_peak_hours": [t.isoformat() for t in off_peak_hours_tomorrow],
+            },
+        }
+    return https_fn.Response(
+        json.dumps(response),
+        mimetype="application/json",
+        status=200,
+    )
+
+
+if __name__ == "__main__":
+    test_req = type(
+        "TestReq", (), {"method": "GET", "args": {"thing_id": "machine_1"}}
+    )()
+    print(predictGymTimes(test_req))
+
 # for testing
 if __name__ == "__main__":
-
     # fetching dummy timeseries for machine:  6ad4d9f7-8444-4595-bf0b-5fb62c36430c  at time:  2025-04-05T10:00:00.000Z
 
-    dummyReq = ManualRequest(args={"thing_id": "6ad4d9f7-8444-4595-bf0b-5fb62c36430c", "startTime": "2025-01-05T10:00:00.000Z"})  
-    state = getStateTimeseriesDummy(dummyReq)
-    print(state)
-    
+    dummyReq = ManualRequest(
+        args={
+            "thing_id": "6ad4d9f7-8444-4595-bf0b-5fb62c36430c",
+            "startTime": "2025-02-05T10:00:00.000Z",
+            "metric": "optimal_time",
+        }
+    )
+    print(predictGymTimes(dummyReq).get_json())

@@ -15,10 +15,11 @@ DB_PASS = os.environ.get("DB_PASS") or StringParam("DB_PASS").value
 DB_INSTANCE_NAME = (
     os.environ.get("DB_INSTANCE_NAME") or StringParam("DB_INSTANCE_NAME").value
 )
-
 CORS_HEADERS = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
-    "Access-Control-Allow-Credentials": "true"
+    "Access-Control-Allow-Credentials": "true",
 }
+MODEL_BUCKET = os.environ.get("MODEL_BUCKET") or StringParam("MODEL_BUCKET").value
+MODEL_FILENAME = os.environ.get("MODEL_FILENAME") or StringParam("MODEL_FILENAME").value
