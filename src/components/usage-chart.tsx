@@ -27,6 +27,8 @@ ChartJS.register(
   TimeScale
 );
 
+const API_ENDPOINT = 'https://gymhawk-2ed7f.web.app/api';
+
 interface MachineUsageChartProps {
   machineId: string;
   machineName: string;
@@ -45,23 +47,25 @@ const formatTime = (date: Date) => {
   return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'America/Chicago' });
 }
 
-const get5amToday = () => {
-  const today = new Date();
-  today.setHours(5, 0, 0, 0);
-  return today.toISOString();
+const get5amOnDate = (date: Date) => {
+  const targetDate = new Date(date);
+  targetDate.setHours(5, 0, 0, 0);
+  return targetDate.toISOString();
 }
 
 const MachineUsageChart: React.FC<MachineUsageChartProps> = ({ machineId, machineName }) => {
   const [usageData, setUsageData] = useState<{ time: Date; state: number }[]>([]);
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [isDevMode, setIsDevMode] = useState<boolean>(false);
 
   // Fetch timeseries data for the machine
   useEffect(() => {
     const fetchData = async () => {
-
-      // start at 5am today
-      const startTime = get5amToday();
+      // start at 5am on selected date
+      const startTime = get5amOnDate(selectedDate);
       
-      const timeseries = await fetchMachineTimeseries(machineId, startTime);
+      // Use appropriate endpoint based on dev mode
+      const timeseries = await fetchMachineTimeseries(machineId, startTime, isDevMode);
       
       // convert timeseries to plottable format and convert to Central Time
       const formattedData = timeseries.map((point: { state: string; timestamp: string }) => {
@@ -70,8 +74,6 @@ const MachineUsageChart: React.FC<MachineUsageChartProps> = ({ machineId, machin
         
         return {
           time: centralDate,
-
-          // state mapping
           state: point.state === "on" ? 0 : 1
         };
       });
@@ -82,19 +84,18 @@ const MachineUsageChart: React.FC<MachineUsageChartProps> = ({ machineId, machin
     if (machineId) {
       fetchData();
     }
-  }, [machineId]);
+  }, [machineId, selectedDate, isDevMode]);
 
-  // x axis boundaries
-  const now = new Date();
-  const centralNow = new Date(now.getTime());
-  const minTime = new Date(centralNow);
+  // x axis boundaries (5am to 7pm)
+  const minTime = new Date(selectedDate);
   minTime.setHours(5, 0, 0, 0);
-  const maxTime = new Date(centralNow);
+  const maxTime = new Date(selectedDate);
+  maxTime.setHours(19, 0, 0, 0); // 7pm
 
   const chartData = {
     datasets: [
       {
-        label: machineName + ': ' + formatDate(now) + ' ' + formatTime(now),
+        label: machineName + ': ' + formatDate(selectedDate),
         data: usageData.map((point) => ({ x: point.time, y: point.state })),
         fill: {
           target: 'origin',
@@ -166,7 +167,7 @@ const MachineUsageChart: React.FC<MachineUsageChartProps> = ({ machineId, machin
     plugins: {
       title: {
         display: true,
-        text: machineName + ': ' + formatDate(now) + ' ' + formatTime(now),
+        text: machineName + ': ' + formatDate(selectedDate),
       },
       tooltip: {
         enabled: true,
@@ -203,15 +204,60 @@ const MachineUsageChart: React.FC<MachineUsageChartProps> = ({ machineId, machin
   };
 
   return (
-    <div
-      style={{
-        width: "100%",
-        maxWidth: "1000px",
-        height: "400px",
-        margin: "0 auto",
-      }}
-    >
-      <Line data={chartData} options={options} />
+    <div>
+      <div style={{ marginBottom: '10px', display: 'flex', justifyContent: 'center', gap: '10px', alignItems: 'center' }}>
+        <button 
+          onClick={() => {
+            const newDate = new Date(selectedDate);
+            newDate.setDate(newDate.getDate() - 1);
+            setSelectedDate(newDate);
+          }}
+        >
+          Previous Day
+        </button>
+        <button
+          onClick={() => setSelectedDate(new Date())}
+        >
+          Today
+        </button>
+        <input
+          type="date"
+          value={selectedDate.toISOString().split('T')[0]}
+          onChange={(e) => setSelectedDate(new Date(e.target.value))}
+        />
+        <button 
+          onClick={() => {
+            const newDate = new Date(selectedDate);
+            newDate.setDate(newDate.getDate() + 1);
+            setSelectedDate(newDate);
+          }}
+        >
+          Next Day
+        </button>
+        <button
+          onClick={() => setIsDevMode(!isDevMode)}
+          style={{ 
+            backgroundColor: isDevMode ? '#ff4444' : '#44ff44',
+            color: 'white',
+            padding: '5px 10px',
+            borderRadius: '4px',
+            border: 'none',
+            cursor: 'pointer'
+          }}
+        >
+          {isDevMode ? 'Dev Mode: ON' : 'Dev Mode: OFF'}
+        </button>
+      </div>
+      <div
+        style={{
+          width: "100%",
+          maxWidth: "1000px",
+          height: "400px",
+          margin: "0 auto",
+        }}
+      >
+        <Line data={chartData} options={options} />
+      </div>
     </div>
   );
 };

@@ -3,14 +3,7 @@ from sqlalchemy import create_engine, text
 from consts import *
 from oauthlib.oauth2 import BackendApplicationClient
 from requests_oauthlib import OAuth2Session
-import iot_api_client as iot
-from iot_api_client.rest import ApiException
-from iot_api_client.configuration import Configuration
-from iot_api_client.api import PropertiesV2Api
 import json
-from iot_api_client.models import *
-from datetime import datetime, timedelta, timezone, time
-import pandas as pd
 
 # Global variables for connection pool and connector instance
 connection_pool = None

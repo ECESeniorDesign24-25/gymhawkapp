@@ -15,3 +15,9 @@ DB_PASS = os.environ.get("DB_PASS") or StringParam("DB_PASS").value
 DB_INSTANCE_NAME = (
     os.environ.get("DB_INSTANCE_NAME") or StringParam("DB_INSTANCE_NAME").value
 )
+
+CORS_HEADERS = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+}

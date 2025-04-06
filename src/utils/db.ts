@@ -72,10 +72,21 @@ export async function fetchGyms(){
     }
 }
 
-export async function fetchMachineTimeseries(machineId: string, startTime: string) {
+export async function fetchMachineTimeseries(machineId: string, startTime: string, devMode: boolean) {
     try {
+        console.log("fetching timeseries for machine: ", machineId, " at time: ", startTime);
+
+        let endpoint = "";
+        if (devMode) {
+            console.log("using dummy timeseries");
+            endpoint = `${API_ENDPOINT}/getStateTimeseriesDummy?thing_id=${machineId}&startTime=${startTime}`;
+        }
+        else {
+            console.log("using real timeseries");
+            endpoint = `${API_ENDPOINT}/getStateTimeseries?thing_id=${machineId}&startTime=${startTime}`;
+        }
         // get state timeseries for given machine
-        const response = await fetch(`${API_ENDPOINT}/getStateTimeseries?thing_id=${machineId}&startTime=${startTime}`);
+        const response = await fetch(endpoint);
         if (!response.ok) {
             throw new Error(`Network response was not ok: ${response.statusText}`);
         }
@@ -86,6 +97,7 @@ export async function fetchMachineTimeseries(machineId: string, startTime: strin
         return [];
     }
 }
+
 
 export async function fetchDeviceState(machine: string, signal?: AbortSignal, oldState?: string) {
     try {

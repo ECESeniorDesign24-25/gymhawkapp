@@ -28,13 +28,8 @@ class ManualRequest:
 
 @https_fn.on_request()
 def getDeviceState(req: https_fn.Request) -> https_fn.Response:
-    cors_headers = {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type",
-    }
     if req.method == "OPTIONS":
-        return https_fn.Response("", status=204, headers=cors_headers)
+        return https_fn.Response("", status=204, headers=CORS_HEADERS)
 
     HOST = "https://api2.arduino.cc"
     token = get_token()
@@ -49,7 +44,7 @@ def getDeviceState(req: https_fn.Request) -> https_fn.Response:
             json.dumps({"error": "Machine not found"}),
             mimetype="application/json",
             status=404,
-            headers=cors_headers,
+            headers=CORS_HEADERS,
         )
 
     property_dict = {}
@@ -75,11 +70,11 @@ def getDeviceState(req: https_fn.Request) -> https_fn.Response:
             json.dumps({"error": str(e)}),
             mimetype="application/json",
             status=500,
-            headers=cors_headers,
+            headers=CORS_HEADERS,
         )
     output = json.dumps(property_dict)
     return https_fn.Response(
-        output, mimetype="application/json", status=200, headers=cors_headers
+        output, mimetype="application/json", status=200, headers=CORS_HEADERS
     )
 
 
@@ -136,40 +131,37 @@ def addTimeStep(event: scheduler_fn.ScheduledEvent = None) -> None:
         print(f"Error in addTimeStep: {str(e)}")
         raise
 
-
-@https_fn.on_request()
-def getStateTimeseries(req: https_fn.Request) -> https_fn.Response:
-    cors_headers = {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type",
-    }
-
+def getTimeseries(req: https_fn.Request, table_name: str) -> https_fn.Response:
+    if req.method == "OPTIONS":
+        return https_fn.Response("", status=204, headers=CORS_HEADERS)
+    
     thing_id = req.args.get("thing_id")
     startTime = req.args.get("startTime")
+    
     if not thing_id:
         return https_fn.Response(
             json.dumps({"error": "Thing ID not found"}),
             mimetype="application/json",
             status=404,
-            headers=cors_headers,
+            headers=CORS_HEADERS,
         )
+    timeseries = fetch_state_from_db(thing_id, startTime, table_name)
+    return https_fn.Response(json.dumps(timeseries), mimetype="application/json", status=200, headers=CORS_HEADERS)
 
-    # fetch all time steps for current machine
-    timeseries = fetch_state_from_db(thing_id, startTime)
-    return https_fn.Response(
-        json.dumps(timeseries),
-        mimetype="application/json",
-        status=200,
-        headers=cors_headers,
-    )
+@https_fn.on_request()
+def getStateTimeseries(req: https_fn.Request) -> https_fn.Response:
+    return getTimeseries(req, "machine_states")
+
+@https_fn.on_request()
+def getStateTimeseriesDummy(req: https_fn.Request) -> https_fn.Response:
+    return getTimeseries(req, "machine_states_dummy")
 
 # for testing
-# if __name__ == "__main__":
-#     open_time = time(5,0)
-#     close_time = time(19,0)
-#     current_time = datetime.now(timezone.utc)
-#     print("Open: ", open_time)
-#     print("Close: ", close_time)
-#     print("Is between: ", is_time_between(open_time, close_time, current_time))
-        
+if __name__ == "__main__":
+
+    # fetching dummy timeseries for machine:  6ad4d9f7-8444-4595-bf0b-5fb62c36430c  at time:  2025-04-05T10:00:00.000Z
+
+    dummyReq = ManualRequest(args={"thing_id": "6ad4d9f7-8444-4595-bf0b-5fb62c36430c", "startTime": "2025-01-05T10:00:00.000Z"})  
+    state = getStateTimeseriesDummy(dummyReq)
+    print(state)
+    

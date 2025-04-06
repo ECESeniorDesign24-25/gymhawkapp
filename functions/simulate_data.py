@@ -1,5 +1,4 @@
 from dotenv import load_dotenv
-import os
 
 # Load environment variables at the start
 load_dotenv(".env.gymhawk-2ed7f")
