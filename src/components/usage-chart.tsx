@@ -5,13 +5,14 @@ import {
   LinearScale,
   PointElement,
   LineElement,
+  BarElement,
   Title,
   Tooltip,
   Legend,
   Filler,
   TimeScale
 } from "chart.js";
-import { Line } from "react-chartjs-2";
+import { Line, Bar } from "react-chartjs-2";
 import 'chartjs-adapter-date-fns';
 import { fetchMachineTimeseries } from "@/utils/db";
 
@@ -20,6 +21,7 @@ ChartJS.register(
   LinearScale,
   PointElement,
   LineElement,
+  BarElement,
   Title,
   Tooltip,
   Legend,
@@ -57,6 +59,54 @@ const MachineUsageChart: React.FC<MachineUsageChartProps> = ({ machineId, machin
   const [usageData, setUsageData] = useState<{ time: Date; state: number }[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [isDevMode, setIsDevMode] = useState<boolean>(false);
+  const [hourlyUsage, setHourlyUsage] = useState<{ hour: number; percentage: number }[]>([]);
+  const [dailyUsage, setDailyUsage] = useState<{ day: string; percentage: number }[]>([]);
+
+  // Calculate hourly and daily usage patterns
+  useEffect(() => {
+    if (usageData.length === 0) return;
+
+    // Calculate hourly usage
+    const hourlyData: { [key: number]: { total: number; on: number } } = {};
+    usageData.forEach(point => {
+      const hour = point.time.getHours();
+      if (!hourlyData[hour]) {
+        hourlyData[hour] = { total: 0, on: 0 };
+      }
+      hourlyData[hour].total++;
+      if (point.state === 0) { // 0 means in use
+        hourlyData[hour].on++;
+      }
+    });
+
+    const hourlyUsageData = Object.entries(hourlyData).map(([hour, data]) => ({
+      hour: parseInt(hour),
+      percentage: (data.on / data.total) * 100
+    })).sort((a, b) => a.hour - b.hour);
+
+    setHourlyUsage(hourlyUsageData);
+
+    // Calculate daily usage
+    const dailyData: { [key: string]: { total: number; on: number } } = {};
+    usageData.forEach(point => {
+      const day = point.time.toLocaleDateString('en-US', { weekday: 'long' });
+      if (!dailyData[day]) {
+        dailyData[day] = { total: 0, on: 0 };
+      }
+      dailyData[day].total++;
+      if (point.state === 0) { // 0 means in use
+        dailyData[day].on++;
+      }
+    });
+
+    const dayOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const dailyUsageData = dayOrder.map(day => ({
+      day,
+      percentage: dailyData[day] ? (dailyData[day].on / dailyData[day].total) * 100 : 0
+    }));
+
+    setDailyUsage(dailyUsageData);
+  }, [usageData]);
 
   // Fetch timeseries data for the machine
   useEffect(() => {
@@ -203,8 +253,55 @@ const MachineUsageChart: React.FC<MachineUsageChartProps> = ({ machineId, machin
     },
   };
 
+  const hourlyChartData = {
+    labels: hourlyUsage.map(data => `${data.hour}:00`),
+    datasets: [
+      {
+        label: 'Usage Percentage by Hour',
+        data: hourlyUsage.map(data => data.percentage),
+        backgroundColor: 'rgba(75, 192, 192, 0.6)',
+        borderColor: 'rgba(75, 192, 192, 1)',
+        borderWidth: 1,
+      }
+    ]
+  };
+
+  const dailyChartData = {
+    labels: dailyUsage.map(data => data.day),
+    datasets: [
+      {
+        label: 'Usage Percentage by Day',
+        data: dailyUsage.map(data => data.percentage),
+        backgroundColor: 'rgba(153, 102, 255, 0.6)',
+        borderColor: 'rgba(153, 102, 255, 1)',
+        borderWidth: 1,
+      }
+    ]
+  };
+
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    scales: {
+      y: {
+        beginAtZero: true,
+        max: 100,
+        title: {
+          display: true,
+          text: 'Usage Percentage (%)'
+        }
+      }
+    },
+    plugins: {
+      title: {
+        display: true,
+        text: machineName
+      }
+    }
+  };
+
   return (
-    <div>
+    <div className="space-y-8">
       <div style={{ marginBottom: '10px', display: 'flex', justifyContent: 'center', gap: '10px', alignItems: 'center' }}>
         <button 
           onClick={() => {
@@ -248,15 +345,50 @@ const MachineUsageChart: React.FC<MachineUsageChartProps> = ({ machineId, machin
           {isDevMode ? 'Dev Mode: ON' : 'Dev Mode: OFF'}
         </button>
       </div>
-      <div
-        style={{
-          width: "100%",
-          maxWidth: "1000px",
-          height: "400px",
-          margin: "0 auto",
-        }}
-      >
+      <div className="h-64">
         <Line data={chartData} options={options} />
+      </div>
+      <div className="h-64">
+        <Bar data={hourlyChartData} options={{
+          ...chartOptions,
+          scales: {
+            ...chartOptions.scales,
+            x: {
+              title: {
+                display: true,
+                text: 'Hour of Day'
+              }
+            }
+          },
+          plugins: {
+            ...chartOptions.plugins,
+            title: {
+              ...chartOptions.plugins.title,
+              text: `${machineName} - Hourly Usage Pattern`
+            }
+          }
+        }} />
+      </div>
+      <div className="h-64">
+        <Bar data={dailyChartData} options={{
+          ...chartOptions,
+          scales: {
+            ...chartOptions.scales,
+            x: {
+              title: {
+                display: true,
+                text: 'Day of Week'
+              }
+            }
+          },
+          plugins: {
+            ...chartOptions.plugins,
+            title: {
+              ...chartOptions.plugins.title,
+              text: `${machineName} - Daily Usage Pattern`
+            }
+          }
+        }} />
       </div>
     </div>
   );

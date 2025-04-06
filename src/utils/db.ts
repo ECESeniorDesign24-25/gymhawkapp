@@ -2,6 +2,7 @@ import { getDocs, collection, query } from "firebase/firestore";
 import { db } from "@/lib/firebase"
 import { getCoords, getBuildingOutline } from "./mapsAPI";
 import { API_ENDPOINT } from "./consts";
+// const cors = require('cors')({origin: true});
 
 export async function fetchMachines(gymId: string) {
     try {
