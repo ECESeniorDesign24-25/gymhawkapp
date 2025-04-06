@@ -21,6 +21,7 @@ class ManualRequest:
         self.method = None
         self.args = args
 
+
 # =============================================================================
 # Cloud Functions
 # =============================================================================
@@ -78,17 +79,18 @@ def getDeviceState(req: https_fn.Request) -> https_fn.Response:
     )
 
 
-
 # cron job to add a time step to the database for each machine every 2 minutes
 @scheduler_fn.on_schedule(schedule="*/2 * * * *")
 def addTimeStep(event: scheduler_fn.ScheduledEvent = None) -> None:
+    print("Starting addTimeStep function")
     try:
-
-        # fitness east is open between 5:00am and 7:00pm
-        open_time = time(5,0)
-        close_time = time(19,0)
+        open_time = time(5, 0)
+        close_time = time(19, 0)
         current_time = datetime.now(timezone.utc)
+        print(f"Current time: {current_time}")
+
         if not is_time_between(open_time, close_time, current_time):
+            print("Gym is closed, exiting")  # debug
             return
 
         init_db_connection()
@@ -103,7 +105,7 @@ def addTimeStep(event: scheduler_fn.ScheduledEvent = None) -> None:
         current_sums = {thing_id: 0 for thing_id in thing_ids}
         current_counts = {thing_id: 0 for thing_id in thing_ids}
 
-        # Poll for 1 minute 
+        # Poll for 1 minute
         for _ in range(60):
             for thing_id in thing_ids:
                 try:
@@ -120,6 +122,7 @@ def addTimeStep(event: scheduler_fn.ScheduledEvent = None) -> None:
             t.sleep(1)
 
         # Write the most common state for each machine to the database and the average current
+        print("Thing IDs: ", thing_ids)
         for thing_id in thing_ids:
             counts = state_counts[thing_id]
             most_common_state = max(counts.items(), key=lambda x: x[1])[0]
@@ -128,20 +131,27 @@ def addTimeStep(event: scheduler_fn.ScheduledEvent = None) -> None:
             except Exception as e:
                 print(f"Error calculating current for {thing_id}: {str(e)}")
                 current = None
-            
-            write_state_to_db(thing_id=thing_id, state=most_common_state, current=current, n_on=counts["on"], n_off=counts["off"], timestamp=timestamp)
-            
+            write_state_to_db(
+                thing_id=thing_id,
+                state=most_common_state,
+                current=current,
+                n_on=counts["on"],
+                n_off=counts["off"],
+                timestamp=timestamp,
+                table_name="machine_states",
+            )
     except Exception as e:
         print(f"Error in addTimeStep: {str(e)}")
         raise
 
+
 def getTimeseries(req: https_fn.Request, table_name: str) -> https_fn.Response:
     if req.method == "OPTIONS":
         return https_fn.Response("", status=204, headers=CORS_HEADERS)
-    
+
     thing_id = req.args.get("thing_id")
     startTime = req.args.get("startTime")
-    
+
     if not thing_id:
         return https_fn.Response(
             json.dumps({"error": "Thing ID not found"}),
@@ -151,7 +161,12 @@ def getTimeseries(req: https_fn.Request, table_name: str) -> https_fn.Response:
         )
     try:
         timeseries = fetch_state_from_db(thing_id, startTime, table_name)
-        return https_fn.Response(json.dumps(timeseries), mimetype="application/json", status=200, headers=CORS_HEADERS)
+        return https_fn.Response(
+            json.dumps(timeseries),
+            mimetype="application/json",
+            status=200,
+            headers=CORS_HEADERS,
+        )
     except Exception as e:
         print(f"Error fetching timeseries: {str(e)}")
         return https_fn.Response(
@@ -161,20 +176,17 @@ def getTimeseries(req: https_fn.Request, table_name: str) -> https_fn.Response:
             headers=CORS_HEADERS,
         )
 
+
 @https_fn.on_request()
 def getStateTimeseries(req: https_fn.Request) -> https_fn.Response:
     return getTimeseries(req, "machine_states")
+
 
 @https_fn.on_request()
 def getStateTimeseriesDummy(req: https_fn.Request) -> https_fn.Response:
     return getTimeseries(req, "machine_states_dummy")
 
+
 # for testing
-if __name__ == "__main__":
-
-    # fetching dummy timeseries for machine:  6ad4d9f7-8444-4595-bf0b-5fb62c36430c  at time:  2025-04-05T10:00:00.000Z
-
-    dummyReq = ManualRequest(args={"thing_id": "6ad4d9f7-8444-4595-bf0b-5fb62c36430c", "startTime": "2025-01-05T10:00:00.000Z"})  
-    state = getStateTimeseriesDummy(dummyReq)
-    print(state)
-    
+# if __name__ == "__main__":
+#     addTimeStep()
