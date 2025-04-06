@@ -131,9 +131,6 @@ def addTimeStep(event: scheduler_fn.ScheduledEvent = None) -> None:
             except Exception as e:
                 print(f"Error calculating current for {thing_id}: {str(e)}")
                 current = None
-            print(
-                f"Writing state to db for {thing_id}: {most_common_state}, {current}, {counts['on']}, {counts['off']}, {timestamp}"
-            )
             write_state_to_db(
                 thing_id=thing_id,
                 state=most_common_state,
@@ -143,7 +140,6 @@ def addTimeStep(event: scheduler_fn.ScheduledEvent = None) -> None:
                 timestamp=timestamp,
                 table_name="machine_states",
             )
-
     except Exception as e:
         print(f"Error in addTimeStep: {str(e)}")
         raise
