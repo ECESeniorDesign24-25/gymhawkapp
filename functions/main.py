@@ -290,12 +290,17 @@ def getCurrentValues(params: dict, thing_id: str) -> tuple[str, float]:
 
 @https_fn.on_request()
 def getDeviceState(req: https_fn.Request) -> https_fn.Response:
+    print("getDeviceState called with args:", req.args)
     if req.method == "OPTIONS":
+        print("Handling OPTIONS request")
         return https_fn.Response("", status=204, headers=CORS_HEADERS)
 
     thing_id = req.args.get("thing_id")
     variable = req.args.get("variable", "state")
+    print(f"Processing request for thing_id: {thing_id}, variable: {variable}")
+    
     if not thing_id:
+        print("No thing_id provided")
         return https_fn.Response(
             json.dumps({"error": "Thing ID not found"}),
             mimetype="application/json",
@@ -304,15 +309,40 @@ def getDeviceState(req: https_fn.Request) -> https_fn.Response:
         )
     try:
         # need to find the iot property name from the variable name
+        print(f"Fetching params for thing_id: {thing_id}")
         params = fetch_params(thing_id)
+        print(f"Params fetched: {params}")
+        
+        if variable not in params:
+            print(f"Variable {variable} not found in params")
+            return https_fn.Response(
+                json.dumps({"error": f"Variable {variable} not found"}),
+                mimetype="application/json",
+                status=404,
+                headers=CORS_HEADERS,
+            )
+            
         property_name = params[variable]
+        print(f"Getting device param for property: {property_name}")
         property_dict = getDeviceParamFromIoTCloud(thing_id, property_name)
+        print(f"Device param result: {property_dict}")
+        
         response_data = {variable: property_dict}
         output = json.dumps(response_data)
+        print(f"Sending response: {output}")
         return https_fn.Response(
             output, mimetype="application/json", status=200, headers=CORS_HEADERS
         )
     except ApiException as e:
+        print(f"API Exception: {str(e)}")
+        return https_fn.Response(
+            json.dumps({"error": str(e)}),
+            mimetype="application/json",
+            status=500,
+            headers=CORS_HEADERS,
+        )
+    except Exception as e:
+        print(f"Unexpected error: {str(e)}")
         return https_fn.Response(
             json.dumps({"error": str(e)}),
             mimetype="application/json",
