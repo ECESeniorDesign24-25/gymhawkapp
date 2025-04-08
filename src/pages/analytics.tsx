@@ -124,7 +124,7 @@ export default function Analytics() {
               return machine;
             }
             const state = await fetchDeviceState(machine.machine, controller.signal, oldStates[machine.machine], "state");
-            
+            console.log("state: ", state);
             // return existing machine properties plus updated state
             const newState = { ...machine, state, oldState: oldStates[machine.machine] };
 

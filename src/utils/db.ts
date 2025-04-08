@@ -85,6 +85,13 @@ export async function fetchMachineTimeseries(machineId: string, startTime: strin
     }
 }
 
+// Utility function to convert state to consistent format
+export function normalizeState(state: any): string {
+  if (typeof state === "boolean") {
+    return state ? "on" : "off";
+  }
+  return state;
+}
 
 export async function fetchDeviceState(machine: string, signal?: AbortSignal, oldState?: string, variable?: string) {
     try {
@@ -105,14 +112,11 @@ export async function fetchDeviceState(machine: string, signal?: AbortSignal, ol
         return oldState || "loading";
       }
   
-      // decode to utf8
-      const buffer = await response.arrayBuffer();
-      const utf8Text = new TextDecoder('utf-8').decode(buffer);
-      const data = JSON.parse(utf8Text);
+      const data = await response.json();
       
       // make sure the variable exists in the response
       if (variable && data[variable] !== undefined) {
-        return data[variable];
+        return normalizeState(data[variable]);
       }
       
       console.error(`Variable ${variable} not found in response:`, data);
