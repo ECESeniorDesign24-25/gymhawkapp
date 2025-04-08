@@ -115,16 +115,19 @@ const MachineUsageChart: React.FC<MachineUsageChartProps> = ({ machineId, machin
       const startTime = get5amOnDate(selectedDate);
       
       // Use appropriate endpoint based on dev mode
-      const timeseries = await fetchMachineTimeseries(machineId, startTime, isDevMode);
+      const timeseries = await fetchMachineTimeseries(machineId, startTime, isDevMode, "state");
       
       // convert timeseries to plottable format and convert to Central Time
-      const formattedData = timeseries.map((point: { state: string; timestamp: string }) => {
+      const formattedData = timeseries.map((point: { [key: string]: string; timestamp: string }) => {
         const utcDate = new Date(point.timestamp);
         const centralDate = new Date(utcDate.getTime() - getOffset(utcDate));
         
+        // Get the state value from the response
+        const stateValue = point.state;
+        
         return {
           time: centralDate,
-          state: point.state === "on" ? 0 : 1
+          state: stateValue === "on" ? 0 : 1
         };
       });
       

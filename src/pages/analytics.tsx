@@ -123,7 +123,7 @@ export default function Analytics() {
             if (!machine) {
               return machine;
             }
-            const state = await fetchDeviceState(machine.machine, controller.signal, oldStates[machine.machine]);
+            const state = await fetchDeviceState(machine.machine, controller.signal, oldStates[machine.machine], "state");
             
             // return existing machine properties plus updated state
             const newState = { ...machine, state, oldState: oldStates[machine.machine] };

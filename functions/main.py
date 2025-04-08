@@ -26,13 +26,6 @@ class ManualRequest:
         self.method = None
         self.args = args
 
-# config iot
-host = "https://api2.arduino.cc"
-client_config = Configuration(host)
-client_config.access_token = get_token()
-client = iot.ApiClient(client_config)
-properties_api = PropertiesV2Api(client)
-
 connection_pool = None
 global_connector = None
 
@@ -147,11 +140,11 @@ def test_connection():
         return False
 
 
-def fetch_state_from_db(machine: str, startTime: str, table_name: str) -> list:
+def fetch_timeseries_from_db(machine: str, startTime: str, variable: str, table_name: str) -> list:
     try:
         engine = init_db_connection()
         query = f"""
-        SELECT state, timestamp 
+        SELECT {variable}, timestamp 
         FROM {table_name} 
         WHERE thing_id = :machine AND timestamp >= :startTime
         ORDER BY timestamp
@@ -164,7 +157,7 @@ def fetch_state_from_db(machine: str, startTime: str, table_name: str) -> list:
 
             # Serialize into a list of dictionaries
             return [
-                {"state": row[0], "timestamp": row[1].isoformat()} for row in result
+                {variable: row[0], "timestamp": row[1].isoformat()} for row in result
             ]
     except Exception as e:
         print(f"Error fetching from db: {e}")
@@ -206,7 +199,7 @@ def getTimeseries(req: https_fn.Request, table_name: str) -> https_fn.Response:
 
     thing_id = req.args.get("thing_id")
     startTime = req.args.get("startTime")
-
+    variable = req.args.get("variable")
     if not thing_id:
         return https_fn.Response(
             json.dumps({"error": "Thing ID not found"}),
@@ -215,7 +208,7 @@ def getTimeseries(req: https_fn.Request, table_name: str) -> https_fn.Response:
             headers=CORS_HEADERS,
         )
     try:
-        timeseries = fetch_state_from_db(thing_id, startTime, table_name)
+        timeseries = fetch_timeseries_from_db(thing_id, startTime, variable, table_name)
         return https_fn.Response(
             json.dumps(timeseries),
             mimetype="application/json",
@@ -245,14 +238,20 @@ def fetch_params(thing_id: str) -> dict:
 
 def getDeviceParamFromIoTCloud(thing_id: str, property_name: str) -> float:
     try:
-        properties = properties_api.properties_v2_list(id=thing_id)
+        # config iot
+        host = "https://api2.arduino.cc"
+        client_config = Configuration(host)
+        client_config.access_token = get_token()
+        client = iot.ApiClient(client_config)
+        properties_api = PropertiesV2Api(client)
 
         # avoid too many api calls
         t.sleep(1)
+        properties = properties_api.properties_v2_list(id=thing_id)
         for property in properties:
             if property.name == property_name:
                 return property.last_value
-        print(f"No matching property found for {property_name}")
+        print(f"[{thing_id}] No matching property found for {property_name}")
         return None
     except ApiException as e:
         # rate limit hit, recurse until it works lol
@@ -278,9 +277,12 @@ def getCurrentValues(params: dict, thing_id: str) -> tuple[str, float]:
             # Get the current value from IoT Cloud
             new_value = getDeviceParamFromIoTCloud(thing_id, property_name)
             # Only use the original property name if we got None from IoT Cloud
-            current_values[key] = new_value if new_value is not None else property_name
-                
+            current_values[key] = new_value
+    
+    fix_param_types(current_values)
+    print(f"Current values for {thing_id}: ", current_values)
     return current_values
+
 
 # =============================================================================
 # Cloud Functions
@@ -291,40 +293,25 @@ def getDeviceState(req: https_fn.Request) -> https_fn.Response:
     if req.method == "OPTIONS":
         return https_fn.Response("", status=204, headers=CORS_HEADERS)
 
-    HOST = "https://api2.arduino.cc"
-    token = get_token()
-    client_config = Configuration(HOST)
-    client_config.access_token = token
-    client = iot.ApiClient(client_config)
-    properties_api = PropertiesV2Api(client)
-
     thing_id = req.args.get("thing_id")
+    variable = req.args.get("variable", "state")
     if not thing_id:
         return https_fn.Response(
-            json.dumps({"error": "Machine not found"}),
+            json.dumps({"error": "Thing ID not found"}),
             mimetype="application/json",
             status=404,
             headers=CORS_HEADERS,
         )
-
-    property_dict = {}
     try:
-        properties = properties_api.properties_v2_list(id=thing_id)
-        for property in properties:
-            # assume state property is always present
-            if "Use" in property.name:
-                value = property.last_value
-                property_dict["state"] = (
-                    "on" if value else "off" if value is not None else "unknown"
-                )
-
-            # current property is optional
-            if "Current" in property.name:
-                property_dict["current"] = property.last_value
-
-        if "current" not in property_dict:
-            property_dict["current"] = None
-
+        # need to find the iot property name from the variable name
+        params = fetch_params(thing_id)
+        property_name = params[variable]
+        property_dict = getDeviceParamFromIoTCloud(thing_id, property_name)
+        response_data = {variable: property_dict}
+        output = json.dumps(response_data)
+        return https_fn.Response(
+            output, mimetype="application/json", status=200, headers=CORS_HEADERS
+        )
     except ApiException as e:
         return https_fn.Response(
             json.dumps({"error": str(e)}),
@@ -332,10 +319,6 @@ def getDeviceState(req: https_fn.Request) -> https_fn.Response:
             status=500,
             headers=CORS_HEADERS,
         )
-    output = json.dumps(property_dict)
-    return https_fn.Response(
-        output, mimetype="application/json", status=200, headers=CORS_HEADERS
-    )
 
 
 # cron job to add a time step to the database for each machine every 2 minutes
@@ -358,14 +341,16 @@ def addTimeStep(event: scheduler_fn.ScheduledEvent = None) -> None:
         state_counts = {}
         max_values = {} 
 
-        # sample until 1:30 minutes have passed
+        # sample until 1:00 minutes have passed
         start = t.time()
         n = 1
-        while t.time() - start < 90:
+        while t.time() - start <90:
             for thing_id in thing_ids:
                 try:    
+                    thing_id_params = original_params[thing_id]
+
                     # Get fresh current values for each IoT property
-                    current_values = getCurrentValues(original_params[thing_id], thing_id)
+                    current_values = getCurrentValues(thing_id_params, thing_id)
 
                     # print(f"\n{t.time() - start}s | Current IoT values for {thing_id}: ", current_values)
                     # take mode of each string param, max of each float param
@@ -397,7 +382,6 @@ def addTimeStep(event: scheduler_fn.ScheduledEvent = None) -> None:
         derived_values = {}
         for thing_id in thing_ids:
             derived_values[thing_id] = {}
-
             derived_values[thing_id]['timestamp'] = timestamp
             derived_values[thing_id]['thing_id'] = thing_id
 
@@ -418,6 +402,7 @@ def addTimeStep(event: scheduler_fn.ScheduledEvent = None) -> None:
 
         # write the most params for each machine
         for thing_id in thing_ids:
+            print(f"\nWriting derived values for {thing_id}: ", derived_values[thing_id])
             write_state_to_db(derived_values[thing_id], table_name="machine_states")
     except Exception as e:
         print(f"Error in addTimeStep: {str(e)}")
@@ -435,4 +420,5 @@ def getStateTimeseriesDummy(req: https_fn.Request) -> https_fn.Response:
 
 
 # if __name__ == "__main__":
-#     addTimeStep()
+#     manReq = ManualRequest(args={"thing_id": "0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8", "variable": "lat"})
+#     print(getDeviceState(manReq).json)

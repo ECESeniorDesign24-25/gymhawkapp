@@ -20,24 +20,12 @@ export async function fetchMachines(gymId: string) {
             }
             const data = doc.data();
 
-            // TODO: retreive lat/lng from cloud, add rate
-            let lat: number;
-            let lng: number;
-            if (doc.id.includes("Blue")) {
-                lat = 41.6572472
-                lng = -91.5389825
-            }
-            else {
-                lat = 41.6576472,
-                lng = -91.5381925
-            }
-
             return {
                 machine: doc.id,
-                lat: lat,
-                lng: lng,
+                lat: fetchDeviceState(doc.id, undefined, undefined, "lat"),
+                lng: fetchDeviceState(doc.id, undefined, undefined, "lng"),
                 thing_id: data.thingId,
-                state: fetchDeviceState(doc.id)
+                state: fetchDeviceState(doc.id, undefined, undefined, "state")
             }
         })
 
@@ -73,16 +61,14 @@ export async function fetchGyms(){
     }
 }
 
-export async function fetchMachineTimeseries(machineId: string, startTime: string, devMode: boolean) {
+export async function fetchMachineTimeseries(machineId: string, startTime: string, devMode: boolean, variable: string) {
     try {
-        console.log("fetching timeseries for machine: ", machineId, " at time: ", startTime);
-
         let endpoint = "";
         if (devMode) {
-            endpoint = `${API_ENDPOINT}/getStateTimeseriesDummy?thing_id=${machineId}&startTime=${startTime}`;
+            endpoint = `${API_ENDPOINT}/getStateTimeseriesDummy?thing_id=${machineId}&startTime=${startTime}&variable=${variable}`;
         }
         else {
-            endpoint = `${API_ENDPOINT}/getStateTimeseries?thing_id=${machineId}&startTime=${startTime}`;
+            endpoint = `${API_ENDPOINT}/getStateTimeseries?thing_id=${machineId}&startTime=${startTime}&variable=${variable}`;
         }
         console.log("Using timeseries endpoint: ", endpoint);
         // get state timeseries for given machine
@@ -91,6 +77,7 @@ export async function fetchMachineTimeseries(machineId: string, startTime: strin
             throw new Error(`Network response was not ok: ${response.statusText}`);
         }
         const data = await response.json();
+        console.log("fetching timeseries for machine: ", machineId, " after start time: ", startTime, " for variable: ", variable, " with data: ", data);
         return data;
     } catch (e) {
         console.error('Error fetching timeseries:', e);
@@ -99,7 +86,7 @@ export async function fetchMachineTimeseries(machineId: string, startTime: strin
 }
 
 
-export async function fetchDeviceState(machine: string, signal?: AbortSignal, oldState?: string) {
+export async function fetchDeviceState(machine: string, signal?: AbortSignal, oldState?: string, variable?: string) {
     try {
       // always default to loading state
       const machines = collection(db, "machines");
@@ -111,7 +98,7 @@ export async function fetchDeviceState(machine: string, signal?: AbortSignal, ol
         return oldState || "loading";
       }
   
-      const response = await fetch(`${API_ENDPOINT}/getDeviceState?thing_id=${thing_id}`, { signal });
+      const response = await fetch(`${API_ENDPOINT}/getDeviceState?thing_id=${thing_id}&variable=${variable}`, { signal });
   
       if (!response.ok) {
         console.error('Failed to fetch device state:', response);
@@ -122,7 +109,14 @@ export async function fetchDeviceState(machine: string, signal?: AbortSignal, ol
       const buffer = await response.arrayBuffer();
       const utf8Text = new TextDecoder('utf-8').decode(buffer);
       const data = JSON.parse(utf8Text);
-      return data.state;
+      
+      // make sure the variable exists in the response
+      if (variable && data[variable] !== undefined) {
+        return data[variable];
+      }
+      
+      console.error(`Variable ${variable} not found in response:`, data);
+      return oldState || "loading";
     } catch (err: any) {
       if (err.name === 'AbortError') {
         return oldState || "loading";
