@@ -50,42 +50,24 @@ def is_time_between(begin_time, end_time, current_time):
         return current_time_only >= begin_time or current_time_only <= end_time
 
 
-def write_state_to_db(
-    thing_id: str,
-    state: str,
-    timestamp: str,
-    n_on: int,
-    n_off: int,
-    current: int,
-    table_name: str,
-) -> None:
+def build_query_from_params(params: dict, table_name: str) -> str:
+    query = f"""
+        INSERT INTO {table_name} ({', '.join(params.keys())})
+        VALUES ({', '.join([f":{key}" for key in params.keys()])})
+    """
+    return query
+
+
+def write_state_to_db(params: dict, table_name: str) -> None:
     """
     Write the state of a device to the specified table.
     """
     try:
         engine = init_db_connection()
-
-        # Basic sanitization check: table name should be a valid identifier (alphanumeric and underscores)
-        if not table_name.isidentifier():
-            raise ValueError("Invalid table name provided.")
-
-        query = f"""
-            INSERT INTO {table_name} (thing_id, state, timestamp, n_on, n_off, current)
-            VALUES (:thing_id, :state, :timestamp, :n_on, :n_off, :current)
-        """
+        query = build_query_from_params(params, table_name)
 
         with engine.connect() as conn:
-            conn.execute(
-                text(query),
-                {
-                    "thing_id": thing_id,
-                    "state": state,
-                    "timestamp": timestamp,
-                    "n_on": n_on,
-                    "n_off": n_off,
-                    "current": current,
-                },
-            )
+            conn.execute(text(query), params)
             conn.commit()
 
     except Exception as e:
@@ -157,14 +139,3 @@ def get_thing_id(machine):
     print(f"{machine} does not have a corresponding doc in Firestore")
     return None
 
-
-def addTimeStepUtil(thing_id: str, timestamp: str) -> tuple[str, float]:
-    req = ManualRequest(args={"thing_id": thing_id})
-    device_state = getDeviceState(req)
-    if device_state and device_state.data:
-        state_data = json.loads(device_state.data.decode("utf-8"))
-        state = state_data.get("state")
-        current = state_data.get("current")
-        return state, current
-    else:
-        print("Device state is None")
