@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import {redirect} from "next/navigation";
-import { normalizeState } from '@/utils/db';
 
 interface MachineMarkerProps {
     lat: number;
@@ -12,11 +11,10 @@ interface MachineMarkerProps {
 
 // marker for device on map
 export const MachineMarker = ({ lat, lng, state, machine, thing_id }: MachineMarkerProps) => {
-  const normalizedState = normalizeState(state);
   let backgroundColor = 'grey';
-  if (normalizedState === "on") {
+  if (state === "on") {
     backgroundColor = 'red';
-  } else if (normalizedState === "off") {
+  } else if (state === "off") {
     backgroundColor = 'green';
   }
   

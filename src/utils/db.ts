@@ -70,14 +70,13 @@ export async function fetchMachineTimeseries(machineId: string, startTime: strin
         else {
             endpoint = `${API_ENDPOINT}/getStateTimeseries?thing_id=${machineId}&startTime=${startTime}&variable=${variable}`;
         }
-        console.log("Using timeseries endpoint: ", endpoint);
         // get state timeseries for given machine
         const response = await fetch(endpoint);
         if (!response.ok) {
             throw new Error(`Network response was not ok: ${response.statusText}`);
         }
         const data = await response.json();
-        console.log("fetching timeseries for machine: ", machineId, " after start time: ", startTime, " for variable: ", variable, " with data: ", data);
+        console.log("Fetched timeseries for machine: ", machineId, " after start time: ", startTime, " for variable: ", variable, " with data: ", data, " dev mode: ", devMode);
         return data;
     } catch (e) {
         console.error('Error fetching timeseries:', e);
@@ -85,13 +84,6 @@ export async function fetchMachineTimeseries(machineId: string, startTime: strin
     }
 }
 
-// Utility function to convert state to consistent format
-export function normalizeState(state: any): string {
-  if (typeof state === "boolean") {
-    return state ? "on" : "off";
-  }
-  return state;
-}
 
 export async function fetchDeviceState(machine: string, signal?: AbortSignal, oldState?: string, variable?: string) {
     try {
@@ -116,7 +108,7 @@ export async function fetchDeviceState(machine: string, signal?: AbortSignal, ol
       
       // make sure the variable exists in the response
       if (variable && data[variable] !== undefined) {
-        return normalizeState(data[variable]);
+        return data[variable];
       }
       
       console.error(`Variable ${variable} not found in response:`, data);

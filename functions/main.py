@@ -284,6 +284,13 @@ def getCurrentValues(params: dict, thing_id: str) -> tuple[str, float]:
     return current_values
 
 
+def normalizeState(state: str) -> str:
+    if state == "True" or state == True:
+        return "on"
+    elif state == "False" or state == False:
+        return "off"
+    return state
+
 # =============================================================================
 # Cloud Functions
 # =============================================================================
@@ -328,6 +335,8 @@ def getDeviceState(req: https_fn.Request) -> https_fn.Response:
         print(f"Device param result: {property_dict}")
         
         response_data = {variable: property_dict}
+        if variable == "state":
+            response_data[variable] = normalizeState(response_data[variable])
         output = json.dumps(response_data)
         print(f"Sending response: {output}")
         return https_fn.Response(
@@ -422,7 +431,7 @@ def addTimeStep(event: scheduler_fn.ScheduledEvent = None) -> None:
 
                     # Convert state to "on"/"off" string
                     if param == "state":
-                        derived_values[thing_id][param] = "on" if derived_values[thing_id][param] == "True" else "off"
+                        derived_values[thing_id][param] = normalizeState(derived_values[thing_id][param])
 
             # add max value for each float param
             for param in max_values[thing_id]:
@@ -449,6 +458,6 @@ def getStateTimeseriesDummy(req: https_fn.Request) -> https_fn.Response:
     return getTimeseries(req, "machine_states_dummy")
 
 
-# if __name__ == "__main__":
-#     manReq = ManualRequest(args={"thing_id": "0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8", "variable": "lat"})
-#     print(getDeviceState(manReq).json)
+if __name__ == "__main__":
+    manReq = ManualRequest(args={"thing_id": "0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8", "state": "lat"})
+    print(getDeviceState(manReq).json)

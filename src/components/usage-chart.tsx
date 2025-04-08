@@ -118,16 +118,13 @@ const MachineUsageChart: React.FC<MachineUsageChartProps> = ({ machineId, machin
       const timeseries = await fetchMachineTimeseries(machineId, startTime, isDevMode, "state");
       
       // convert timeseries to plottable format and convert to Central Time
-      const formattedData = timeseries.map((point: { [key: string]: string; timestamp: string }) => {
+      const formattedData = timeseries.map((point: { state: string; timestamp: string }) => {
         const utcDate = new Date(point.timestamp);
-        const centralDate = new Date(utcDate.getTime() - getOffset(utcDate));
-        
-        // Get the state value from the response
-        const stateValue = point.state;
+        const centralDate = new Date(utcDate.getTime() + (4 * 60 * 60 * 1000));
         
         return {
           time: centralDate,
-          state: stateValue === "on" ? 0 : 1
+          state: point.state === "on" ? 0 : 1
         };
       });
       
@@ -139,11 +136,11 @@ const MachineUsageChart: React.FC<MachineUsageChartProps> = ({ machineId, machin
     }
   }, [machineId, selectedDate, isDevMode]);
 
-  // x axis boundaries (5am to 7pm)
+  // x axis boundaries (days in plot)
   const minTime = new Date(selectedDate);
-  minTime.setHours(5, 0, 0, 0);
+  minTime.setHours(0, 0, 0, 0);
   const maxTime = new Date(selectedDate);
-  maxTime.setHours(19, 0, 0, 0); // 7pm
+  maxTime.setHours(23, 59, 59, 999);
 
   const chartData = {
     datasets: [
@@ -155,9 +152,7 @@ const MachineUsageChart: React.FC<MachineUsageChartProps> = ({ machineId, machin
           above: 'rgba(0, 100, 0, 0.1)',  // green fill from bottom when available
           below: 'rgba(0, 0, 0, 0)'
         },
-        segment: {
-          borderColor: 'black',
-        },
+        borderColor: 'black',
         tension: 0.1,
         stepped: true,
         pointRadius: 0,
@@ -299,6 +294,13 @@ const MachineUsageChart: React.FC<MachineUsageChartProps> = ({ machineId, machin
       title: {
         display: true,
         text: machineName
+      },
+      tooltip: {
+        callbacks: {
+          label: function(context: any) {
+            return `${context.parsed.y.toFixed(1)}%`;
+          }
+        }
       }
     }
   };
