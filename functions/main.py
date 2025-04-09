@@ -6,7 +6,7 @@ from firebase_admin import initialize_app, firestore
 import iot_api_client as iot
 from iot_api_client.rest import ApiException
 from iot_api_client.configuration import Configuration
-from iot_api_client.api import PropertiesV2Api
+from iot_api_client.api import PropertiesV2Api, DevicesV2Api
 from iot_api_client.models import *
 from google.cloud.sql.connector import Connector, IPTypes
 from sqlalchemy import create_engine, text
@@ -14,8 +14,8 @@ from oauthlib.oauth2 import BackendApplicationClient
 from requests_oauthlib import OAuth2Session
 from utils import *
 from consts import *
-from collections import defaultdict
-    
+import inspect 
+
 # set up firebase app
 initialize_app()
 db = firestore.client()
@@ -254,6 +254,22 @@ def getDeviceParamFromIoTCloud(thing_id: str, property_name: str, propertiesAPI:
         print(f"API Exception for {thing_id}: {str(e)}")
         return None
 
+def getDeviceStatus(thing_id: str) -> str:
+
+    # States are in the form OFFLINE or ONLINE
+    host = "https://api2.arduino.cc"
+    client_config = Configuration(host)
+    client_config.access_token = get_token()
+    client = iot.ApiClient(client_config)
+    devices_api = DevicesV2Api(client)
+
+    devices = devices_api.devices_v2_list()
+    
+    for device in devices:
+        if device.thing and device.thing.id == thing_id:
+            return device.device_status
+    
+    return "UNKNOWN" 
 
 def getCurrentValues(params: dict, thing_id: str, propertiesAPI: PropertiesV2Api) -> tuple[str, float]:
     # Create a fresh dictionary for this iteration
@@ -286,6 +302,7 @@ def normalizeState(state: str) -> str:
 # =============================================================================
 # Cloud Functions
 # =============================================================================
+
 
 @https_fn.on_request()
 def getDeviceState(req: https_fn.Request) -> https_fn.Response:
@@ -425,6 +442,7 @@ def addTimeStep(event: scheduler_fn.ScheduledEvent = None) -> None:
             derived_values[thing_id]['timestamp'] = timestamp
             derived_values[thing_id]['thing_id'] = thing_id
             derived_values[thing_id]["machineName"] = db.collection("thing_ids").document(thing_id).get().to_dict()["name"]
+            derived_values[thing_id]["device_status"] = getDeviceStatus(thing_id)
 
             # add most common value for each string param
             for param in state_counts[thing_id]:
@@ -459,14 +477,15 @@ def getStateTimeseriesDummy(req: https_fn.Request) -> https_fn.Response:
     return getTimeseries(req, "machine_states_dummy")
 
 
-# if __name__ == "__main__":
-#     manReq = ManualRequest(args={"thing_id": "0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8", "variable": "state"})
-#     manReq2 = ManualRequest(args={"thing_id": "c7996422-9462-4fa7-8d02-bfe8c7aba7e4", "variable": "state"})
-#     manReq3 = ManualRequest(args={"thing_id": "6ad4d9f7-8444-4595-bf0b-5fb62c36430c", "variable": "state"})
-#     # addTimeStep()
+if __name__ == "__main__":
+    manReq = ManualRequest(args={"thing_id": "0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8", "variable": "state"})
+    manReq2 = ManualRequest(args={"thing_id": "c7996422-9462-4fa7-8d02-bfe8c7aba7e4", "variable": "state"})
+    manReq3 = ManualRequest(args={"thing_id": "6ad4d9f7-8444-4595-bf0b-5fb62c36430c", "variable": "state"})
+    # addTimeStep()
 
-#     print("================================================")
-#     print(getDeviceState(manReq).json)
-#     print(getDeviceState(manReq2).json)
-#     print(getDeviceState(manReq3).json)
-#     print("================================================")
+    print("================================================")
+    print(getDeviceStatus(thing_id="0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8"))
+    print(getDeviceStatus(thing_id="c7996422-9462-4fa7-8d02-bfe8c7aba7e4"))
+    print(getDeviceStatus(thing_id="6ad4d9f7-8444-4595-bf0b-5fb62c36430c"))
+    print("================================================")
+    
