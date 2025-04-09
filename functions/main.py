@@ -355,7 +355,7 @@ def getDeviceState(req: https_fn.Request) -> https_fn.Response:
 
 
 # cron job to add a time step to the database for each machine every 1 minute
-# @scheduler_fn.on_schedule(schedule="*/1 * * * *")
+@scheduler_fn.on_schedule(schedule="*/1 * * * *")
 def addTimeStep(event: scheduler_fn.ScheduledEvent = None) -> None:
     try:
         current_time = datetime.now(timezone.utc)
