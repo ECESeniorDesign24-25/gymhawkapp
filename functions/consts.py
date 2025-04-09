@@ -22,3 +22,5 @@ CORS_HEADERS = {
     "Access-Control-Allow-Headers": "Content-Type",
     "Access-Control-Allow-Credentials": "true",
 }
+
+SAMPLE_TIME = 30
