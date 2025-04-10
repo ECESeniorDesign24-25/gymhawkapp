@@ -8,6 +8,9 @@ import { HOME_STYLE } from '@/styles/customStyles';
 import { fetchGyms, fetchMachines, fetchDeviceState } from '@/utils/db';
 import { useAuth } from '@/lib/auth';
 import { EMAIL } from '@/utils/consts';
+import { RequireAuth } from '@/components/requireAuth';
+
+// dynamically import Select 
 const DynamicSelect = dynamic(() => Promise.resolve(Select), { ssr: false });
 const DynamicMachineUsageChart = dynamic(() => import('@/components/usage-chart'), { ssr: false });
 const DynamicAdminUsageChart = dynamic(() => import('@/components/daily-usage-chart'), { ssr: false });
@@ -180,6 +183,7 @@ function Analytics() {
 
   // render page
   return (
+    <RequireAuth>
     <div className={styles.container}>
       <Banner />
       <div style={{ display: 'flex', flexDirection: 'row', minHeight: '100vh' }}>
@@ -286,6 +290,7 @@ function Analytics() {
       </div>
       <Footer />
     </div>
+    </RequireAuth>
   );
 }
 
