@@ -49,16 +49,31 @@ jobs:
           DB_PASS: ${{ secrets.DB_PASS }}
           DB_INSTANCE_NAME: ${{ secrets.DB_INSTANCE_NAME }}
         run: |
+          # Create service account file
           echo "$APPLICATION_DEFAULT_CREDENTIALS" > serviceAccount.json
           
+          # Set Google Application Credentials
           export GOOGLE_APPLICATION_CREDENTIALS=$(pwd)/serviceAccount.json
           
+          # Create environment files
           echo "ARDUINO_CLIENT_ID=$ARDUINO_CLIENT_ID" > functions/.env.gymhawk-2ed7f
           echo "ARDUINO_CLIENT_SECRET=$ARDUINO_CLIENT_SECRET" >> functions/.env.gymhawk-2ed7f
           echo "DB_NAME=$DB_NAME" >> functions/.env.gymhawk-2ed7f
           echo "DB_USER=$DB_USER" >> functions/.env.gymhawk-2ed7f
           echo "DB_PASS=$DB_PASS" >> functions/.env.gymhawk-2ed7f
           echo "DB_INSTANCE_NAME=$DB_INSTANCE_NAME" >> functions/.env.gymhawk-2ed7f
+          
+          # Create .env.local file for Next.js build
+          echo "NEXT_PUBLIC_FIREBASE_API_KEY=$NEXT_PUBLIC_FIREBASE_API_KEY" > .env.local
+          echo "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=$NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN" >> .env.local
+          echo "NEXT_PUBLIC_FIREBASE_PROJECT_ID=$NEXT_PUBLIC_FIREBASE_PROJECT_ID" >> .env.local
+          echo "NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=$NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET" >> .env.local
+          echo "NEXT_PUBLIC_FIREBASE_MESSAGE_SENDER_ID=$NEXT_PUBLIC_FIREBASE_MESSAGE_SENDER_ID" >> .env.local
+          echo "NEXT_PUBLIC_FIREBASE_APP_ID=$NEXT_PUBLIC_FIREBASE_APP_ID" >> .env.local
+          
+          # Initialize Firebase Admin SDK
+          echo "Initializing Firebase Admin SDK..."
+          python -c "import firebase_admin; from firebase_admin import credentials; cred = credentials.Certificate('serviceAccount.json'); firebase_admin.initialize_app(cred)"
           
           source functions/venv/bin/activate
           
