@@ -52,8 +52,8 @@ def is_time_between(begin_time, end_time, current_time):
 
 def build_query_from_params(params: dict, table_name: str) -> str:
     query = f"""
-        INSERT INTO {table_name} ({', '.join(params.keys())})
-        VALUES ({', '.join([f":{key}" for key in params.keys()])})
+        INSERT INTO {table_name} ({", ".join(params.keys())})
+        VALUES ({", ".join([f":{key}" for key in params.keys()])})
     """
     return query
 
@@ -138,4 +138,3 @@ def get_thing_id(machine):
         return str(data.get("thingId"))
     print(f"{machine} does not have a corresponding doc in Firestore")
     return None
-
