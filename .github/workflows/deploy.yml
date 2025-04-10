@@ -31,6 +31,7 @@ jobs:
           python -m venv functions/venv
           source functions/venv/bin/activate
           python -m pip install -r functions/requirements.txt
+          python -m pip install firebase-admin
 
       - name: Deploy to Firebase
         env:
@@ -73,9 +74,8 @@ jobs:
           
           # Initialize Firebase Admin SDK
           echo "Initializing Firebase Admin SDK..."
-          python -c "import firebase_admin; from firebase_admin import credentials; cred = credentials.Certificate('serviceAccount.json'); firebase_admin.initialize_app(cred)"
-          
           source functions/venv/bin/activate
+          python -c "import firebase_admin; from firebase_admin import credentials; cred = credentials.Certificate('serviceAccount.json'); firebase_admin.initialize_app(cred)"
           
           npm install -g firebase-tools@13.31.1
           firebase deploy --token $FIREBASE_TOKEN --non-interactive
