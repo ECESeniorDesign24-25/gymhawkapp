@@ -1,7 +1,7 @@
 // src/pages/login.tsx
 import { useState } from "react";
 import { useRouter } from "next/router";
-import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail } from "firebase/auth";
 import { auth } from "../lib/firebase";
 import styles from "../styles/index.module.css";
 import Banner from "../components/banner";
@@ -37,6 +37,21 @@ export default function Login() {
     }
   };
 
+  // Handle forgot password action
+  const handleForgotPassword = async () => {
+    setError("");
+    if (!email) {
+      setError("Please enter your email address first.");
+      return;
+    }
+    try {
+      await sendPasswordResetEmail(auth, email);
+      alert("Password reset email sent. Check your inbox.");
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
   return (
     <div className={styles.container}>
       <Banner />
@@ -44,7 +59,7 @@ export default function Login() {
         <div className={styles.contentWrapper}>
           <h1 className={styles.title}>Login</h1>
           {error && <p className={styles.error}>{error}</p>}
-          
+
           <form onSubmit={handleLogin} className={styles.form}>
             <input
               type="email"
@@ -66,13 +81,24 @@ export default function Login() {
               Login with Email
             </button>
           </form>
-          
+          <p
+            className={styles.forgotLink}
+            onClick={handleForgotPassword}
+            style={{
+              cursor: "pointer",
+              color: "blue",
+              textDecoration: "underline",
+              marginTop: "10px",
+            }}
+          >
+            Forgot your password?
+          </p>
           <div className={styles.divider}>
             <span>or</span>
           </div>
 
-          <button 
-            onClick={handleGoogleLogin} 
+          <button
+            onClick={handleGoogleLogin}
             className={`${styles.button} ${styles.goldButton}`}
           >
             Sign in with Google
@@ -82,8 +108,8 @@ export default function Login() {
             <span>Need an account?</span>
           </div>
 
-          <button 
-            onClick={() => router.push('/create-account')} 
+          <button
+            onClick={() => router.push("/create-account")}
             className={`${styles.button} ${styles.blackButton}`}
           >
             Create Account
