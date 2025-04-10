@@ -254,13 +254,22 @@ function Analytics() {
                       key={machine.machine}
                       className={styles.machineStatus}
                       style={{
-                        backgroundColor: machine.state === 'on' ? '#ff6b6b' : '#4CAF50',
+                        backgroundColor: machine.state === 'on' ? 'rgba(139, 0, 0, 0.75)' : 'rgba(0, 100, 0, 0.75)',
                         cursor: 'pointer'
                       }}
                       onClick={() => setSelectedMachine(machine)}
                     >
                       <h3>{machine.machine}</h3>
-                      <p>{machine.state === 'on' ? 'In Use' : 'Available'}</p>
+                      <div className="flex flex-row items-center space-x-4">
+                        <div className="flex flex-row items-center space-x-2">
+                          <div className="w-4 h-4" style={{ backgroundColor: 'rgba(0, 100, 0, 0.3)' }}></div>
+                          <span>Available</span>
+                        </div>
+                        <div className="flex flex-row items-center space-x-2">
+                          <div className="w-4 h-4" style={{ backgroundColor: 'rgba(139, 0, 0, 0.3)' }}></div>
+                          <span>In Use</span>
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>

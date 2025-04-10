@@ -98,8 +98,11 @@ export async function fetchDeviceState(machine: string, signal?: AbortSignal, ol
       }
   
       console.log('Fetching device state for:', { machine, thing_id, variable });
-      const response = await fetch(`${API_ENDPOINT}/getDeviceState?thing_id=${thing_id}&variable=${variable}`, { signal });
-      
+      const request = `${API_ENDPOINT}/getDeviceState?thing_id=${thing_id}&variable=${variable}`;
+      const response = await fetch(request, { signal });
+      console.log('Response:', response);
+
+
       if (!response.ok) {
         const errorText = await response.text();
         console.error('Failed to fetch device state:', {
@@ -114,13 +117,11 @@ export async function fetchDeviceState(machine: string, signal?: AbortSignal, ol
       }
   
       const data = await response.json();
-      
       // make sure the variable exists in the response
-      if (variable && data[variable] !== undefined) {
-        return data[variable];
+      if (variable && data[0][variable] !== undefined) {
+        return data[0][variable];
       }
       
-      console.error(`Variable ${variable} not found in response:`, data);
       return oldState || "loading";
     } catch (err: any) {
       if (err.name === 'AbortError') {
