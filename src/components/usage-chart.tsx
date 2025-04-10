@@ -17,7 +17,7 @@ import 'chartjs-adapter-date-fns';
 import { fetchMachineTimeseries } from "@/utils/db";
 import zoomPlugin from 'chartjs-plugin-zoom';
 import dynamic from 'next/dynamic';
-import { convertTimeseriesToDate, get12amOnDate } from "../utils/time_utils";
+import { convertTimeseriesToDate, get12amOnDate, isToday } from "../utils/time_utils";
 import { getDatasetStyle, getBarChartOptions, getDailyChartData, getHourlyChartData, getLineChartOptions } from "../utils/chart_utils";
 import { CustomBarChart } from "./custom_bar_chart";
 
@@ -105,16 +105,17 @@ const MachineUsageChart: React.FC<MachineUsageChartProps> = ({ machineId, machin
 
 
   //===================================================================================
-  // fetch timeseries for current day
+  // fetch timeseries for selected day
   useEffect(() => {
     const fetchData = async () => {
+      setUsageData([]);
+      
       const startTime = get12amOnDate(selectedDate);
 
       // TODO: remove dev mode
       const timeseries = await fetchMachineTimeseries(machineId, startTime, isDevMode, "state");
       if (timeseries.length === 0) {
-        console.log('No data available, starting chart at beginning of day:', chartStartTime.toLocaleTimeString());
-        return;
+        return;   
       }
 
       const formattedData = timeseries.map((point: { state: string; timestamp: string }) => {
@@ -126,14 +127,17 @@ const MachineUsageChart: React.FC<MachineUsageChartProps> = ({ machineId, machin
       });
       
       setUsageData(formattedData);
-    };
+    };    
 
-    // fetch machine timeseries every minute for live updat
-    const ONE_MINUTE = 60 * 1000;
     if (machineId) {
       fetchData();
-      const intervalId = setInterval(fetchData, ONE_MINUTE);
-      return () => clearInterval(intervalId);
+      
+      // if we are viewing today there are live updates so set interval for 1 minute update
+      if (isToday(selectedDate)) {
+        const ONE_MINUTE = 60 * 1000;
+        const intervalId = setInterval(fetchData, ONE_MINUTE);
+        return () => clearInterval(intervalId);
+      }
     }
   }, [machineId, selectedDate, isDevMode]);
 

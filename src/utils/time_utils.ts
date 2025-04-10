@@ -21,3 +21,10 @@ export const convertTimeseriesToDate = (point: { timestamp: string }) => {
     date.setTime(date.getTime() + date.getTimezoneOffset() * 60000);
     return date;
 }
+
+export const isToday = (date: Date) => {
+  const today = new Date();
+  return date.getDate() === today.getDate() &&
+    date.getMonth() === today.getMonth() &&
+    date.getFullYear() === today.getFullYear();
+};
