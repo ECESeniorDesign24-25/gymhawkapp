@@ -17,6 +17,10 @@
       {
         "source": "/api/getStateTimeseries",
         "function": "getStateTimeseries"
+      },
+      {
+        "source": "/api/getStateTimeseriesDummy",
+        "function": "getStateTimeseriesDummy"
       }
     ]
   },
