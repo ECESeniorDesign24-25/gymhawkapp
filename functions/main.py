@@ -479,7 +479,7 @@ def addTimeStep(event: scheduler_fn.ScheduledEvent = None) -> None:
                     # for testing
                     if param == "state":
                         # NOTE: State is encoded as a string when reading from IoT Cloud api
-                        if value or value == "True":
+                        if value == "True":
                             on_off_dict[thing_id][param]["on"] += 1
                         else:
                             on_off_dict[thing_id][param]["off"] += 1
