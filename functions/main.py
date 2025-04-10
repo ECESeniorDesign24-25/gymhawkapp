@@ -528,9 +528,9 @@ def addTimeStep(event: scheduler_fn.ScheduledEvent = None) -> None:
             values_to_write[thing_id]["machineName"] = (
                 db.collection("thing_ids").document(thing_id).get().to_dict()["name"]
             )
-            values_to_write[thing_id]["device_status"] = getDeviceStatus(
-                thing_id, devices
-            )
+
+            device_status = getDeviceStatus(thing_id, devices)
+            values_to_write[thing_id]["device_status"] = device_status
 
             # for testing but we will write n_on and n_off for each time step to check thresholds.
             values_to_write[thing_id]["n_on"] = on_off_dict[thing_id]["state"]["on"]
@@ -552,6 +552,10 @@ def addTimeStep(event: scheduler_fn.ScheduledEvent = None) -> None:
                     values_to_write[thing_id][param] = getValueToWrite(
                         param, value_counts[thing_id]
                     )
+
+            # overwrite if device is offline => automatically set to off
+            if device_status == "OFFLINE":
+                values_to_write[thing_id]["state"] = "off"
 
         # write the most params for each machine
         for thing_id in thing_ids:
