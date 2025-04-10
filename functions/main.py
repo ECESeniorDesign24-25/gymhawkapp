@@ -14,7 +14,7 @@ from oauthlib.oauth2 import BackendApplicationClient
 from requests_oauthlib import OAuth2Session
 from utils import *
 from consts import *
-import inspect 
+import statistics
 
 # set up firebase app
 initialize_app()
@@ -25,6 +25,7 @@ class ManualRequest:
     def __init__(self, args):
         self.method = None
         self.args = args
+
 
 connection_pool = None
 global_connector = None
@@ -76,8 +77,8 @@ def is_time_between(begin_time, end_time, current_time):
 def build_query_from_params(params: dict, table_name: str) -> str:
     params = fix_param_types(params)
     query = f"""
-        INSERT INTO {table_name} ({', '.join(params.keys())})
-        VALUES ({', '.join([f":{key}" for key in params.keys()])})
+        INSERT INTO {table_name} ({", ".join(params.keys())})
+        VALUES ({", ".join([f":{key}" for key in params.keys()])})
     """
     return query
 
@@ -86,7 +87,7 @@ def fix_param_types(params: dict) -> dict:
     types = {
         "thing_id": str,
         "state": str,
-        "timestamp": str,  
+        "timestamp": str,
         "analogOffset": float,
         "alt": float,
         "lat": float,
@@ -97,7 +98,7 @@ def fix_param_types(params: dict) -> dict:
         "smoothedrmsCurrent": float,
         "threshold": float,
         "type": str,
-        "name": str
+        "name": str,
     }
 
     for key, value in params.items():
@@ -105,9 +106,11 @@ def fix_param_types(params: dict) -> dict:
             try:
                 params[key] = types[key](value)
             except (ValueError, TypeError):
-                print(f"Warning: Could not convert {key} value {value} to {types[key].__name__}")
+                print(
+                    f"Warning: Could not convert {key} value {value} to {types[key].__name__}"
+                )
                 continue
-                
+
     return params
 
 
@@ -116,7 +119,7 @@ def write_state_to_db(params: dict, table_name: str) -> None:
     Write the state of a device to the specified table.
     """
     try:
-        engine = init_db_connection()        
+        engine = init_db_connection()
         query = build_query_from_params(params, table_name)
 
         with engine.connect() as conn:
@@ -140,7 +143,9 @@ def test_connection():
         return False
 
 
-def fetch_timeseries_from_db(machine: str, startTime: str, variable: str, table_name: str) -> list:
+def fetch_timeseries_from_db(
+    machine: str, startTime: str, variable: str, table_name: str
+) -> list:
     try:
         engine = init_db_connection()
         query = f"""
@@ -236,58 +241,51 @@ def fetch_params(thing_id: str) -> dict:
         return None
 
 
-def getDeviceParamFromIoTCloud(thing_id: str, property_name: str, propertiesAPI: PropertiesV2Api) -> float:
-    try:   
-        # avoid too many api calls
-        t.sleep(1)
-        properties = propertiesAPI.properties_v2_list(id=thing_id)
-        for property in properties:
+def getDeviceParamFromIoTCloud(
+    thing_id: str, property_name: str, property_list: list
+) -> float:
+    try:
+        for property in property_list:
             if property.name == property_name:
                 return property.last_value
-        print(f"[{thing_id}] No matching property found for {thing_id}: {property_name}")
         return None
-    except ApiException as e:
-        # rate limit hit, recurse until it works lol
+    except ApiException as e:  # rate limit hit
         if e.status == 429:
-            t.sleep(2)
-            return getDeviceParamFromIoTCloud(thing_id, property_name, propertiesAPI)
+            t.sleep(1)
+            return getDeviceParamFromIoTCloud(thing_id, property_name, property_list)
         print(f"API Exception for {thing_id}: {str(e)}")
-        return None
+        raise
 
-def getDeviceStatus(thing_id: str) -> str:
 
-    # States are in the form OFFLINE or ONLINE
-    host = "https://api2.arduino.cc"
-    client_config = Configuration(host)
-    client_config.access_token = get_token()
-    client = iot.ApiClient(client_config)
-    devices_api = DevicesV2Api(client)
-
-    devices = devices_api.devices_v2_list()
-    
-    for device in devices:
+def getDeviceStatus(thing_id: str, devices_list: list) -> str:
+    for device in devices_list:
         if device.thing and device.thing.id == thing_id:
             return device.device_status
-    
-    return "UNKNOWN" 
 
-def getCurrentValues(params: dict, thing_id: str, propertiesAPI: PropertiesV2Api) -> tuple[str, float]:
+    return "UNKNOWN"
+
+
+def getCurrentValues(
+    params: dict, thing_id: str, property_list: list
+) -> tuple[str, float]:
     # Create a fresh dictionary for this iteration
     current_values = {}
-    
+
     # First copy all the static values (type, name, etc.)
     for key, value in params.items():
-        if key in ['type', 'name', 'thing_id']:
+        if key in ["type", "name", "thing_id"]:
             current_values[key] = value
-    
+
     # Then get current values for IoT properties
     for key, property_name in params.items():
-        if key not in ['type', 'name', 'thing_id']:
+        if key not in ["type", "name", "thing_id"]:
             # Get the current value from IoT Cloud
-            new_value = getDeviceParamFromIoTCloud(thing_id, property_name, propertiesAPI)
+            new_value = getDeviceParamFromIoTCloud(
+                thing_id, property_name, property_list
+            )
             # Only use the original property name if we got None from IoT Cloud
             current_values[key] = new_value
-    
+
     fix_param_types(current_values)
     return current_values
 
@@ -298,6 +296,34 @@ def normalizeState(state: str) -> str:
     elif state == "False" or state == False:
         return "off"
     return state
+
+
+def getPropertyListForThingId(thing_id: str, properties_api: PropertiesV2Api) -> list:
+    try:
+        properties = properties_api.properties_v2_list(id=thing_id)
+        return properties
+    except ApiException as e:
+        if e.status == 429:  # rate limit hit
+            t.sleep(1)
+            return getPropertyListForThingId(thing_id, properties_api)
+        raise
+
+
+def initIoTAPI():
+    try:
+        # config iot
+        host = "https://api2.arduino.cc"
+        client_config = Configuration(host)
+        client_config.access_token = get_token()
+        client = iot.ApiClient(client_config)
+        properties_api = PropertiesV2Api(client)
+        devices_api = DevicesV2Api(client)
+        devices = devices_api.devices_v2_list()
+        return properties_api, devices
+    except ApiException as e:  # rate limit hit
+        t.sleep(1)
+        return initIoTAPI()
+
 
 # =============================================================================
 # Cloud Functions
@@ -313,13 +339,8 @@ def getDeviceState(req: https_fn.Request) -> https_fn.Response:
     thing_id = req.args.get("thing_id")
     variable = req.args.get("variable")
 
-    # config iot
-    host = "https://api2.arduino.cc"
-    client_config = Configuration(host)
-    client_config.access_token = get_token()
-    client = iot.ApiClient(client_config)
-    properties_api = PropertiesV2Api(client)
-    
+    properties_api, _ = initIoTAPI()
+
     if not thing_id:
         print("No thing_id provided")
         return https_fn.Response(
@@ -339,13 +360,16 @@ def getDeviceState(req: https_fn.Request) -> https_fn.Response:
                 status=404,
                 headers=CORS_HEADERS,
             )
-        
+
         property_name = params[variable]
         if variable == "name":
             property_dict = {variable: params[variable]}
         else:
-            property_dict = getDeviceParamFromIoTCloud(thing_id, property_name, properties_api)
-        
+            property_list = properties_api.properties_v2_list(id=thing_id)
+            property_dict = getDeviceParamFromIoTCloud(
+                thing_id, property_name, property_list
+            )
+
         response_data = {variable: property_dict}
         if variable == "state":
             response_data[variable] = normalizeState(response_data[variable])
@@ -375,9 +399,10 @@ def getDeviceState(req: https_fn.Request) -> https_fn.Response:
 @scheduler_fn.on_schedule(schedule="*/1 * * * *")
 def addTimeStep(event: scheduler_fn.ScheduledEvent = None) -> None:
     try:
+        start = t.time()
         current_time = datetime.now(timezone.utc)
         central_time = current_time.astimezone(timezone(timedelta(hours=-5)))
-        timestamp = central_time.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
+        timestamp = central_time.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
         init_db_connection()
 
@@ -385,83 +410,153 @@ def addTimeStep(event: scheduler_fn.ScheduledEvent = None) -> None:
         thing_ids = db.collection("thing_ids").list_documents()
         thing_ids = [thing_id.id for thing_id in thing_ids]
 
-        # config iot
-        host = "https://api2.arduino.cc"
-        client_config = Configuration(host)
-        client_config.access_token = get_token()
-        client = iot.ApiClient(client_config)
-        properties_api = PropertiesV2Api(client)
+        # init iot api
+        properties_api, devices = initIoTAPI()
 
-        # Store original params (these contain the IoT property names to look up)
+        # store original params (these contain the IoT property names to look up)
         original_params = {thing_id: fetch_params(thing_id) for thing_id in thing_ids}
+        max_values = {}
+        value_counts = {}
+        on_off_dict = {}
+        n = 0
 
-        state_counts = {}
-        max_values = {} 
+        # these are string params that we want to count the number of times they appear instead of mode value
+        string_params = [
+            "state",
+            "machineName",
+            "device_status",
+            "name",
+            "thing_id",
+            "type",
+        ]
 
-        # sample for SAMPLE_TIME seconds to get a good reading (default 30 see consts.py)
-        start = t.time()
-        n = 1
-        while t.time() - start < SAMPLE_TIME: 
+        def takeSample(thing_id: str, thing_id_params: dict, property_list: list):
+            """
+            This function takes a single sample of every parameter defined in IoT Cloud for a given thing_id (device)
+            """
+            try:
+                current_values = getCurrentValues(
+                    thing_id_params, thing_id, property_list
+                )
+            except ApiException as e:  # rate limit hit
+                t.sleep(1)
+                return takeSample(thing_id, thing_id_params, property_list)
+            except Exception as e:  # other error
+                return None
+            return current_values
+
+        while t.time() - start < SAMPLE_TIME:
             for thing_id in thing_ids:
-                try:    
-                    thing_id_params = original_params[thing_id]
+                # get params to sample
+                thing_id_params = original_params[thing_id]
 
-                    # Get fresh current values for each IoT property
-                    current_values = getCurrentValues(thing_id_params, thing_id, properties_api)
+                # initialize counts and values if this is first sample
+                if thing_id not in value_counts:
+                    value_counts[thing_id] = {}
+                    max_values[thing_id] = {}
 
-                    # take mode of each string param, max of each float param
-                    state_counts[thing_id] = {param: {} for param in current_values}
-                    max_values[thing_id] = {param: 0 for param in current_values}  
+                    value_counts[thing_id] = {
+                        param: {} for param in thing_id_params.keys()
+                    }
+                    max_values[thing_id] = {
+                        param: 0 for param in thing_id_params.keys()
+                    }
 
-                    for param in current_values:
-                        value = current_values[param]
-                        
-                        # if the param is a float track the value with largest magnitude
-                        if isinstance(value, float):
-                            if param not in max_values[thing_id]:
-                                max_values[thing_id][param] = value
-                            elif abs(value) > abs(max_values[thing_id][param]):
-                                max_values[thing_id][param] = value
-                        else:
-                            # if the param is a string count the number of times it appears
-                            value_str = str(value)
-                            if value_str not in state_counts[thing_id][param]:
-                                state_counts[thing_id][param][value_str] = 0
-                            state_counts[thing_id][param][value_str] += 1
+                    # this is for testing but track in db for now
+                    on_off_dict[thing_id] = {
+                        param: {"on": 0, "off": 0} for param in thing_id_params.keys()
+                    }
 
-                except Exception as e:
-                    print(f"Error polling thing_id {thing_id}: {str(e)}")
-            t.sleep(1)
+                # get parameters and corresponding IoT thing properties
+                property_list = getPropertyListForThingId(thing_id, properties_api)
 
+                # take sample
+                sample_values = takeSample(thing_id, thing_id_params, property_list)
+                if sample_values is None:
+                    continue
 
-        print("Processing time: ", t.time() - start)
-        # get most common value for each param
-        derived_values = {}
-        for thing_id in thing_ids:
-            derived_values[thing_id] = {}
-            derived_values[thing_id]['timestamp'] = timestamp
-            derived_values[thing_id]['thing_id'] = thing_id
-            derived_values[thing_id]["machineName"] = db.collection("thing_ids").document(thing_id).get().to_dict()["name"]
-            derived_values[thing_id]["device_status"] = getDeviceStatus(thing_id)
-
-            # add most common value for each string param
-            for param in state_counts[thing_id]:
-                if state_counts[thing_id][param]:
-                    derived_values[thing_id][param] = max(state_counts[thing_id][param].items(), key=lambda x: x[1])[0]
-
-                    # Convert state to "on"/"off" string
+                for param, value in sample_values.items():
+                    # for testing
                     if param == "state":
-                        derived_values[thing_id][param] = normalizeState(derived_values[thing_id][param])
+                        # NOTE: State is encoded as a string when reading from IoT Cloud api
+                        if value or value == "True":
+                            on_off_dict[thing_id][param]["on"] += 1
+                        else:
+                            on_off_dict[thing_id][param]["off"] += 1
 
-            # add max value for each float param
-            for param in max_values[thing_id]:
-                # skip parameters that should be strings
-                if param not in ['state', 'type', 'name']:
-                    derived_values[thing_id][param] = max_values[thing_id][param]
+                    # if the param is a float track the value with largest magnitude
+                    if isinstance(value, float):
+                        if param not in max_values[thing_id]:
+                            max_values[thing_id][param] = value
+                        elif abs(value) > abs(max_values[thing_id][param]):
+                            max_values[thing_id][param] = value
+                    else:
+                        # if the param is a string count the number of times it appears
+                        value_str = str(value)
+                        if value_str not in value_counts[thing_id][param]:
+                            value_counts[thing_id][param][value_str] = 0
+                        value_counts[thing_id][param][value_str] += 1
+            n += 1
+
+        def getValueToWrite(param: str, value_dict: dict) -> str:
+            """
+            This function determines the value to write to the database for a given parameter.
+            """
+            # if param is state, we check to see if any of the samples are True.
+            # If so, the state is written as "on". Otherwise it is written as "off". THIS WILL BE OVERWRITTEN BY N_ON AND N_OFF FOR TESTING
+            if param == "state":
+                if "True" in value_dict[param]:
+                    return "on"
+                else:
+                    return "off"
+            # if the param is a string, we take the most common occuring value
+            elif param in string_params:
+                return statistics.mode(value_dict[param].items())[0]
+            # For all other parameters, we take the most max magnitude
+            else:
+                if param not in value_dict:
+                    return None
+                return value_dict[param]
+
+        values_to_write = {}
+        for thing_id in thing_ids:
+            values_to_write[thing_id] = {}
+
+            # these are constants for each machine, irrelevant of sampling so just hard coded
+            values_to_write[thing_id]["timestamp"] = timestamp
+            values_to_write[thing_id]["thing_id"] = thing_id
+            values_to_write[thing_id]["machineName"] = (
+                db.collection("thing_ids").document(thing_id).get().to_dict()["name"]
+            )
+            values_to_write[thing_id]["device_status"] = getDeviceStatus(
+                thing_id, devices
+            )
+
+            # for testing but we will write n_on and n_off for each time step to check thresholds.
+            values_to_write[thing_id]["n_on"] = on_off_dict[thing_id]["state"]["on"]
+            values_to_write[thing_id]["n_off"] = on_off_dict[thing_id]["state"]["off"]
+
+            # if state is on at least once, then it is set to on
+            if values_to_write[thing_id]["n_on"] > 0:
+                values_to_write[thing_id]["state"] = "on"
+            else:
+                values_to_write[thing_id]["state"] = "off"
+
+            # get value to write for each parameter
+            for param in sample_values:
+                if param not in string_params:
+                    values_to_write[thing_id][param] = getValueToWrite(
+                        param, max_values[thing_id]
+                    )
+                else:
+                    values_to_write[thing_id][param] = getValueToWrite(
+                        param, value_counts[thing_id]
+                    )
 
         # write the most params for each machine
         for thing_id in thing_ids:
-            write_state_to_db(derived_values[thing_id], table_name="machine_states")
+            write_state_to_db(values_to_write[thing_id], table_name="machine_states")
+        print(f"Time step added to database in {t.time() - start} seconds")
     except Exception as e:
         print(f"Error in addTimeStep: {str(e)}")
         raise
@@ -478,14 +573,15 @@ def getStateTimeseriesDummy(req: https_fn.Request) -> https_fn.Response:
 
 
 if __name__ == "__main__":
-    manReq = ManualRequest(args={"thing_id": "0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8", "variable": "state"})
-    manReq2 = ManualRequest(args={"thing_id": "c7996422-9462-4fa7-8d02-bfe8c7aba7e4", "variable": "state"})
-    manReq3 = ManualRequest(args={"thing_id": "6ad4d9f7-8444-4595-bf0b-5fb62c36430c", "variable": "state"})
-    # addTimeStep()
+    # manReq = ManualRequest(args={"thing_id": "0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8", "variable": "state"})
+    # manReq2 = ManualRequest(args={"thing_id": "c7996422-9462-4fa7-8d02-bfe8c7aba7e4", "variable": "state"})
+    # manReq3 = ManualRequest(args={"thing_id": "6ad4d9f7-8444-4595-bf0b-5fb62c36430c", "variable": "state"})
+    # # addTimeStep()
 
-    print("================================================")
-    print(getDeviceStatus(thing_id="0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8"))
-    print(getDeviceStatus(thing_id="c7996422-9462-4fa7-8d02-bfe8c7aba7e4"))
-    print(getDeviceStatus(thing_id="6ad4d9f7-8444-4595-bf0b-5fb62c36430c"))
-    print("================================================")
-    
+    # print("================================================")
+    # print(getDeviceStatus(thing_id="0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8"))
+    # print(getDeviceStatus(thing_id="c7996422-9462-4fa7-8d02-bfe8c7aba7e4"))
+    # print(getDeviceStatus(thing_id="6ad4d9f7-8444-4595-bf0b-5fb62c36430c"))
+    # print("================================================")
+
+    addTimeStep()
