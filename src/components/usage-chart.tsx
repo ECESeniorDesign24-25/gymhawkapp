@@ -12,10 +12,16 @@ import {
   Filler,
   TimeScale
 } from "chart.js";
-import { Line, Bar } from "react-chartjs-2";
+import { Line } from "react-chartjs-2";
 import 'chartjs-adapter-date-fns';
 import { fetchMachineTimeseries } from "@/utils/db";
+import zoomPlugin from 'chartjs-plugin-zoom';
+import dynamic from 'next/dynamic';
+import { convertTimeseriesToDate, get12amOnDate } from "../utils/time_utils";
+import { getDatasetStyle, getBarChartOptions, getDailyChartData, getHourlyChartData, getLineChartOptions } from "../utils/chart_utils";
+import { CustomBarChart } from "./custom_bar_chart";
 
+// set up chart js
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -26,35 +32,18 @@ ChartJS.register(
   Tooltip,
   Legend,
   Filler,
-  TimeScale
+  TimeScale,
+  zoomPlugin
 );
 
-const API_ENDPOINT = 'https://gymhawk-2ed7f.web.app/api';
-
+// chart properties
 interface MachineUsageChartProps {
   machineId: string;
   machineName: string;
 }
 
-const getOffset = (date: Date) => {
-  const offset = date.getTimezoneOffset();
-  return offset * 60000;
-}
-
-const formatDate = (date: Date) => {
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Chicago'});
-}
-
-const formatTime = (date: Date) => {
-  return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'America/Chicago' });
-}
-
-const get5amOnDate = (date: Date) => {
-  const targetDate = new Date(date);
-  targetDate.setHours(5, 0, 0, 0);
-  return targetDate.toISOString();
-}
-
+//===================================================================================
+// builds the usage chart
 const MachineUsageChart: React.FC<MachineUsageChartProps> = ({ machineId, machineName }) => {
   const [usageData, setUsageData] = useState<{ time: Date; state: number }[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -62,12 +51,14 @@ const MachineUsageChart: React.FC<MachineUsageChartProps> = ({ machineId, machin
   const [hourlyUsage, setHourlyUsage] = useState<{ hour: number; percentage: number }[]>([]);
   const [dailyUsage, setDailyUsage] = useState<{ day: string; percentage: number }[]>([]);
 
-  // Calculate hourly and daily usage patterns
+  //===================================================================================
+  // client-side useEffect to calculate hourly and daily usage patterns from usageData
   useEffect(() => {
-    if (usageData.length === 0) return;
 
-    // Calculate hourly usage
+    if (usageData.length === 0) return;
     const hourlyData: { [key: number]: { total: number; on: number } } = {};
+
+    // calculate "on" counts per hour
     usageData.forEach(point => {
       const hour = point.time.getHours();
       if (!hourlyData[hour]) {
@@ -79,6 +70,7 @@ const MachineUsageChart: React.FC<MachineUsageChartProps> = ({ machineId, machin
       }
     });
 
+    // convert to percentage and sort by hour for plotting
     const hourlyUsageData = Object.entries(hourlyData).map(([hour, data]) => ({
       hour: parseInt(hour),
       percentage: (data.on / data.total) * 100
@@ -86,7 +78,7 @@ const MachineUsageChart: React.FC<MachineUsageChartProps> = ({ machineId, machin
 
     setHourlyUsage(hourlyUsageData);
 
-    // Calculate daily usage
+    // calculate "on" counts per day 
     const dailyData: { [key: string]: { total: number; on: number } } = {};
     usageData.forEach(point => {
       const day = point.time.toLocaleDateString('en-US', { weekday: 'long' });
@@ -100,6 +92,8 @@ const MachineUsageChart: React.FC<MachineUsageChartProps> = ({ machineId, machin
     });
 
     const dayOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+    // convert to percentage and sort by day for plotting
     const dailyUsageData = dayOrder.map(day => ({
       day,
       percentage: dailyData[day] ? (dailyData[day].on / dailyData[day].total) * 100 : 0
@@ -108,202 +102,74 @@ const MachineUsageChart: React.FC<MachineUsageChartProps> = ({ machineId, machin
     setDailyUsage(dailyUsageData);
   }, [usageData]);
 
-  // Fetch timeseries data for the machine
+
+
+  //===================================================================================
+  // fetch timeseries for current day
   useEffect(() => {
     const fetchData = async () => {
-      // start at 5am on selected date
-      const startTime = get5amOnDate(selectedDate);
-      
-      // Use appropriate endpoint based on dev mode
+      const startTime = get12amOnDate(selectedDate);
+
+      // TODO: remove dev mode
       const timeseries = await fetchMachineTimeseries(machineId, startTime, isDevMode, "state");
-      
-      // convert timeseries to plottable format and convert to Central Time
+      if (timeseries.length === 0) {
+        console.log('No data available, starting chart at beginning of day:', chartStartTime.toLocaleTimeString());
+        return;
+      }
+
       const formattedData = timeseries.map((point: { state: string; timestamp: string }) => {
-        const utcDate = new Date(point.timestamp);
-        const centralDate = new Date(utcDate.getTime() + (4 * 60 * 60 * 1000));
-        
+        const date = convertTimeseriesToDate(point);
         return {
-          time: centralDate,
-          state: point.state === "on" ? 0 : 1
+          time: date,
+          state: point.state === "on" ? 0 : 1 // convert state to binary for plot purposes
         };
       });
       
       setUsageData(formattedData);
     };
 
+    // fetch machine timeseries every minute for live updat
+    const ONE_MINUTE = 60 * 1000;
     if (machineId) {
       fetchData();
+      const intervalId = setInterval(fetchData, ONE_MINUTE);
+      return () => clearInterval(intervalId);
     }
   }, [machineId, selectedDate, isDevMode]);
 
-  // x axis boundaries (days in plot)
-  const minTime = new Date(selectedDate);
-  minTime.setHours(0, 0, 0, 0);
-  const maxTime = new Date(selectedDate);
-  maxTime.setHours(23, 59, 59, 999);
+  // graph shows most recent 2 hours of data 
+  let chartStartTime: Date;
+  let chartEndTime: Date;
+  const TWO_HOURS = 2 * 60 * 60 * 1000;
+  
+  // case where we have data
+  if (usageData.length > 0) {
+    chartEndTime = new Date(usageData[usageData.length - 1].time);
+    chartStartTime = new Date(chartEndTime.getTime() - TWO_HOURS);
+  } else {
+    // case where we don't have data yet so just start at midnight and end at 11:59:59 PM
+    chartStartTime = new Date(selectedDate);
+    chartStartTime.setHours(0, 0, 0, 0);
+    chartEndTime = new Date(selectedDate);
+    chartEndTime.setHours(23, 59, 59, 999);
+  }
 
+  // set up data for chart
   const chartData = {
+
+    // datasets is an array of the types of things we are plotting. so first one is the "on" state plot = green filled, 
+    // second one is the "off" state plot = red filled
     datasets: [
-      {
-        label: machineName + ': ' + formatDate(selectedDate),
-        data: usageData.map((point) => ({ x: point.time, y: point.state })),
-        fill: {
-          target: 'origin',
-          above: 'rgba(0, 100, 0, 0.1)',  // green fill from bottom when available
-          below: 'rgba(0, 0, 0, 0)'
-        },
-        borderColor: 'black',
-        tension: 0.1,
-        stepped: true,
-        pointRadius: 0,
-      },
-      {
-        data: usageData.map((point) => ({ x: point.time, y: point.state })),
-        fill: {
-          target: {
-            value: 1  // fill down from y=1
-          },
-          above: 'rgba(0, 0, 0, 0)',
-          below: 'rgba(139, 0, 0, 0.1)'  // red fill from top when in use
-        },
-        borderWidth: 0,
-        tension: 0.1,
-        stepped: true,
-        pointRadius: 0,
-        showLine: false
-      }
+      getDatasetStyle(machineName, selectedDate, usageData, "on"),
+      getDatasetStyle(machineName, selectedDate, usageData, "off")
     ],
   };
 
-  const options = {
-    responsive: true,
-    maintainAspectRatio: false,
-    scales: {
-      x: {
-        type: 'time' as const,
-        time: {
-          displayFormats: { 
-            minute: 'h:mm a', 
-            hour: 'h:mm a'
-          },
-        },
-        min: minTime.getTime(),
-        max: maxTime.getTime(),
-        title: {
-          display: true,
-          text: 'Time of Day (Central Time)',
-        },
-      },
-      y: {
-        type: 'linear' as const,
-        min: -0.1,
-        max: 1.1,
-        ticks: {
-          stepSize: 1,
-          callback: function(this: any, tickValue: number | string) {
-            if (Number(tickValue) === 0) return "In Use";
-            if (Number(tickValue) === 1) return "Available";
-            return "";
-          }
-        },
-        title: {
-          display: true,
-          text: 'Usage',
-        },
-      },
-    },
-    plugins: {
-      title: {
-        display: true,
-        text: machineName + ': ' + formatDate(selectedDate),
-      },
-      tooltip: {
-        enabled: true,
-        mode: 'index' as const,
-        intersect: false,
-        backgroundColor: function(context: any) {
-          const value = context.tooltip.dataPoints[0].raw.y;
-          return value === 1 ? 'rgba(0, 100, 0, 0.75)' : 'rgba(139, 0, 0, 0.75)';
-        },
-        titleColor: 'white',
-        bodyColor: 'white', 
-        padding: 10,
-        callbacks: {
-          title: function(tooltipItems: any[]) {
-            if (tooltipItems.length > 0) {
-              const date = new Date(tooltipItems[0].raw.x);
-              return `${formatDate(date)} at ${formatTime(date)} CT`;
-            }
-            return '';
-          },
-          label: function(tooltipItem: any) {
-            if (tooltipItem.datasetIndex === 0) {
-              const value = tooltipItem.raw.y;
-              return value === 1 ? 'Status: Available' : 'Status: In Use';
-            }
-            return '';
-          }
-        }
-      },
-      legend: {
-        display: false
-      },
-    },
-  };
-
-  const hourlyChartData = {
-    labels: hourlyUsage.map(data => `${data.hour}:00`),
-    datasets: [
-      {
-        label: 'Usage Percentage by Hour',
-        data: hourlyUsage.map(data => data.percentage),
-        backgroundColor: 'rgba(75, 192, 192, 0.6)',
-        borderColor: 'rgba(75, 192, 192, 1)',
-        borderWidth: 1,
-      }
-    ]
-  };
-
-  const dailyChartData = {
-    labels: dailyUsage.map(data => data.day),
-    datasets: [
-      {
-        label: 'Usage Percentage by Day',
-        data: dailyUsage.map(data => data.percentage),
-        backgroundColor: 'rgba(153, 102, 255, 0.6)',
-        borderColor: 'rgba(153, 102, 255, 1)',
-        borderWidth: 1,
-      }
-    ]
-  };
-
-  const chartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    scales: {
-      y: {
-        beginAtZero: true,
-        max: 100,
-        title: {
-          display: true,
-          text: 'Usage Percentage (%)'
-        }
-      }
-    },
-    plugins: {
-      title: {
-        display: true,
-        text: machineName
-      },
-      tooltip: {
-        callbacks: {
-          label: function(context: any) {
-            return `${context.parsed.y.toFixed(1)}%`;
-          }
-        }
-      }
-    }
-  };
+  // format the data for the charts
+  const lineChartOptions = getLineChartOptions(machineName, chartStartTime, chartEndTime);
+  const hourlyChartData = getHourlyChartData(hourlyUsage);
+  const dailyChartData = getDailyChartData(dailyUsage);
+  const barChartOptions = getBarChartOptions(machineName);
 
   return (
     <div className="space-y-8">
@@ -351,52 +217,17 @@ const MachineUsageChart: React.FC<MachineUsageChartProps> = ({ machineId, machin
         </button>
       </div>
       <div className="h-64">
-        <Line data={chartData} options={options} />
+        <Line data={chartData} options={lineChartOptions} />
       </div>
       <div className="h-64">
-        <Bar data={hourlyChartData} options={{
-          ...chartOptions,
-          scales: {
-            ...chartOptions.scales,
-            x: {
-              title: {
-                display: true,
-                text: 'Hour of Day'
-              }
-            }
-          },
-          plugins: {
-            ...chartOptions.plugins,
-            title: {
-              ...chartOptions.plugins.title,
-              text: `${machineName} - Hourly Usage Pattern`
-            }
-          }
-        }} />
+        <CustomBarChart barChartData={hourlyChartData} barChartOptions={barChartOptions} machineName={machineName} />
       </div>
       <div className="h-64">
-        <Bar data={dailyChartData} options={{
-          ...chartOptions,
-          scales: {
-            ...chartOptions.scales,
-            x: {
-              title: {
-                display: true,
-                text: 'Day of Week'
-              }
-            }
-          },
-          plugins: {
-            ...chartOptions.plugins,
-            title: {
-              ...chartOptions.plugins.title,
-              text: `${machineName} - Daily Usage Pattern`
-            }
-          }
-        }} />
+        <CustomBarChart barChartData={dailyChartData} barChartOptions={barChartOptions} machineName={machineName} />
       </div>
     </div>
   );
 };
 
-export default MachineUsageChart;
+// note this needs ssr to be false so we render client side so the charts work
+export default dynamic(() => Promise.resolve(MachineUsageChart), { ssr: false });

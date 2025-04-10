@@ -97,10 +97,19 @@ export async function fetchDeviceState(machine: string, signal?: AbortSignal, ol
         return oldState || "loading";
       }
   
+      console.log('Fetching device state for:', { machine, thing_id, variable });
       const response = await fetch(`${API_ENDPOINT}/getDeviceState?thing_id=${thing_id}&variable=${variable}`, { signal });
-  
+      
       if (!response.ok) {
-        console.error('Failed to fetch device state:', response);
+        const errorText = await response.text();
+        console.error('Failed to fetch device state:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText,
+          machine,
+          thing_id,
+          variable
+        });
         return oldState || "loading";
       }
   
@@ -117,7 +126,11 @@ export async function fetchDeviceState(machine: string, signal?: AbortSignal, ol
       if (err.name === 'AbortError') {
         return oldState || "loading";
       } else {
-        console.error('Failed to fetch device state:', err);
+        console.error('Failed to fetch device state:', {
+          error: err,
+          machine,
+          variable
+        });
         return oldState || "loading";
       }
     }
