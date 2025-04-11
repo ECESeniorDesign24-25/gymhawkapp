@@ -12,7 +12,6 @@ from google.cloud.sql.connector import Connector, IPTypes
 from sqlalchemy import create_engine, text
 from oauthlib.oauth2 import BackendApplicationClient
 from requests_oauthlib import OAuth2Session
-from utils import *
 from consts import *
 import statistics
 
@@ -158,6 +157,31 @@ def fetch_timeseries_from_db(
             result = conn.execute(
                 text(query),
                 {"machine": machine, "startTime": startTime},
+            )
+
+            # Serialize into a list of dictionaries
+            return [
+                {variable: row[0], "timestamp": row[1].isoformat()} for row in result
+            ]
+    except Exception as e:
+        print(f"Error fetching from db: {e}")
+        raise
+
+
+def fetchMostRecentVarFromDb(thing_id: str, variable: str, table_name: str) -> str:
+    try:
+        engine = init_db_connection()
+        query = f"""
+        SELECT {variable}, timestamp 
+        FROM {table_name} 
+        WHERE thing_id = :machine
+        ORDER BY timestamp DESC
+        LIMIT 1
+        """
+        with engine.connect() as conn:
+            result = conn.execute(
+                text(query),
+                {"machine": thing_id},
             )
 
             # Serialize into a list of dictionaries
@@ -328,8 +352,6 @@ def initIoTAPI():
 # =============================================================================
 # Cloud Functions
 # =============================================================================
-
-
 @https_fn.on_request()
 def getDeviceState(req: https_fn.Request) -> https_fn.Response:
     if req.method == "OPTIONS":
@@ -339,60 +361,9 @@ def getDeviceState(req: https_fn.Request) -> https_fn.Response:
     thing_id = req.args.get("thing_id")
     variable = req.args.get("variable")
 
-    properties_api, _ = initIoTAPI()
-
-    if not thing_id:
-        print("No thing_id provided")
-        return https_fn.Response(
-            json.dumps({"error": "Thing ID not found"}),
-            mimetype="application/json",
-            status=404,
-            headers=CORS_HEADERS,
-        )
-    try:
-        # need to find the iot property name from the variable name
-        params = fetch_params(thing_id)
-        if variable not in params:
-            print(f"Variable {variable} not found in params")
-            return https_fn.Response(
-                json.dumps({"error": f"Variable {variable} not found"}),
-                mimetype="application/json",
-                status=404,
-                headers=CORS_HEADERS,
-            )
-
-        property_name = params[variable]
-        if variable == "name":
-            property_dict = {variable: params[variable]}
-        else:
-            property_list = properties_api.properties_v2_list(id=thing_id)
-            property_dict = getDeviceParamFromIoTCloud(
-                thing_id, property_name, property_list
-            )
-
-        response_data = {variable: property_dict}
-        if variable == "state":
-            response_data[variable] = normalizeState(response_data[variable])
-        output = json.dumps(response_data)
-        return https_fn.Response(
-            output, mimetype="application/json", status=200, headers=CORS_HEADERS
-        )
-    except ApiException as e:
-        print(f"API Exception: {str(e)}")
-        return https_fn.Response(
-            json.dumps({"error": str(e)}),
-            mimetype="application/json",
-            status=500,
-            headers=CORS_HEADERS,
-        )
-    except Exception as e:
-        print(f"Unexpected error: {str(e)}")
-        return https_fn.Response(
-            json.dumps({"error": str(e)}),
-            mimetype="application/json",
-            status=500,
-            headers=CORS_HEADERS,
-        )
+    # get most recent db entry for the variable and thing id
+    db_entry = fetchMostRecentVarFromDb(thing_id, variable, "machine_states")
+    return https_fn.Response(json.dumps(db_entry), status=200, headers=CORS_HEADERS)
 
 
 # cron job to add a time step to the database for each machine every 1 minute

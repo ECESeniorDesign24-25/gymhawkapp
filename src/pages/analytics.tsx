@@ -7,12 +7,10 @@ import styles from '@/styles/index.module.css';
 import { HOME_STYLE } from '@/styles/customStyles';
 import { fetchGyms, fetchMachines, fetchDeviceState } from '@/utils/db';
 import { useAuth } from '@/lib/auth';
-import MachineUsageChart from '@/components/usage-chart';
-import AdminUsageChart from "@/components/daily-usage-chart";
 import { EMAIL } from '@/utils/consts';
-
-// dynamically import Select 
 const DynamicSelect = dynamic(() => Promise.resolve(Select), { ssr: false });
+const DynamicMachineUsageChart = dynamic(() => import('@/components/usage-chart'), { ssr: false });
+const DynamicAdminUsageChart = dynamic(() => import('@/components/daily-usage-chart'), { ssr: false });
 
 // custom gym option type
 interface GymOption {
@@ -34,7 +32,7 @@ interface Machine {
   usagePercentage?: number; 
 }
 
-export default function Analytics() {
+function Analytics() {
   const [selectedGym, setSelectedGym] = useState<GymOption | null>(null);
   const [selectedMachine, setSelectedMachine] = useState<Machine | null>(null);
   const [activeTab, setActiveTab] = useState('user');
@@ -237,7 +235,7 @@ export default function Analytics() {
           {activeTab === 'user' && (
             <div className={styles.userAnalytics}>
               {selectedMachine ? (
-                <MachineUsageChart machineId={selectedMachine.thing_id} machineName={selectedMachine.machine} />
+                <DynamicMachineUsageChart machineId={selectedMachine.thing_id} machineName={selectedMachine.machine} />
               ) : (
                 null
               )}
@@ -250,58 +248,38 @@ export default function Analytics() {
                   <h3 className="text-lg font-bold">No machines found</h3>
                 </div>
               ) : (
-                /* show each machine status in a card */
-                machines.map(machine => {
-                  if (!machine) {
-                    return null;
-                  }
-                  const state = typeof machine.state === 'string' ? machine.state : 'loading';
-                  let statusText;
-                  let machineClass;
-
-                  if (state === 'off') {
-                    machineClass = styles.machineAvailable;
-                    statusText = 'Available';
-                  } else if (state === 'on') {
-                    machineClass = styles.machineInUse;
-                    statusText = 'In Use';
-                  } else {
-                    machineClass = styles.machineUnknown;
-                    statusText = state === 'loading' ? 'Loading...' : 'Unknown';
-                  }
-
-                  return (
-                    <div 
-                      key={machine.machine} 
-                      className={`${styles.machineStatus} ${machineClass} ${selectedMachine?.thing_id === machine.thing_id ? styles.selected : ''}`}
-                      onClick={() => {
-                        setSelectedMachine(machine);
-                        localStorage.setItem("lastMachine", JSON.stringify(machine));
+                <div className={styles.machineGrid}>
+                  {machines.map((machine) => (
+                    <div
+                      key={machine.machine}
+                      className={styles.machineStatus}
+                      style={{
+                        backgroundColor: machine.state === 'on' ? 'rgba(139, 0, 0, 0.75)' : 'rgba(0, 100, 0, 0.75)',
+                        cursor: 'pointer'
                       }}
-                      style={{ cursor: 'pointer' }}
+                      onClick={() => setSelectedMachine(machine)}
                     >
-                      <h3 className="text-lg font-bold">{machine.machine}</h3>
-                      <p className="mt-2">
-                        Status: <span className="font-bold">{statusText}</span>
-                      </p>
+                      <h3>{machine.machine}</h3>
+                      <div className="flex flex-row items-center space-x-4">
+                        <div className="flex flex-row items-center space-x-2">
+                          <div className="w-4 h-4" style={{ backgroundColor: 'rgba(0, 100, 0, 0.3)' }}></div>
+                          <span>Available</span>
+                        </div>
+                        <div className="flex flex-row items-center space-x-2">
+                          <div className="w-4 h-4" style={{ backgroundColor: 'rgba(139, 0, 0, 0.3)' }}></div>
+                          <span>In Use</span>
+                        </div>
+                      </div>
                     </div>
-                  );
-                })
+                  ))}
+                </div>
               )}
             </div>
           )}
           {/* admin analytics */}
           {activeTab === 'admin' && isAdmin && (
             <div className={styles.adminAnalytics}>
-              <AdminUsageChart />
-              <h2>Daily Usage Statistics</h2>
-              &nbsp;
-              {machines.map(machine => (
-                <div key={machine.machine} className={styles.machineUsage}>
-                  <h3>{machine.machine}</h3>
-                  <p>Usage Rate: {machine.usagePercentage}%</p>
-                </div>
-              ))}
+              <DynamicAdminUsageChart />
             </div>
           )}
         </div>
@@ -310,3 +288,6 @@ export default function Analytics() {
     </div>
   );
 }
+
+// Only keep one default export at the end
+export default dynamic(() => Promise.resolve(Analytics), { ssr: false });
