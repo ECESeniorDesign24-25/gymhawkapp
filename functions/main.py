@@ -98,6 +98,7 @@ def fix_param_types(params: dict) -> dict:
         "threshold": float,
         "type": str,
         "name": str,
+        "rms": float,
     }
 
     for key, value in params.items():
@@ -273,6 +274,7 @@ def getDeviceParamFromIoTCloud(
             if property.name == property_name:
                 return property.last_value
         return None
+
     except ApiException as e:  # rate limit hit
         if e.status == 429:
             t.sleep(1)
@@ -289,25 +291,16 @@ def getDeviceStatus(thing_id: str, devices_list: list) -> str:
     return "UNKNOWN"
 
 
-def getCurrentValues(
-    params: dict, thing_id: str, property_list: list
-) -> tuple[str, float]:
-    # Create a fresh dictionary for this iteration
+def getCurrentValues(params: dict, thing_id: str, property_list: list) -> dict:
     current_values = {}
 
-    # First copy all the static values (type, name, etc.)
-    for key, value in params.items():
-        if key in ["type", "name", "thing_id"]:
-            current_values[key] = value
-
-    # Then get current values for IoT properties
     for key, property_name in params.items():
-        if key not in ["type", "name", "thing_id"]:
-            # Get the current value from IoT Cloud
+        if key in ["type", "name", "thing_id"]:
+            current_values[key] = property_name
+        else:
             new_value = getDeviceParamFromIoTCloud(
                 thing_id, property_name, property_list
             )
-            # Only use the original property name if we got None from IoT Cloud
             current_values[key] = new_value
 
     fix_param_types(current_values)
@@ -355,7 +348,6 @@ def initIoTAPI():
 @https_fn.on_request()
 def getDeviceState(req: https_fn.Request) -> https_fn.Response:
     if req.method == "OPTIONS":
-        print("Handling OPTIONS request")
         return https_fn.Response("", status=204, headers=CORS_HEADERS)
 
     thing_id = req.args.get("thing_id")
@@ -523,6 +515,23 @@ def addTimeStep(event: scheduler_fn.ScheduledEvent = None) -> None:
                     values_to_write[thing_id][param] = getValueToWrite(
                         param, value_counts[thing_id]
                     )
+
+            # make sure we didnt miss any
+            for param in max_values[thing_id]:
+                if (
+                    param not in values_to_write[thing_id]
+                    and max_values[thing_id][param] is not None
+                    and max_values[thing_id][param] != 0
+                ):
+                    values_to_write[thing_id][param] = max_values[thing_id][param]
+
+            for param in value_counts[thing_id]:
+                if (
+                    param not in values_to_write[thing_id]
+                    and value_counts[thing_id][param] is not None
+                    and value_counts[thing_id][param] != 0
+                ):
+                    values_to_write[thing_id][param] = value_counts[thing_id][param]
 
             # overwrite if device is offline => automatically set to off
             if device_status == "OFFLINE":
