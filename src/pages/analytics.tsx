@@ -186,11 +186,8 @@ function Analytics() {
     <RequireAuth>
     <div className={styles.container}>
       <Banner />
-      <div style={{ display: 'flex', flexDirection: 'row', minHeight: '100vh' }}>
-        <div
-          className={styles.sidebar}
-          style={{ width: '250px', flexShrink: 0, backgroundColor: '#f0f0f0' }}
-        >
+      <div className={styles.analyticsContainer}>
+        <div className={styles.tabsContainer}>
           <button 
             className={`${styles.tabButton} ${activeTab === 'user' ? styles.activeTab : ''}`}
             onClick={() => setActiveTab('user')}
@@ -213,18 +210,9 @@ function Analytics() {
             </button>
           )}
         </div>
-        <div
-          className={styles.mainContent}
-          style={{
-            flexGrow: 1,
-            backgroundColor: '#fff',
-            padding: '0 20px',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center'
-          }}
-        >
-          <br></br>
+
+        <div className={styles.mainContent}>
+          <br />
           {/* search bar */}
           <div className={styles.searchBarContainer} style={{ marginBottom: '20px' }}>
             <DynamicSelect
