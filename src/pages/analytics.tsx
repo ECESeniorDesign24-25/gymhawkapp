@@ -16,6 +16,7 @@ import { formatLastUsedTime } from '@/utils/time_utils';
 import { Spinner } from '@/components/spinner';
 import { getFromCache, saveToCache, clearCache } from '@/utils/cache';
 import { StateColor, StateString } from '@/enums/state';
+import { subscribeToMachine } from "@/utils/notify";
 
 // dynamically import Select 
 const DynamicSelect = dynamic(() => Promise.resolve(Select), { ssr: false });
@@ -70,7 +71,7 @@ function Analytics() {
   useEffect(() => {
     if (!router.isReady) return;
     setIsRouterReady(true);
-    
+
     // set active tab from URL
     if (router.query.tab && (router.query.tab === 'user' || (router.query.tab === 'admin' && isAdmin))) {
       setActiveTab(router.query.tab as string);
@@ -88,7 +89,7 @@ function Analytics() {
       if (router.isReady && router.query.gymId) {
         const gymId = router.query.gymId as string;
         const matchingGym = gyms?.find(gym => gym.id === gymId);
-        
+
         if (matchingGym) {
           setSelectedGym({
             value: matchingGym.id,
@@ -108,7 +109,7 @@ function Analytics() {
           const gymData = JSON.parse(lastGym);
           setSelectedGym(gymData);
           setSelectPlaceholder(gymData.label);
-          
+
           // update URL with the gym from localStorage
           if (router.isReady) {
             const query = { ...router.query, gymId: gymData.id };
@@ -120,7 +121,7 @@ function Analytics() {
         }
       }
     }
-    
+
     loadGyms();
   }, [router.isReady]);
 
@@ -135,7 +136,7 @@ function Analytics() {
       }
       
       setIsLoadingMachines(true);
-      
+
       // check if we have cached machines data
       const cacheKey = `machines_${selectedGym.id}`;
       const cachedMachines = getFromCache<Machine[]>(cacheKey);
@@ -145,11 +146,11 @@ function Analytics() {
         setMachines(cachedMachines);
         machinesData = cachedMachines;
       }
-      
+
       try {
         // fetch fresh machines
         const freshMachines = await fetchMachines(selectedGym.id);
-        
+
         if (freshMachines && freshMachines.length > 0) {
           saveToCache(cacheKey, freshMachines);
           setMachines(freshMachines);
@@ -183,13 +184,13 @@ function Analytics() {
       // if no machine in URL, check localStorage as fallback
       else if (machinesData.length > 0) {
         const lastMachine = localStorage.getItem("lastMachine");
-        
+
         if (lastMachine) {
           const machineData = JSON.parse(lastMachine);
           const matchingMachine = machinesData.find(m => m.thing_id === machineData.thing_id);
           if (matchingMachine) {
             setSelectedAdminMachine(matchingMachine);
-            
+
             // Update URL with the machine from localStorage
             if (router.isReady && activeTab === 'admin') {
               const query = { ...router.query, machineId: matchingMachine.thing_id };
@@ -205,7 +206,7 @@ function Analytics() {
         // auto-select first machine for admin view if no machine is selected
         if (activeTab === 'admin') {
           setSelectedAdminMachine(machinesData[0]);
-          
+
           // Update URL with the first machine
           if (router.isReady) {
             const query = { ...router.query, machineId: machinesData[0].thing_id };
@@ -258,7 +259,7 @@ function Analytics() {
               // update if fetch was successful
               state = newState;
               deviceStatus = newDeviceStatus;
-              
+
               // fetch last used time
               lastUsedTime = await fetchLastUsedTime(machine.machine);
             } catch (err) {
@@ -303,7 +304,7 @@ function Analytics() {
 
 
   // handle gym select - update URL with selected gym
-  const handleGymSelect = (selectedOption: unknown) => { 
+  const handleGymSelect = (selectedOption: unknown) => {
     const gymOption = selectedOption as GymOption | null;
     
     // clear selected
@@ -326,13 +327,13 @@ function Analytics() {
       if (router.query.machineId) {
         delete query.machineId;
       }
-      
+
       router.push({
         pathname: router.pathname,
         query
       }, undefined, { shallow: true });
     }
-    
+
     // save to localStorage as backup
     if (gymOption) {
       localStorage.setItem("lastGym", JSON.stringify(gymOption));
@@ -345,34 +346,34 @@ function Analytics() {
   const handleAdminMachineSelect = (machine: Machine) => {
     setIsLoadingMachineDetails(true);
     setSelectedAdminMachine(machine);
-    
+
     // Update URL with the selected machine and current tab
     if (router.isReady) {
-      const query = { 
-        ...router.query, 
-        machineId: machine.thing_id 
+      const query = {
+        ...router.query,
+        machineId: machine.thing_id
       };
-      
+
       router.push({
         pathname: router.pathname,
         query
       }, undefined, { shallow: true });
     }
-    
+
     // Save machine to localStorage as backup
     localStorage.setItem("lastMachine", JSON.stringify(machine));
-    
+
     setTimeout(() => setIsLoadingMachineDetails(false), ONE_SECOND / 2);
   };
 
   // handle tab change - update URL with selected tab
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
-    
+
     // Update URL with the selected tab
     if (router.isReady) {
       const query = { ...router.query, tab };
-      
+
       router.push({
         pathname: router.pathname,
         query
@@ -402,7 +403,7 @@ function Analytics() {
     const isInUse = selectedAdminMachine.state === StateString.IN_USE;
     const statusColor = isOffline ? StateColor.OFFLINE :
                         isInUse ? StateColor.IN_USE :
-                        StateColor.AVAILABLE; 
+                        StateColor.AVAILABLE;
     const statusBorder = isOffline ? `5px solid ${StateColor.OFFLINE}` :
                         isInUse ? `5px solid ${StateColor.IN_USE}` :
                         `5px solid ${StateColor.AVAILABLE}`;
@@ -412,7 +413,7 @@ function Analytics() {
         <h1 className={styles.machineTitle} style={{ borderLeft: statusBorder, paddingLeft: '10px' }}>
           {selectedAdminMachine.machine_type || 'Machine'}
         </h1>
-        
+
         <div className={styles.machineDetailsCard} style={{ borderLeft: statusBorder }}>
           <div className={styles.machineDetail}>
             <strong>Device Name:</strong> {selectedAdminMachine.machine}
@@ -427,7 +428,7 @@ function Analytics() {
             <strong>Status:</strong> <span style={{ color: isOffline ? StateColor.OFFLINE : 'inherit' }}>{selectedAdminMachine.device_status || STATUS_UNKNOWN}</span>
           </div>
           <div className={styles.machineDetail}>
-            <strong>Current State:</strong> <span style={{ 
+            <strong>Current State:</strong> <span style={{
               color: isOffline ? StateColor.OFFLINE : (isInUse ? StateColor.IN_USE : StateColor.AVAILABLE),
               fontWeight: 'bold'
             }}>
@@ -446,10 +447,10 @@ function Analytics() {
               <Spinner text="Loading analytics..." />
             </div>
           ) : (
-            <DynamicMachineUsageChart 
-              machineId={selectedAdminMachine.thing_id} 
-              machineName={selectedAdminMachine.machine} 
-              viewMode="admin" 
+            <DynamicMachineUsageChart
+              machineId={selectedAdminMachine.thing_id}
+              machineName={selectedAdminMachine.machine}
+              viewMode="admin"
             />
           )}
         </div>
@@ -465,16 +466,16 @@ function Analytics() {
     const today = new Date().toISOString().split('T')[0];
     const peakTimesCacheKey = `peak_times_${selectedGym?.id}_${today}`;
     const idealTimesCacheKey = `ideal_times_${selectedGym?.id}_${today}`;
-    
+
     const cachedPeakTimes = getFromCache<{[key: string]: string[]}>(peakTimesCacheKey, ONE_DAY) || {};
     const cachedIdealTimes = getFromCache<{[key: string]: string[]}>(idealTimesCacheKey, ONE_DAY) || {};
     
     setIsLoadingPredictions(true);
-    
+
     try {
       // Handle peak times
       const peakTimesMap = { ...cachedPeakTimes };
-      const machinesNeedingPeakTimes = machines.filter(machine => 
+      const machinesNeedingPeakTimes = machines.filter(machine =>
         !peakTimesMap[machine.thing_id] || peakTimesMap[machine.thing_id].length === 0
       );
       
@@ -483,9 +484,9 @@ function Analytics() {
         const peakTimesPromises = machinesNeedingPeakTimes.map(machine => {
           return fetchPeakHours(machine.thing_id, undefined, true);
         });
-        
+
         const peakTimesResults = await Promise.all(peakTimesPromises);
-        
+
         machinesNeedingPeakTimes.forEach((machine, index) => {
           const result = peakTimesResults[index];
           if (result && result.length > 0) {
@@ -495,21 +496,21 @@ function Analytics() {
           }
         });
       }
-      
+
       // fetch ideal times for machines that need them
       const idealTimesMap = { ...cachedIdealTimes };
-      const machinesNeedingIdealTimes = machines.filter(machine => 
+      const machinesNeedingIdealTimes = machines.filter(machine =>
         !idealTimesMap[machine.thing_id] || idealTimesMap[machine.thing_id].length === 0
       );
-      
+
       // fetch ideal times for machines that need them
       if (machinesNeedingIdealTimes.length > 0) {
         const idealTimesPromises = machinesNeedingIdealTimes.map(machine => {
           return fetchPeakHours(machine.thing_id, undefined, false);
         });
-        
+
         const idealTimesResults = await Promise.all(idealTimesPromises);
-        
+
         machinesNeedingIdealTimes.forEach((machine, index) => {
           const result = idealTimesResults[index];
           if (result && result.length > 0) {
@@ -524,20 +525,36 @@ function Analytics() {
       setMachinePeakTimes(peakTimesMap);
       setMachineIdealTimes(idealTimesMap);
       setLastPredictionFetch(Date.now());
-      
+
     } catch (error) {
       console.error('Error fetching peak and ideal times:', error);
     } finally {
       setIsLoadingPredictions(false);
     }
   };
-  
+
   // fetch peak and ideal hours when machines are loaded
   useEffect(() => {
     if (machines.length > 0) {
       fetchAllMachinePredictions();
     }
   }, [machines]);
+
+  async function handleNotify(machine: Machine) {
+    try {
+      await subscribeToMachine(machine.thing_id);
+
+      /* update local UI */
+      // setMachines((prev) =>
+      //   prev.map((m) =>
+      //     m.thing_id === machine.thing_id ? { ...m, subscribed: true } : m
+      //   )
+      // );
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
 
   // render page
   return (
@@ -636,6 +653,7 @@ function Analytics() {
                             onClick={(e) => {
                               e.preventDefault();
                               // TODO: implement notification logic
+                              handleNotify(machine);
                               console.log(`Notification clicked for ${machine.machine}`);
                             }}
                           >
