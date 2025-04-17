@@ -9,6 +9,7 @@ import { fetchGyms, fetchMachines, fetchDeviceState } from '@/utils/db';
 import { useAuth } from '@/lib/auth';
 import { EMAIL } from '@/utils/consts';
 import { RequireAuth } from '@/components/requireAuth';
+import { subscribeToMachine } from "@/utils/notify";
 
 // dynamically import Select 
 const DynamicSelect = dynamic(() => Promise.resolve(Select), { ssr: false });
@@ -34,6 +35,7 @@ interface Machine {
   lat: number;
   lng: number;
   usagePercentage?: number; 
+  subscribed: boolean;
 }
 
 function Analytics() {
@@ -201,6 +203,21 @@ function Analytics() {
     }
   }
 
+  async function handleNotify(machine: Machine) {
+    try {
+      await subscribeToMachine(machine.thing_id);
+  
+      /* update local UI */
+      setMachines((prev) =>
+        prev.map((m) =>
+          m.thing_id === machine.thing_id ? { ...m, subscribed: true } : m
+        )
+      );
+    } catch (err) {
+      console.error(err);
+    }
+  }
+  
 
   // render page
   return (
@@ -272,27 +289,54 @@ function Analytics() {
                       }}
                       onClick={() => setSelectedMachine(machine)}
                     >
-                      <h3>{machine.machine}</h3>
-                      {machine.device_status === "ONLINE" ? (
-                        <div className="flex flex-row items-center space-x-4">
-                          <div className="flex flex-row items-center space-x-2">
-                            <div className="w-4 h-4" style={{ backgroundColor: 'rgba(0, 100, 0, 0.3)' }}></div>
+                      {/* LEFT — machine name & legend */}
+                      <div className="flex flex-col">
+                        <h3 className="font-semibold text-lg leading-none">
+                          {machine.machine}
+                        </h3>
+
+                        <div className="flex flex-row items-center space-x-4 mt-1 text-sm">
+                          <div className="flex items-center space-x-1">
+                            <span
+                              className="inline-block w-3 h-3 rounded"
+                              style={{ backgroundColor: 'rgba(0, 100, 0, 0.3)' }}
+                            />
                             <span>Available</span>
                           </div>
-                          <div className="flex flex-row items-center space-x-2">
-                            <div className="w-4 h-4" style={{ backgroundColor: 'rgba(139, 0, 0, 0.3)' }}></div>
-                            <span>In Use</span>
+
+                          <div className="flex items-center space-x-1">
+                            <span
+                              className="inline-block w-3 h-3 rounded"
+                              style={{ backgroundColor: 'rgba(139, 0, 0, 0.3)' }}
+                            />
+                            <span>In&nbsp;Use</span>
                           </div>
                         </div>
-                      ) : (
-                        <div className="mt-2">
-                          <span>Status: {machine.device_status || 'UNKNOWN'}</span>
-                        </div>
+                      </div>
+
+                      {/* RIGHT — Notify Me button */}
+                      {machine.state === 'off' && !machine.subscribed && (
+                      <button
+                        type="button"
+                        aria-label={`Notify me when ${machine.machine} is free`}
+                        className={styles.notifyButton}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleNotify(machine);
+                        }}
+                      >
+                        Notify&nbsp;Me
+                      </button>
+                      )}
+
+                      {machine.subscribed && (
+                        <span className={styles.subscribedTag}>Subscribed</span>
                       )}
                     </div>
                   ))}
                 </div>
               )}
+
             </div>
           )}
           {/* admin analytics */}
