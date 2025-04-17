@@ -380,6 +380,28 @@ def peakHoursHelper(
     return model.predict_hours(df, date, start_time, end_time, peak)
 
 
+def send_email(to_addr: str, machine_name: str):
+    msg = EmailMessage()
+    msg["Subject"] = f"{machine_name} is now available!"
+    msg["From"]    = f"GymHawks <{EMAIL_ADDRESS}>"
+    msg["To"]      = to_addr
+    msg.set_content(
+        f"The {machine_name} you’ve been waiting for is free.\n\n"
+        "We can’t guarantee it will still be free when you arrive 🏋️‍♂️"
+    )
+    msg.add_alternative(
+        f"""
+        <p>The <strong>{machine_name}</strong> you’ve been waiting for is now
+        <span style="color:green">available</span>. See you there 🏋️‍♂️</p>
+        """,
+        subtype="html",
+    )
+
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+        smtp.login(EMAIL_ADDRESS, EMAIL_PASS)
+        smtp.send_message(msg)
+        
+
 # =============================================================================
 # Cloud Functions
 # =============================================================================
@@ -650,27 +672,7 @@ def generate_prediction_data(
     return pd.DataFrame({"thing_id": thing_id, "timestamp": timestamps})
 
 
-def _send_email(to_addr: str, machine_name: str):
-    msg = EmailMessage()
-    msg["Subject"] = f"{machine_name} is now available!"
-    msg["From"]    = f"GymHawks <{EMAIL_ADDRESS}>"
-    msg["To"]      = to_addr
-    msg.set_content(
-        f"The {machine_name} you’ve been waiting for is free.\n\n"
-        "We can’t guarantee it will still be free when you arrive 🏋️‍♂️"
-    )
-    msg.add_alternative(
-        f"""
-        <p>The <strong>{machine_name}</strong> you’ve been waiting for is now
-        <span style="color:green">available</span>. See you there 🏋️‍♂️</p>
-        """,
-        subtype="html",
-    )
-
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-        smtp.login(EMAIL_ADDRESS, EMAIL_PASS)
-        smtp.send_message(msg)
-
+@https_fn.on_request()
 def email_on_available(event, context):
     before = event["data"]["oldValue"]["fields"]
     after  = event["data"]["value"]["fields"]
@@ -692,7 +694,7 @@ def email_on_available(event, context):
         for doc in waiters_ref.stream():
             email = doc.to_dict().get("email")
             if email:
-                _send_email(email, machine_name)
+                send_email(email, machine_name)
             doc.reference.delete()
 
 
