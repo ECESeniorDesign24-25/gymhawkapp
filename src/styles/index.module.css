@@ -326,6 +326,39 @@
 }
 
 
+.notifyButton {
+  padding: 0.5rem 1rem;            
+  display: inline-block;
+  font-size: 0.875rem;      
+  background: #ffffff;
+  color: #000000;
+  border: 1px solid #d1d5db;       
+  border-radius: 12px;            
+  font-weight: 500;                
+  cursor: pointer;
+  line-height: 1.25;               
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1); 
+  transition: all 0.3s ease;       
+}
+
+.notifyButton:hover {
+  background-color: #f3f4f6;      
+  border-color: #9ca3af;          
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15); 
+}
+
+.notifyButton:active {
+  background-color: #e5e7eb; 
+  border-color: #6b7280;           
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
+}
+
+.subscribedTag {
+  font-size: 0.875rem;            
+  font-style: italic;
+  opacity: 0.75;
+  user-select: none;
+}
 
 .teamLink {
   color: #0070f3;
