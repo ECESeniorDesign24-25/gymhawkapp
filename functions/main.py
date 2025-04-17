@@ -14,6 +14,8 @@ from oauthlib.oauth2 import BackendApplicationClient
 from requests_oauthlib import OAuth2Session
 from consts import *
 import statistics
+import pandas as pd
+from model import RandomForestModel
 
 # set up firebase app
 initialize_app()
@@ -342,6 +344,40 @@ def initIoTAPI():
         return initIoTAPI()
 
 
+def get_machine_states_df() -> pd.DataFrame:
+    try:
+        # connect to db
+        engine = init_db_connection()
+
+        # we only want to train on data where the device is online
+        query = """
+            SELECT thing_id, state, timestamp FROM machine_states 
+            WHERE device_status = 'ONLINE'
+            ORDER BY timestamp
+        """
+
+        # read table into pandas df
+        with engine.connect() as conn:
+            df = pd.read_sql(query, conn)
+            return df
+
+    except Exception as e:
+        print(f"Error reading machine_states to DataFrame: {e}")
+        raise
+
+
+def peakHoursHelper(
+    thing_id: str,
+    date: str,
+    start_time: pd.Timestamp,
+    end_time: pd.Timestamp,
+    peak: bool = True,
+) -> list:
+    model = RandomForestModel(load_model=True)
+    df = generate_prediction_data(thing_id, start_time, end_time)
+    return model.predict_hours(df, date, start_time, end_time, peak)
+
+
 # =============================================================================
 # Cloud Functions
 # =============================================================================
@@ -556,16 +592,71 @@ def getStateTimeseriesDummy(req: https_fn.Request) -> https_fn.Response:
     return getTimeseries(req, "machine_states_dummy")
 
 
-if __name__ == "__main__":
-    # manReq = ManualRequest(args={"thing_id": "0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8", "variable": "state"})
-    # manReq2 = ManualRequest(args={"thing_id": "c7996422-9462-4fa7-8d02-bfe8c7aba7e4", "variable": "state"})
-    # manReq3 = ManualRequest(args={"thing_id": "6ad4d9f7-8444-4595-bf0b-5fb62c36430c", "variable": "state"})
-    # # addTimeStep()
+# retrain model every 30 minutes
+@scheduler_fn.on_schedule(schedule="*/30 * * * *")
+def retrainModel():
+    # train model with current data (note only online mode )
+    df = get_machine_states_df()
+    model = RandomForestModel(load_model=False)
+    acc = model.train(df)
+    n_datapoints = model.n_datapoints
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
-    # print("================================================")
-    # print(getDeviceStatus(thing_id="0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8"))
-    # print(getDeviceStatus(thing_id="c7996422-9462-4fa7-8d02-bfe8c7aba7e4"))
-    # print(getDeviceStatus(thing_id="6ad4d9f7-8444-4595-bf0b-5fb62c36430c"))
-    # print("================================================")
+    # write timestamp, accuracy and number of datapoints to training_results table
+    write_state_to_db(
+        {"timestamp": timestamp, "accuracy": acc, "datapoints": n_datapoints},
+        table_name="training_results",
+    )
 
-    addTimeStep()
+
+@https_fn.on_request()
+def getPeakHours(req: https_fn.Request) -> https_fn.Response:
+    # parse req
+    thing_id = req.args.get("thing_id")
+    date = req.args.get("date")
+    start_time = req.args.get("start_time")
+    end_time = req.args.get("end_time")
+    peak = req.args.get("peak")
+    peak = True if peak == "true" else False
+
+    # convert time to datetime
+    start_time = pd.to_datetime(pd.Timestamp(start_time))
+    end_time = pd.to_datetime(pd.Timestamp(end_time))
+
+    return https_fn.Response(
+        json.dumps(
+            {"hours": peakHoursHelper(thing_id, date, start_time, end_time, peak=peak)}
+        ),
+        status=200,
+        headers=CORS_HEADERS,
+    )
+
+
+def generate_prediction_data(
+    thing_id: str, start_time: str, end_time: str
+) -> pd.DataFrame:
+    start_time = pd.to_datetime(pd.Timestamp(start_time))
+    end_time = pd.to_datetime(pd.Timestamp(end_time))
+
+    # round to nearest 30min interval
+    start_time = start_time.floor("30min")
+    end_time = end_time.floor("30min")
+    start_time = start_time.replace(minute=0 if start_time.minute < 30 else 30)
+    end_time = end_time.replace(minute=0 if end_time.minute < 30 else 30)
+
+    timestamps = pd.date_range(start=start_time, end=end_time, freq="30min")
+    return pd.DataFrame({"thing_id": thing_id, "timestamp": timestamps})
+
+
+# if __name__ == "__main__":
+#     model = RandomForestModel(load_model=True)
+#     # start at 7 am end at 8 pm
+#     start_time = "2025-04-17 07:00:00"
+#     end_time = "2025-04-17 20:00:00"
+#     dummy_df = generate_prediction_data("0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8", start_time, end_time)
+
+#     peak_hours = peakHoursHelper("0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8", "2025-04-17", start_time, end_time, peak=True)
+#     print("peak hours: ", peak_hours)
+
+#     least_likely_hours = peakHoursHelper("0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8", "2025-04-17", start_time, end_time, peak=False)
+#     print("least likely hours: ", least_likely_hours)
