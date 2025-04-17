@@ -377,6 +377,31 @@ def peakHoursHelper(
         print(f"No valid data for {thing_id} on {date} from {start_time} to {end_time}")
         return []
 
+def retrieve(field, snapshot):
+    return next(iter(snapshot[field].values()))
+
+
+def send_email(to_addr: str, machine_name: str):
+    msg = EmailMessage()
+    msg["Subject"] = f"{machine_name} is now available!"
+    msg["From"]    = f"GymHawks <{EMAIL_ADDRESS}>"
+    msg["To"]      = to_addr
+    msg.set_content(
+        f"The {machine_name} you’ve been waiting for is free.\n\n"
+        "We can’t guarantee it will still be free when you arrive 🏋️‍♂️"
+    )
+    msg.add_alternative(
+        f"""
+        <p>The <strong>{machine_name}</strong> you’ve been waiting for is now
+        <span style="color:green">available</span>. See you there 🏋️‍♂️</p>
+        """,
+        subtype="html",
+    )
+
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+        smtp.login(EMAIL_ADDRESS, EMAIL_PASS)
+        smtp.send_message(msg)
+
 
 def getLastLat(thing_id: str) -> float:
     try:
@@ -629,10 +654,10 @@ def getTotalUsageUtil(thing_id: str) -> int:
     try:
         engine = init_db_connection()
         query = """
-            SELECT (COUNT(*)::float / 60)::float AS hours_used 
-            FROM machine_states 
-            WHERE thing_id = :thing_id 
-            AND device_status = 'ONLINE' 
+            SELECT (COUNT(*)::float / 60)::float AS hours_used
+            FROM machine_states
+            WHERE thing_id = :thing_id
+            AND device_status = 'ONLINE'
             AND state = 'on'
         """
         with engine.connect() as conn:
@@ -714,6 +739,27 @@ def setSleepModeForThing(thing_id: str, sleep_value: bool):
     except Exception as e:
         print(f"Error setting sleep mode for {thing_id}: {e}")
         raise
+
+def send_email(to_addr: str, machine_name: str):
+    msg = EmailMessage()
+    msg["Subject"] = f"{machine_name} is now available!"
+    msg["From"]    = f"GymHawks <{EMAIL_ADDRESS}>"
+    msg["To"]      = to_addr
+    msg.set_content(
+        f"The {machine_name} you’ve been waiting for is free.\n\n"
+        "We can’t guarantee it will still be free when you arrive 🏋️‍♂️"
+    )
+    msg.add_alternative(
+        f"""
+        <p>The <strong>{machine_name}</strong> you’ve been waiting for is now
+        <span style="color:green">available</span>. See you there 🏋️‍♂️</p>
+        """,
+        subtype="html",
+    )
+
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+        smtp.login(EMAIL_ADDRESS, EMAIL_PASS)
+        smtp.send_message(msg)
 
 
 def getDailyPercentagesUtil(thing_id: str) -> list:
@@ -884,6 +930,35 @@ def getLastUsedTime(req: https_fn.Request) -> https_fn.Response:
             json.dumps(last_used_time), status=200, headers=CORS_HEADERS
         )
 
+@https_fn.on_request()
+def email_on_available(req: https_fn.Request) -> https_fn.Response:
+    try:
+        data = req.get_json()
+
+        before = data["before"]["fields"]
+        after  = data["after"]["fields"]
+
+        if retrieve("state", before) == "on" and retrieve("state", after) == "off":
+            machine_id   = data.get("machine_id")
+            machine_name = retrieve("name", after)
+
+            waiters_ref = (
+                db.collection("subscriptions")
+                  .document(machine_id)
+                  .collection("waiters")
+            )
+
+            for doc in waiters_ref.stream():
+                email = doc.to_dict().get("email")
+                if email:
+                    send_email(email, machine_name)
+                doc.reference.delete()
+
+        return jsonify({"status": "ok"}), 200
+
+    except Exception as e:
+        print("ERROR:", e)
+        return jsonify({"error": str(e)}), 500
 
 @https_fn.on_request()
 def getTotalUsage(req: https_fn.Request) -> https_fn.Response:
