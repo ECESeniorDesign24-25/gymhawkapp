@@ -4,6 +4,8 @@ import json
 import os
 from firebase_functions import https_fn, scheduler_fn
 from firebase_admin import initialize_app, firestore, credentials
+from firebase_admin import initialize_app, firestore
+from flask import jsonify
 import iot_api_client as iot
 from iot_api_client.rest import ApiException
 from iot_api_client.configuration import Configuration
@@ -372,6 +374,31 @@ def peakHoursHelper(
     except Exception as e:
         print(f"No valid data for {thing_id} on {date} from {start_time} to {end_time}")
         return []
+
+def retrieve(field, snapshot):
+    return next(iter(snapshot[field].values()))
+
+
+def send_email(to_addr: str, machine_name: str):
+    msg = EmailMessage()
+    msg["Subject"] = f"{machine_name} is now available!"
+    msg["From"]    = f"GymHawks <{EMAIL_ADDRESS}>"
+    msg["To"]      = to_addr
+    msg.set_content(
+        f"The {machine_name} you’ve been waiting for is free.\n\n"
+        "We can’t guarantee it will still be free when you arrive 🏋️‍♂️"
+    )
+    msg.add_alternative(
+        f"""
+        <p>The <strong>{machine_name}</strong> you’ve been waiting for is now
+        <span style="color:green">available</span>. See you there 🏋️‍♂️</p>
+        """,
+        subtype="html",
+    )
+
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+        smtp.login(EMAIL_ADDRESS, EMAIL_PASS)
+        smtp.send_message(msg)
 
 
 def getLastLat(thing_id: str) -> float:
@@ -781,29 +808,34 @@ def getLastUsedTime(req: https_fn.Request) -> https_fn.Response:
         )
 
 @https_fn.on_request()
-def email_on_available(event, context):
-    before = event["data"]["oldValue"]["fields"]
-    after  = event["data"]["value"]["fields"]
+def email_on_available(req: https_fn.Request) -> https_fn.Response:
+    try:
+        data = req.get_json()
 
-    def get(field, snapshot):
-        # quick lookup for the first *Value key
-        return next(iter(snapshot[field].values()))
+        before = data["before"]["fields"]
+        after  = data["after"]["fields"]
 
-    if get("state", before) == "on" and get("state", after) == "off":
-        machine_id   = context.resource.split("/documents/")[1].split("/")[1]
-        machine_name = get("name", after)
+        if retrieve("state", before) == "on" and retrieve("state", after) == "off":
+            machine_id   = data.get("machine_id")
+            machine_name = retrieve("name", after)
 
-        waiters_ref = (
-            db.collection("subscriptions")
-              .document(machine_id)
-              .collection("waiters")
-        )
+            waiters_ref = (
+                db.collection("subscriptions")
+                  .document(machine_id)
+                  .collection("waiters")
+            )
 
-        for doc in waiters_ref.stream():
-            email = doc.to_dict().get("email")
-            if email:
-                send_email(email, machine_name)
-            doc.reference.delete()
+            for doc in waiters_ref.stream():
+                email = doc.to_dict().get("email")
+                if email:
+                    send_email(email, machine_name)
+                doc.reference.delete()
+
+        return jsonify({"status": "ok"}), 200
+
+    except Exception as e:
+        print("ERROR:", e)
+        return jsonify({"error": str(e)}), 500
 
 @scheduler_fn.on_schedule(schedule="0 19 * * *")
 def sleepDevices():
