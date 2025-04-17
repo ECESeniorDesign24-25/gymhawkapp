@@ -3,6 +3,7 @@ import time as t
 import json
 from firebase_functions import https_fn, scheduler_fn
 from firebase_admin import initialize_app, firestore
+from flask import jsonify
 import iot_api_client as iot
 from iot_api_client.rest import ApiException
 from iot_api_client.configuration import Configuration
@@ -379,6 +380,9 @@ def peakHoursHelper(
     df = generate_prediction_data(thing_id, start_time, end_time)
     return model.predict_hours(df, date, start_time, end_time, peak)
 
+def retrieve(field, snapshot):
+    return next(iter(snapshot[field].values()))
+
 
 def send_email(to_addr: str, machine_name: str):
     msg = EmailMessage()
@@ -400,7 +404,7 @@ def send_email(to_addr: str, machine_name: str):
     with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
         smtp.login(EMAIL_ADDRESS, EMAIL_PASS)
         smtp.send_message(msg)
-        
+
 
 # =============================================================================
 # Cloud Functions
@@ -673,29 +677,34 @@ def generate_prediction_data(
 
 
 @https_fn.on_request()
-def email_on_available(event, context):
-    before = event["data"]["oldValue"]["fields"]
-    after  = event["data"]["value"]["fields"]
-    
-    def get(field, snapshot):
-        # quick lookup for the first *Value key
-        return next(iter(snapshot[field].values()))
+def email_on_available(req: https_fn.Request) -> https_fn.Response:
+    try:
+        data = req.get_json()
 
-    if get("state", before) == "on" and get("state", after) == "off":
-        machine_id   = context.resource.split("/documents/")[1].split("/")[1]
-        machine_name = get("name", after)
+        before = data["before"]["fields"]
+        after  = data["after"]["fields"]
 
-        waiters_ref = (
-            db.collection("subscriptions")
-              .document(machine_id)
-              .collection("waiters")
-        )
+        if retrieve("state", before) == "on" and retrieve("state", after) == "off":
+            machine_id   = data.get("machine_id")
+            machine_name = retrieve("name", after)
 
-        for doc in waiters_ref.stream():
-            email = doc.to_dict().get("email")
-            if email:
-                send_email(email, machine_name)
-            doc.reference.delete()
+            waiters_ref = (
+                db.collection("subscriptions")
+                  .document(machine_id)
+                  .collection("waiters")
+            )
+
+            for doc in waiters_ref.stream():
+                email = doc.to_dict().get("email")
+                if email:
+                    send_email(email, machine_name)
+                doc.reference.delete()
+
+        return jsonify({"status": "ok"}), 200
+
+    except Exception as e:
+        print("ERROR:", e)
+        return jsonify({"error": str(e)}), 500
 
 
 
