@@ -566,9 +566,7 @@ def addTimeStepUtil() -> None:
             values_to_write[thing_id]["machineName"] = (
                 db.collection("thing_ids").document(thing_id).get().to_dict()["name"]
             )
-            values_to_write[thing_id]["floor"] = (
-                db.collection("thing_ids").document(thing_id).get().to_dict()["floor"]
-            )
+
             device_status = getDeviceStatus(thing_id, devices)
             values_to_write[thing_id]["device_status"] = device_status
 
@@ -760,6 +758,50 @@ def getLastUsedTime(req: https_fn.Request) -> https_fn.Response:
             json.dumps(last_used_time), status=200, headers=CORS_HEADERS
         )
 
+def _send_email(to_addr: str, machine_name: str):
+    msg = EmailMessage()
+    msg["Subject"] = f"{machine_name} is now available!"
+    msg["From"]    = f"GymHawks <{EMAIL_ADDRESS}>"
+    msg["To"]      = to_addr
+    msg.set_content(
+        f"The {machine_name} you’ve been waiting for is free.\n\n"
+        "We can’t guarantee it will still be free when you arrive 🏋️‍♂️"
+    )
+    msg.add_alternative(
+        f"""
+        <p>The <strong>{machine_name}</strong> you’ve been waiting for is now
+        <span style="color:green">available</span>. See you there 🏋️‍♂️</p>
+        """,
+        subtype="html",
+    )
+
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+        smtp.login(EMAIL_ADDRESS, EMAIL_PASS)
+        smtp.send_message(msg)
+
+def email_on_available(event, context):
+    before = event["data"]["oldValue"]["fields"]
+    after  = event["data"]["value"]["fields"]
+
+    def get(field, snapshot):
+        # quick lookup for the first *Value key
+        return next(iter(snapshot[field].values()))
+
+    if get("state", before) == "on" and get("state", after) == "off":
+        machine_id   = context.resource.split("/documents/")[1].split("/")[1]
+        machine_name = get("name", after)
+
+        waiters_ref = (
+            db.collection("subscriptions")
+              .document(machine_id)
+              .collection("waiters")
+        )
+
+        for doc in waiters_ref.stream():
+            email = doc.to_dict().get("email")
+            if email:
+                _send_email(email, machine_name)
+            doc.reference.delete()
 
 @scheduler_fn.on_schedule(schedule="0 19 * * *")
 def sleepDevices():
@@ -780,5 +822,49 @@ def wakeDevices():
 
 
 if __name__ == "__main__":
-    # setSleepMode(False)
-    pass
+    addTimeStepUtil()
+
+# if __name__ == "__main__":
+#     model = RandomForestModel(load_model=True)
+#     # start at 7 am end at 8 pm
+#     start_time = "2025-04-17 07:00:00"
+#     end_time = "2025-04-17 20:00:00"
+#     dummy_df = generate_prediction_data("0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8", start_time, end_time)
+
+    # start at 7 am end at 8 pm
+#     start_time = "2025-04-17 07:00:00"
+#     end_time = "2025-04-17 20:00:00"
+#
+#     print("Building dummy df")
+
+    # 0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8
+    # print("================================================")
+    # print("Thing id: ", "0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8")
+    # dummy_df = generate_prediction_data(
+    #     "0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8", start_time, end_time
+    # )
+
+    # peak_hours = peakHoursHelper(
+    #     "0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8",
+    #     "2025-04-17",
+    #     start_time,
+    #     end_time,
+    #     peak=True,
+    # )
+    # print("peak hours: ", peak_hours)
+
+    # least_likely_hours = peakHoursHelper(
+    #     "0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8",
+    #     "2025-04-17",
+    #     start_time,
+    #     end_time,
+    #     peak=False,
+    # )
+    # print("least likely hours: ", least_likely_hours)
+
+    thing_id = "6ad4d9f7-8444-4595-bf0b-5fb62c36430c"
+    start_time = "2025-04-22T01:35:02.007Z"
+    variable = "state"
+    timeseries = getTimeseries(thing_id, start_time, variable)
+    print(timeseries)
+>>>>>>> a7233df (WIP: Initial cloud function for checking change in db state added)
