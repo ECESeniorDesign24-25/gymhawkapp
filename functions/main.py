@@ -621,6 +621,7 @@ def addTimeStepUtil() -> None:
         raise
 
 
+<<<<<<< HEAD
 def setSleepModeForThing(thing_id: str, sleep_value: bool):
     try:
         properties_api, devices = initIoTAPI()
@@ -645,6 +646,27 @@ def setSleepModeForThing(thing_id: str, sleep_value: bool):
         print(f"Error setting sleep mode for {thing_id}: {e}")
         raise
 
+def send_email(to_addr: str, machine_name: str):
+    msg = EmailMessage()
+    msg["Subject"] = f"{machine_name} is now available!"
+    msg["From"]    = f"GymHawks <{EMAIL_ADDRESS}>"
+    msg["To"]      = to_addr
+    msg.set_content(
+        f"The {machine_name} you’ve been waiting for is free.\n\n"
+        "We can’t guarantee it will still be free when you arrive 🏋️‍♂️"
+    )
+    msg.add_alternative(
+        f"""
+        <p>The <strong>{machine_name}</strong> you’ve been waiting for is now
+        <span style="color:green">available</span>. See you there 🏋️‍♂️</p>
+        """,
+        subtype="html",
+    )
+
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+        smtp.login(EMAIL_ADDRESS, EMAIL_PASS)
+        smtp.send_message(msg)
+        
 
 # =============================================================================
 # Cloud Functions
@@ -758,27 +780,7 @@ def getLastUsedTime(req: https_fn.Request) -> https_fn.Response:
             json.dumps(last_used_time), status=200, headers=CORS_HEADERS
         )
 
-def _send_email(to_addr: str, machine_name: str):
-    msg = EmailMessage()
-    msg["Subject"] = f"{machine_name} is now available!"
-    msg["From"]    = f"GymHawks <{EMAIL_ADDRESS}>"
-    msg["To"]      = to_addr
-    msg.set_content(
-        f"The {machine_name} you’ve been waiting for is free.\n\n"
-        "We can’t guarantee it will still be free when you arrive 🏋️‍♂️"
-    )
-    msg.add_alternative(
-        f"""
-        <p>The <strong>{machine_name}</strong> you’ve been waiting for is now
-        <span style="color:green">available</span>. See you there 🏋️‍♂️</p>
-        """,
-        subtype="html",
-    )
-
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-        smtp.login(EMAIL_ADDRESS, EMAIL_PASS)
-        smtp.send_message(msg)
-
+@https_fn.on_request()
 def email_on_available(event, context):
     before = event["data"]["oldValue"]["fields"]
     after  = event["data"]["value"]["fields"]
@@ -800,7 +802,7 @@ def email_on_available(event, context):
         for doc in waiters_ref.stream():
             email = doc.to_dict().get("email")
             if email:
-                _send_email(email, machine_name)
+                send_email(email, machine_name)
             doc.reference.delete()
 
 @scheduler_fn.on_schedule(schedule="0 19 * * *")
