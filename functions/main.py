@@ -932,16 +932,22 @@ def getLastUsedTime(req: https_fn.Request) -> https_fn.Response:
 
 @https_fn.on_request()
 def email_on_available(req: https_fn.Request) -> https_fn.Response:
+    if req.method == "OPTIONS":
+        return https_fn.Response("", status=204, headers=CORS_HEADERS)
+
     try:
         data = req.get_json()
 
-        before = data["before"]["fields"]
-        after  = data["after"]["fields"]
+        machine_id   = data.get("machine_id")
+        machine_name = data.get("machine_name")  # sent in email
+        previous     = data.get("previous_state")  # state from last check, stored by sql backend
 
-        if retrieve("state", before) == "on" and retrieve("state", after) == "off":
-            machine_id   = data.get("machine_id")
-            machine_name = retrieve("name", after)
+        # get current state from SQL
+        recent = fetchMostRecentVarFromDb(machine_id, "state", "machine_states")
+        current = recent[0]["state"] if recent else None
 
+        # trigger only on "on" ➝ "off" transition
+        if previous == "on" and current == "off":
             waiters_ref = (
                 db.collection("subscriptions")
                   .document(machine_id)
@@ -954,11 +960,20 @@ def email_on_available(req: https_fn.Request) -> https_fn.Response:
                     send_email(email, machine_name)
                 doc.reference.delete()
 
-        return jsonify({"status": "ok"}), 200
+        return https_fn.Response(
+            json.dumps({"status": "ok", "previous": previous, "current": current}),
+            status=200,
+            headers=CORS_HEADERS
+        )
 
     except Exception as e:
         print("ERROR:", e)
-        return jsonify({"error": str(e)}), 500
+        return https_fn.Response(
+            json.dumps({"error": str(e)}),
+            status=500,
+            headers=CORS_HEADERS
+        )
+
 
 @https_fn.on_request()
 def getTotalUsage(req: https_fn.Request) -> https_fn.Response:
