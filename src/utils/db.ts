@@ -70,16 +70,36 @@ export async function fetchMachineTimeseries(machineId: string, startTime: strin
         else {
             endpoint = `${API_ENDPOINT}/getStateTimeseries?thing_id=${machineId}&startTime=${startTime}&variable=${variable}`;
         }
-        // get state timeseries for given machine
-        const response = await fetch(endpoint);
-        if (!response.ok) {
-            throw new Error(`Network response was not ok: ${response.statusText}`);
+        
+        // Try to fetch with CORS first
+        try {
+            const response = await fetch(endpoint, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                },
+                mode: 'cors'
+            });
+            
+            if (!response.ok) {
+                console.error('Failed to fetch timeseries:', {
+                    status: response.status,
+                    statusText: response.statusText,
+                    endpoint
+                });
+                return [];
+            }
+            
+            const data = await response.json();
+            console.log("Fetched timeseries for machine: ", machineId, " after start time: ", startTime, " for variable: ", variable, " with data: ", data, " dev mode: ", devMode);
+            return data;
+        } catch (err) {
+            console.error('CORS error fetching timeseries, returning empty data:', err);
+            return [];
         }
-        const data = await response.json();
-        console.log("Fetched timeseries for machine: ", machineId, " after start time: ", startTime, " for variable: ", variable, " with data: ", data, " dev mode: ", devMode);
-        return data;
     } catch (e) {
-        console.error('Error fetching timeseries:', e);
+        console.error('Error in fetchMachineTimeseries:', e);
         return [];
     }
 }

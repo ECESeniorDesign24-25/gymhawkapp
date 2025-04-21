@@ -206,19 +206,6 @@ const MachineUsageChart: React.FC<MachineUsageChartProps> = ({ machineId, machin
         >
           Next Day
         </button>
-        <button
-          onClick={() => setIsDevMode(!isDevMode)}
-          style={{ 
-            backgroundColor: isDevMode ? '#ff4444' : '#44ff44',
-            color: 'white',
-            padding: '5px 10px',
-            borderRadius: '4px',
-            border: 'none',
-            cursor: 'pointer'
-          }}
-        >
-          {isDevMode ? 'Dev Mode: ON' : 'Dev Mode: OFF'}
-        </button>
       </div>
       <div className="h-64">
         <Line data={chartData} options={lineChartOptions} />
