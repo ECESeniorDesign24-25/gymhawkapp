@@ -1,6 +1,6 @@
 ## GymHawk Web Application
 
-#### Setup
+### Setup
 There are a few things you will need to do to set up the application. First, you will need a [Firebase account](https://firebase.google.com/) and access to the project, which you can get via link. Reach out to Joe for more info on that.
 
 Next, you will need a [Google Cloud Platform](https://console.cloud.google.com/) account.
@@ -20,7 +20,7 @@ NEXT_PUBLIC_FIREBASE_APP_ID=
 
 The MAPS_API_KEY can be generated from your GCP account. The Firebase keys are found in the project npm SDK which you can access by going to the Firebase console, selecting the GymHawk project, going to settings (general), and clicking the web app.
 
-#### Development:
+### Development:
 The application source code is in the `src/` directory. Structure:
 
 `src/pages`: Holds the application pages. `index.tsx` is the home page.
@@ -41,3 +41,18 @@ Application deployment is handled by Firebase. To set up deployment, you will fi
 `./scripts/deploy.sh` 
 
 from the root of this repository. This will generate a static build of the application in the `out/` directory and will be hosted on Firebase.
+
+__
+#### API Documentation
+**Get Current Value of Device Variable**: `/getDeviceState`  
+*Method:* GET  
+*Parameters:*  
+- `thing_id`: The thing_id of the device  
+- `variable`: the variable to return. Available choices are defined [here](variables.md)
+
+*Returns:* JSON object in the following form: `[
+  {
+    "<VARIABLE>": ...,
+    "timestamp": "2025-04-17T03:36:00.818000+00:00"
+  }
+]`

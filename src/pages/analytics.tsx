@@ -30,7 +30,7 @@ interface Machine {
   machine: string;
   thing_id: string;
   state: string | Promise<string>;
-  device_status: | Promise<string>;
+  device_status: string;
   lat: number;
   lng: number;
   usagePercentage?: number; 
@@ -274,16 +274,22 @@ function Analytics() {
                       onClick={() => setSelectedMachine(machine)}
                     >
                       <h3>{machine.machine}</h3>
-                      <div className="flex flex-row items-center space-x-4">
-                        <div className="flex flex-row items-center space-x-2">
-                          <div className="w-4 h-4" style={{ backgroundColor: 'rgba(0, 100, 0, 0.3)' }}></div>
-                          <span>Status: {machine.device_status || 'OFFLINE'}</span>
+                      {machine.device_status === "ONLINE" ? (
+                        <div className="flex flex-row items-center space-x-4">
+                          <div className="flex flex-row items-center space-x-2">
+                            <div className="w-4 h-4" style={{ backgroundColor: 'rgba(0, 100, 0, 0.3)' }}></div>
+                            <span>Available</span>
+                          </div>
+                          <div className="flex flex-row items-center space-x-2">
+                            <div className="w-4 h-4" style={{ backgroundColor: 'rgba(139, 0, 0, 0.3)' }}></div>
+                            <span>In Use</span>
+                          </div>
                         </div>
-                        <div className="flex flex-row items-center space-x-2">
-                          <div className="w-4 h-4" style={{ backgroundColor: 'rgba(139, 0, 0, 0.3)' }}></div>
-                          <span>In Use</span>
+                      ) : (
+                        <div className="mt-2">
+                          <span>Status: {machine.device_status || 'UNKNOWN'}</span>
                         </div>
-                      </div>
+                      )}
                     </div>
                   ))}
                 </div>

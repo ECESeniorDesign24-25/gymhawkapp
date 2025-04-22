@@ -237,7 +237,7 @@ def getTimeseries(req: https_fn.Request, table_name: str) -> https_fn.Response:
             json.dumps({"error": "Thing ID not found"}),
             mimetype="application/json",
             status=404,
-            headers=CORS_HEADERS,
+            headers=CORS_HEADERS
         )
     try:
         timeseries = fetch_timeseries_from_db(thing_id, startTime, variable, table_name)
@@ -245,7 +245,7 @@ def getTimeseries(req: https_fn.Request, table_name: str) -> https_fn.Response:
             json.dumps(timeseries),
             mimetype="application/json",
             status=200,
-            headers=CORS_HEADERS,
+            headers=CORS_HEADERS
         )
     except Exception as e:
         print(f"Error fetching timeseries: {str(e)}")
@@ -253,7 +253,7 @@ def getTimeseries(req: https_fn.Request, table_name: str) -> https_fn.Response:
             json.dumps({"error": f"Database error: {str(e)}"}),
             mimetype="application/json",
             status=500,
-            headers=CORS_HEADERS,
+            headers=CORS_HEADERS
         )
 
 
