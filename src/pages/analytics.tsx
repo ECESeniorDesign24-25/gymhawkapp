@@ -30,6 +30,7 @@ interface Machine {
   machine: string;
   thing_id: string;
   state: string | Promise<string>;
+  device_status: string;
   lat: number;
   lng: number;
   usagePercentage?: number; 
@@ -128,18 +129,39 @@ function Analytics() {
             if (!machine) {
               return machine;
             }
-            const state = await fetchDeviceState(machine.machine, controller.signal, oldStates[machine.machine], "state");
+            // fetch state and device state
+            let state = oldStates[machine.machine] || "loading";
+            let deviceStatus = machine.device_status || "OFFLINE";
+            
+            try {
+              const [newState, newDeviceStatus] = await Promise.all([
+                fetchDeviceState(machine.machine, controller.signal, oldStates[machine.machine], "state"),
+                fetchDeviceState(machine.machine, controller.signal, oldStates[machine.machine], "device_status")
+              ]);
+              
+              // Only update if fetch was successful
+              state = newState;
+              deviceStatus = newDeviceStatus;
+            } catch (err) {
+              console.error('Error fetching device state, using last known value:', err);
+              // Keep using the last known values
+            }
 
-            // return existing machine properties plus updated state
-            const newState = { ...machine, state, oldState: oldStates[machine.machine] };
+            // return existing machine properties plus updated states
+            const newStatus = { 
+              ...machine, 
+              state, 
+              device_status: deviceStatus,
+              oldState: oldStates[machine.machine] 
+            };
 
             // store new state with old state
             oldStates[machine.machine] = state;
             setOldStates(oldStates);
 
-            return newState;
+            return newStatus;
           } catch (err) {
-            console.error('Error fetching device state', err);
+            console.error('Error in machine state update:', err);
             return machine;
           }
         })
@@ -252,16 +274,22 @@ function Analytics() {
                       onClick={() => setSelectedMachine(machine)}
                     >
                       <h3>{machine.machine}</h3>
-                      <div className="flex flex-row items-center space-x-4">
-                        <div className="flex flex-row items-center space-x-2">
-                          <div className="w-4 h-4" style={{ backgroundColor: 'rgba(0, 100, 0, 0.3)' }}></div>
-                          <span>Available</span>
+                      {machine.device_status === "ONLINE" ? (
+                        <div className="flex flex-row items-center space-x-4">
+                          <div className="flex flex-row items-center space-x-2">
+                            <div className="w-4 h-4" style={{ backgroundColor: 'rgba(0, 100, 0, 0.3)' }}></div>
+                            <span>Available</span>
+                          </div>
+                          <div className="flex flex-row items-center space-x-2">
+                            <div className="w-4 h-4" style={{ backgroundColor: 'rgba(139, 0, 0, 0.3)' }}></div>
+                            <span>In Use</span>
+                          </div>
                         </div>
-                        <div className="flex flex-row items-center space-x-2">
-                          <div className="w-4 h-4" style={{ backgroundColor: 'rgba(139, 0, 0, 0.3)' }}></div>
-                          <span>In Use</span>
+                      ) : (
+                        <div className="mt-2">
+                          <span>Status: {machine.device_status || 'UNKNOWN'}</span>
                         </div>
-                      </div>
+                      )}
                     </div>
                   ))}
                 </div>

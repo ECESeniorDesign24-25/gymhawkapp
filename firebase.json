@@ -1,9 +1,6 @@
 {
   "hosting": {
     "public": "out",
-    "predeploy": [
-      "npm run build"
-    ],
     "ignore": [
       "firebase.json",
       "**/.*",
@@ -21,6 +18,18 @@
       {
         "source": "/api/getStateTimeseriesDummy",
         "function": "getStateTimeseriesDummy"
+      },
+      {
+        "source": "/api/getPeakHours",
+        "function": "getPeakHours"
+      },
+      {
+        "source": "/api/retrainModel",
+        "function": "retrainModel"
+      },
+      {
+        "source": "**",
+        "destination": "/index.html"
       }
     ]
   },
@@ -42,12 +51,6 @@
         "firebase-debug.*.log",
         "*.local"
       ]
-    }
-  ],
-  "rewrites": [
-    {
-      "source": "**",
-      "destination": "/index.html"
     }
   ]
 }

@@ -1,0 +1,78 @@
+name: Build and Test
+on: pull_request
+permissions:
+  checks: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  build:
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+      checks: 'write'
+      pull-requests: 'write'
+      
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          
+      - name: Install dependencies
+        run: |
+          npm install
+          npm ci
+
+        
+      - name: Build application
+        run: npm run build
+        env:
+          NEXT_PUBLIC_FIREBASE_API_KEY: ${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }}
+          NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ secrets.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+          NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
+          NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ${{ secrets.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }}
+          NEXT_PUBLIC_FIREBASE_MESSAGE_SENDER_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_MESSAGE_SENDER_ID }}
+          NEXT_PUBLIC_FIREBASE_APP_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID }}
+      
+  test:
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - id: 'auth'
+        uses: 'google-github-actions/auth@v1'
+        with:
+          workload_identity_provider: ${{ secrets.IDENTITY_POOL_PROVIDER }}
+          service_account: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_EMAIL }}
+          project_id: gymhawk-2ed7f
+          create_credentials_file: true
+          export_environment_variables: true
+      
+      - name: Run tests
+        working-directory: functions
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          echo "Credentials file path: ${{ steps.auth.outputs.credentials_file_path }}"
+          ls -la ${{ steps.auth.outputs.credentials_file_path }}
+          export GOOGLE_APPLICATION_CREDENTIALS="${{ steps.auth.outputs.credentials_file_path }}"
+          pytest -v
+        env:
+          ARDUINO_CLIENT_ID: ${{ secrets.ARDUINO_CLIENT_ID }}
+          ARDUINO_CLIENT_SECRET: ${{ secrets.ARDUINO_CLIENT_SECRET }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASS: ${{ secrets.DB_PASS }}
+          DB_INSTANCE_NAME: ${{ secrets.DB_INSTANCE_NAME }}
+          MODEL_FILENAME: ${{ secrets.MODEL_FILENAME }}
+          MODEL_BUCKET: ${{ secrets.MODEL_BUCKET }}

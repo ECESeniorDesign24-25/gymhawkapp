@@ -1,8 +1,9 @@
 from datetime import datetime, timezone, time, timedelta
 import time as t
 import json
+import os
 from firebase_functions import https_fn, scheduler_fn
-from firebase_admin import initialize_app, firestore
+from firebase_admin import initialize_app, firestore, credentials
 import iot_api_client as iot
 from iot_api_client.rest import ApiException
 from iot_api_client.configuration import Configuration
@@ -18,6 +19,12 @@ import pandas as pd
 from model import RandomForestModel
 
 # set up firebase app
+# cred_path = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
+# if cred_path and os.path.exists(cred_path):
+#     cred = credentials.Certificate(cred_path)
+#     initialize_app(cred)
+# else:
+#     initialize_app()
 initialize_app()
 db = firestore.client()
 
@@ -146,7 +153,7 @@ def test_connection():
 
 
 def fetch_timeseries_from_db(
-    machine: str, startTime: str, variable: str, table_name: str
+    machine: str, start_time: str, variable: str, table_name: str
 ) -> list:
     try:
         engine = init_db_connection()
@@ -159,7 +166,7 @@ def fetch_timeseries_from_db(
         with engine.connect() as conn:
             result = conn.execute(
                 text(query),
-                {"machine": machine, "startTime": startTime},
+                {"machine": machine, "startTime": start_time},
             )
 
             # Serialize into a list of dictionaries
@@ -225,36 +232,17 @@ def get_thing_id(machine):
     return None
 
 
-def getTimeseries(req: https_fn.Request, table_name: str) -> https_fn.Response:
-    if req.method == "OPTIONS":
-        return https_fn.Response("", status=204, headers=CORS_HEADERS)
-
-    thing_id = req.args.get("thing_id")
-    startTime = req.args.get("startTime")
-    variable = req.args.get("variable")
-    if not thing_id:
-        return https_fn.Response(
-            json.dumps({"error": "Thing ID not found"}),
-            mimetype="application/json",
-            status=404,
-            headers=CORS_HEADERS,
-        )
+def getTimeseries(
+    thing_id: str, start_time: str, variable: str, table_name: str = "machine_states"
+) -> dict:
     try:
-        timeseries = fetch_timeseries_from_db(thing_id, startTime, variable, table_name)
-        return https_fn.Response(
-            json.dumps(timeseries),
-            mimetype="application/json",
-            status=200,
-            headers=CORS_HEADERS,
+        timeseries = fetch_timeseries_from_db(
+            thing_id, start_time, variable, table_name
         )
+        return json.dumps(timeseries)
     except Exception as e:
         print(f"Error fetching timeseries: {str(e)}")
-        return https_fn.Response(
-            json.dumps({"error": f"Database error: {str(e)}"}),
-            mimetype="application/json",
-            status=500,
-            headers=CORS_HEADERS,
-        )
+        return json.dumps([])
 
 
 def fetch_params(thing_id: str) -> dict:
@@ -374,8 +362,13 @@ def peakHoursHelper(
     peak: bool = True,
 ) -> list:
     model = RandomForestModel(load_model=True)
-    df = generate_prediction_data(thing_id, start_time, end_time)
-    return model.predict_hours(df, date, start_time, end_time, peak)
+
+    try:
+        df = generate_prediction_data(thing_id, start_time, end_time)
+        return model.predict_hours(df, date, start_time, end_time, peak)
+    except Exception as e:
+        print(f"No valid data for {thing_id} on {date} from {start_time} to {end_time}")
+        return []
 
 
 # =============================================================================
@@ -584,16 +577,23 @@ def addTimeStep(event: scheduler_fn.ScheduledEvent = None) -> None:
 
 @https_fn.on_request()
 def getStateTimeseries(req: https_fn.Request) -> https_fn.Response:
-    return getTimeseries(req, "machine_states")
+    if req.method == "OPTIONS":
+        return https_fn.Response("", status=204, headers=CORS_HEADERS)
+
+    thing_id = req.args.get("thing_id")
+    start_time = req.args.get("start_time")
+    variable = req.args.get("variable")
+
+    return https_fn.Response(
+        getTimeseries(thing_id, start_time, variable),
+        mimetype="application/json",
+        status=404,
+        headers=CORS_HEADERS,
+    )
 
 
-@https_fn.on_request()
-def getStateTimeseriesDummy(req: https_fn.Request) -> https_fn.Response:
-    return getTimeseries(req, "machine_states_dummy")
-
-
-# retrain model every 30 minutes
-@scheduler_fn.on_schedule(schedule="*/30 * * * *")
+# retrain model every 4 hours
+@scheduler_fn.on_schedule(schedule="0 */4 * * *")
 def retrainModel():
     # train model with current data (note only online mode )
     df = get_machine_states_df()
@@ -622,11 +622,17 @@ def getPeakHours(req: https_fn.Request) -> https_fn.Response:
     # convert time to datetime
     start_time = pd.to_datetime(pd.Timestamp(start_time))
     end_time = pd.to_datetime(pd.Timestamp(end_time))
-
+    try:
+        hours = peakHoursHelper(thing_id, date, start_time, end_time, peak=peak)
+    except Exception as e:
+        print(f"Error in getPeakHours: {str(e)}")
+        return https_fn.Response(
+            json.dumps([]),
+            status=500,
+            headers=CORS_HEADERS,
+        )
     return https_fn.Response(
-        json.dumps(
-            {"hours": peakHoursHelper(thing_id, date, start_time, end_time, peak=peak)}
-        ),
+        json.dumps(hours),
         status=200,
         headers=CORS_HEADERS,
     )
@@ -648,15 +654,42 @@ def generate_prediction_data(
     return pd.DataFrame({"thing_id": thing_id, "timestamp": timestamps})
 
 
-# if __name__ == "__main__":
-#     model = RandomForestModel(load_model=True)
-#     # start at 7 am end at 8 pm
-#     start_time = "2025-04-17 07:00:00"
-#     end_time = "2025-04-17 20:00:00"
-#     dummy_df = generate_prediction_data("0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8", start_time, end_time)
+if __name__ == "__main__":
+    model = RandomForestModel(load_model=True)
 
-#     peak_hours = peakHoursHelper("0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8", "2025-04-17", start_time, end_time, peak=True)
-#     print("peak hours: ", peak_hours)
+    # start at 7 am end at 8 pm
+    start_time = "2025-04-17 07:00:00"
+    end_time = "2025-04-17 20:00:00"
 
-#     least_likely_hours = peakHoursHelper("0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8", "2025-04-17", start_time, end_time, peak=False)
-#     print("least likely hours: ", least_likely_hours)
+    print("Building dummy df")
+
+    # 0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8
+    # print("================================================")
+    # print("Thing id: ", "0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8")
+    # dummy_df = generate_prediction_data(
+    #     "0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8", start_time, end_time
+    # )
+
+    # peak_hours = peakHoursHelper(
+    #     "0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8",
+    #     "2025-04-17",
+    #     start_time,
+    #     end_time,
+    #     peak=True,
+    # )
+    # print("peak hours: ", peak_hours)
+
+    # least_likely_hours = peakHoursHelper(
+    #     "0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8",
+    #     "2025-04-17",
+    #     start_time,
+    #     end_time,
+    #     peak=False,
+    # )
+    # print("least likely hours: ", least_likely_hours)
+
+    thing_id = "6ad4d9f7-8444-4595-bf0b-5fb62c36430c"
+    start_time = "2025-04-22T01:35:02.007Z"
+    variable = "state"
+    timeseries = getTimeseries(thing_id, start_time, variable)
+    print(timeseries)
