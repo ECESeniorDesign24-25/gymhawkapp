@@ -1,0 +1,16 @@
+name: Deploy Functions to Firebase
+on:
+  pull_request:
+    branches:
+      - main
+jobs:
+  main:
+    name: Deploy to Firebase
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: jsryudev/deploy-firebase-functions@v20.0.1
+      env:
+        FIREBASE_TOKEN: ${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }}
+        FIREBASE_PROJECT: ${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
+        FUNCTIONS_DIR: functions
