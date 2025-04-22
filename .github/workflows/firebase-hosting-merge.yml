@@ -28,17 +28,14 @@ jobs:
           NEXT_PUBLIC_FIREBASE_MESSAGE_SENDER_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_MESSAGE_SENDER_ID }}
           NEXT_PUBLIC_FIREBASE_APP_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID }}
 
-      - name: Write Firebase Service Account JSON
-        run: |
-          echo '${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_JSON }}' > /tmp/service-account.json
-
-      # Optional: Debug JSON content (fails early if malformed)
-      - name: Validate Firebase Credentials Format
-        run: |
-          cat /tmp/service-account.json | jq .
-      
       - name: Firebase Deploy
         run: |
-          npx firebase-tools deploy --project=${{ secrets.GOOGLE_CLOUD_PROJECT }} --only hosting
+          echo '${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_JSON }}' > /tmp/service-account.json
+          npx firebase-tools deploy --project=${{ secrets.GOOGLE_CLOUD_PROJECT }} --only hosting --service-account-key-file=/tmp/service-account.json --no-build
         env:
-          GOOGLE_APPLICATION_CREDENTIALS: /tmp/service-account.json
+          NEXT_PUBLIC_FIREBASE_API_KEY: ${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }}
+          NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ secrets.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+          NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
+          NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ${{ secrets.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }}
+          NEXT_PUBLIC_FIREBASE_MESSAGE_SENDER_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_MESSAGE_SENDER_ID }}
+          NEXT_PUBLIC_FIREBASE_APP_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID }}
