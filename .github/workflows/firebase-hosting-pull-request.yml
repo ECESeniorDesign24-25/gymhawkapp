@@ -14,8 +14,16 @@ jobs:
   build_and_preview:
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
+    
     steps:
       - uses: actions/checkout@v4
+      
+      - name: Authenticate with GCP
+        id: 'auth'
+        uses: 'google-github-actions/auth@v2'
+        with:
+          workload_identity_provider: ${{ secrets.IDENTITY_POOL_PROVIDER }}
+          service_account: ${{ secrets.SERVICE_ACCOUNT }}
 
       - name: Build
         run: |
@@ -41,11 +49,12 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run Tests
+      
         working-directory: functions
         run: pytest
 
-      - uses: FirebaseExtended/action-hosting-deploy@v0
-        with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_GYMHAWK_2ED7F }}
-          projectId: gymhawk-2ed7f
+      # - uses: FirebaseExtended/action-hosting-deploy@v0
+      #   with:
+      #     repoToken: ${{ secrets.GITHUB_TOKEN }}
+      #     firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_GYMHAWK_2ED7F }}
+      #     projectId: gymhawk-2ed7f

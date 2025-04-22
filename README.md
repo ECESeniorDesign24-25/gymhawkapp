@@ -36,11 +36,7 @@ npm run dev
 ```
 
 #### Deploying the app
-Application deployment is handled by Firebase. To set up deployment, you will first need to install the [Firebase CLI](https://firebase.google.com/docs/cli). Once that is downloaded, you just need to run:
-```bash
-./scripts/deploy.sh
-```
-from the root of this repository. This will generate a static build of the application in the `out/` directory and will be hosted on Firebase.
+Application deployment is handled by Firebase, and is automatically run once all [tests](functions/test_api.py) pass during a merge to main.
 
 ### API Documentation
 

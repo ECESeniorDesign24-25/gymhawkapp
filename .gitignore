@@ -79,3 +79,5 @@ package-lock.json
 
 functions/.pytest_cache
 *.pytest_cache
+
+gha-creds-*.json
