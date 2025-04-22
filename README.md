@@ -144,3 +144,7 @@ Any API with an invalid request or internal failure should return a JSON object 
     []
 }
 ```
+
+
+### Deploying Functions
+To deploy a function, run `./scripts/deploy_function <function_name> <memory>` where memory is in the form of "512MB" etc.
