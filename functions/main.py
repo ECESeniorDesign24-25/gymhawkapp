@@ -19,13 +19,13 @@ import pandas as pd
 from model import RandomForestModel
 
 # set up firebase app
-cred_path = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
-if cred_path and os.path.exists(cred_path):
-    cred = credentials.Certificate(cred_path)
-    initialize_app(cred)
-else:
-    # Fall back to default credentials if no explicit credentials provided
-    initialize_app()
+# cred_path = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
+# if cred_path and os.path.exists(cred_path):
+#     cred = credentials.Certificate(cred_path)
+#     initialize_app(cred)
+# else:
+#     initialize_app()
+initialize_app()
 db = firestore.client()
 
 
