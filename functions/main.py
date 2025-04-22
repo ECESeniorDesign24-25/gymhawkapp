@@ -21,6 +21,7 @@ import pandas as pd
 from model import RandomForestModel
 import smtplib
 from email.message import EmailMessage
+import requests
 
 # set up firebase app
 # cred_path = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
@@ -381,22 +382,24 @@ def retrieve(field, snapshot):
 
 def send_email(to_addr: str, machine_name: str):
     msg = EmailMessage()
-    msg["Subject"] = f"{machine_name} is now available!"
+    msg["Subject"] = f"Your machine is now available!"
     msg["From"]    = f"GymHawks <{EMAIL_ADDRESS}>"
     msg["To"]      = to_addr
     msg.set_content(
-        f"The {machine_name} you’ve been waiting for is free.\n\n"
+        f"The machine you’ve been waiting for is free.\n\n"
         "We can’t guarantee it will still be free when you arrive 🏋️‍♂️"
     )
     msg.add_alternative(
         f"""
-        <p>The <strong>{machine_name}</strong> you’ve been waiting for is now
+        <p>The <strong>machine</strong> you’ve been waiting for is now
         <span style="color:green">available</span>. See you there 🏋️‍♂️</p>
         """,
         subtype="html",
     )
 
     with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+#         print(EMAIL_ADDRESS)
+#         print(EMAIL_PASS)
         smtp.login(EMAIL_ADDRESS, EMAIL_PASS)
         smtp.send_message(msg)
 
