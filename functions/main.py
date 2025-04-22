@@ -809,22 +809,29 @@ def getLastUsedTime(req: https_fn.Request) -> https_fn.Response:
 
 @https_fn.on_request()
 def email_on_available(req: https_fn.Request) -> https_fn.Response:
+    print("EMAILING")
     if req.method == "OPTIONS":
         return https_fn.Response("", status=204, headers=CORS_HEADERS)
 
     try:
         data = req.get_json()
+        print("Request data:", data)
 
         machine_id   = data.get("machine_id")
-        machine_name = data.get("machine_name")  # sent in email
-        previous     = data.get("previous_state")  # state from last check, stored by sql backend
+        machine_name = data.get("machine_name")
+        previous     = data.get("previous_state")
 
-        # get current state from SQL
+        print(f"machine_id: {machine_id}, machine_name: {machine_name}, previous: {previous}")
+
         recent = fetchMostRecentVarFromDb(machine_id, "state", "machine_states")
-        current = recent[0]["state"] if recent else None
+        print("Recent SQL result:", recent)
 
-        # trigger only on "on" ➝ "off" transition
+        current = recent[0]["state"] if recent else None
+        print(f"Current state: {current}")
+
         if previous == "on" and current == "off":
+            print("Triggering notify logic")
+
             waiters_ref = (
                 db.collection("subscriptions")
                   .document(machine_id)
@@ -834,6 +841,7 @@ def email_on_available(req: https_fn.Request) -> https_fn.Response:
             for doc in waiters_ref.stream():
                 email = doc.to_dict().get("email")
                 if email:
+                    print("Sending email to:", email)
                     send_email(email, machine_name)
                 doc.reference.delete()
 
