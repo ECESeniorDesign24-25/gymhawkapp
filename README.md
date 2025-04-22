@@ -51,8 +51,67 @@ __
 - `variable`: the variable to return. Available choices are defined [here](variables.md)
 
 *Returns:* JSON object in the following form: `[
-  {
-    "<VARIABLE>": ...,
-    "timestamp": "2025-04-17T03:36:00.818000+00:00"
-  }
+    {
+        "<VARIABLE>": ...,
+        "timestamp": "2025-04-17T03:36:00.818000+00:00"
+    }
 ]`
+*To test locally:* ./scripts/test_api.sh --function getDeviceState --thing_id <thing_id> --variable <variable>
+
+**Add Time Step**: `/addTimeStep`
+*Method:* Scheduler
+*Parameters:* None
+*Returns:* Nothing - this function gets ran by the Cloud Run scheduler every 1 minute.
+*To test locally:* This function cannot be ran locally as it is not an HTTPS endpoint
+
+
+**Get Timeseries**: `/getStateTimeseries`
+*Method:* GET
+*Parameters:*
+- `thing_id`: The thing_id of the device
+- `variable`: The variable to return the timeseries for. Available choices are defined [here](variables.md)
+- `start_time`: The start time for the timeseries (only records stored after this time are returned). Time format: YYYY-MM-DDT00:00:00Z etc
+
+*Returns:* JSON object in the following form: `[
+    {41
+        "<variable>": ..,
+        "timestamp": "2025-04-17T03:34:01.753000+00:00"
+    },
+    {
+        "<variable>": ...,
+        "timestamp": "2025-04-17T03:35:05.068000+00:00"
+    },
+    {
+        "<variable>": ...,
+        "timestamp": "2025-04-17T03:36:00.818000+00:00"
+    }
+]
+`
+*To test locally:* ./scripts/test_api.sh --function getStateTimeseries --thing_id <thing_id> --variable <variable> --start_time <start_time>
+
+
+**Train Model**: `/retrainModel`
+*Method:* Scheduler
+*Parameters:* None
+*Returns:* Nothing - this function gets ran by the Cloud Run scheduler every 4 hours
+*To test locally:* This function cannot be ran locally as it is not an HTTPS endpoint
+
+
+**Get Peak Hours**: `/getPeakHours`
+*Method:* GET
+*Parameters:*
+- `thing_id`: The thing_id of the device
+- `date`: The date to predict peak hours for. Form: 
+- `start_time`: The start time for the timeseries (only records stored after this time are returned). Time format: YYYY-MM-DDT00:00:00Z etc
+- `endTime`: The end time for the timeseries (only records stored before this time are returned). Time format: YYYY-MM-DDT00:00:00Z etc
+- `peak`: "true" or "false" on whether to return peak hours or the reverse (busiest vs least busy range)
+
+*Returns:* JSON object in the following form: `{
+  "hours": [
+    "2025-04-17T18:30:00",
+    "2025-04-17T16:00:00",
+    "2025-04-17T15:30:00"
+  ]
+}
+`
+*To test locally:* ./scripts/test_api.sh --function getPeakHours --thing_id <thing_id> --date <date> --start_time <start_time> --end_time <end_time> --peak <peak>

@@ -21,6 +21,14 @@
       {
         "source": "/api/getStateTimeseriesDummy",
         "function": "getStateTimeseriesDummy"
+      },
+      {
+        "source": "/api/getPeakHours",
+        "function": "getPeakHours"
+      },
+      {
+        "source": "/api/retrainModel",
+        "function": "retrainModel"
       }
     ]
   },

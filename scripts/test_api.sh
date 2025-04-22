@@ -3,10 +3,10 @@
 usage() {
     echo "Usage: $0 --function <function_name> [parameters]"
     echo "Available functions:"
-    echo "  getStateTimeseries --thing_id <id> --startTime <time> --variable <var>"
+    echo "  getStateTimeseries --thing_id <id> --start_time <time> --variable <var>"
     echo "  getDeviceState --thing_id <id> --variable <var>"
     echo "  getPeakHours --thing_id <id> --date <date> --start_time <time> --end_time <time> --peak <true/false>"
-    echo "  getStateTimeseriesDummy --thing_id <id> --startTime <time> --variable <var>"
+    echo "  getStateTimeseriesDummy --thing_id <id> --start_time <time> --variable <var>"
     exit 1
 }
 
@@ -21,7 +21,7 @@ while [[ $# -gt 0 ]]; do
             THING_ID="$2"
             shift 2
             ;;
-        --startTime)
+        --start_time)
             START_TIME="$2"
             shift 2
             ;;
@@ -31,10 +31,6 @@ while [[ $# -gt 0 ]]; do
             ;;
         --date)
             DATE="$2"
-            shift 2
-            ;;
-        --start_time)
-            START_TIME="$2"
             shift 2
             ;;
         --end_time)
@@ -59,7 +55,7 @@ case "$FUNCTION" in
             echo "Missing required parameters for $FUNCTION"
             usage
         fi
-        URL="https://gymhawk-2ed7f.web.app/api/$FUNCTION?thing_id=$THING_ID&startTime=$START_TIME&variable=$VARIABLE"
+        URL="https://gymhawk-2ed7f.web.app/api/$FUNCTION?thing_id=$THING_ID&start_time=$START_TIME&variable=$VARIABLE"
         ;;
     getDeviceState)
         if [ -z "$THING_ID" ] || [ -z "$VARIABLE" ]; then
@@ -77,6 +73,9 @@ case "$FUNCTION" in
         if [ ! -z "$PEAK" ]; then
             URL="$URL&peak=$PEAK"
         fi
+        ;;
+    addTimeStep)
+        URL="https://gymhawk-2ed7f.web.app/api/$FUNCTION"
         ;;
     *)
         echo "Unknown function: $FUNCTION"

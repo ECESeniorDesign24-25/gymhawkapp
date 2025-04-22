@@ -146,7 +146,7 @@ def test_connection():
 
 
 def fetch_timeseries_from_db(
-    machine: str, startTime: str, variable: str, table_name: str
+    machine: str, start_time: str, variable: str, table_name: str
 ) -> list:
     try:
         engine = init_db_connection()
@@ -159,7 +159,7 @@ def fetch_timeseries_from_db(
         with engine.connect() as conn:
             result = conn.execute(
                 text(query),
-                {"machine": machine, "startTime": startTime},
+                {"machine": machine, "startTime": start_time},
             )
 
             # Serialize into a list of dictionaries
@@ -230,7 +230,7 @@ def getTimeseries(req: https_fn.Request, table_name: str) -> https_fn.Response:
         return https_fn.Response("", status=204, headers=CORS_HEADERS)
 
     thing_id = req.args.get("thing_id")
-    startTime = req.args.get("startTime")
+    start_time = req.args.get("start_time")
     variable = req.args.get("variable")
     if not thing_id:
         return https_fn.Response(
@@ -240,7 +240,7 @@ def getTimeseries(req: https_fn.Request, table_name: str) -> https_fn.Response:
             headers=CORS_HEADERS
         )
     try:
-        timeseries = fetch_timeseries_from_db(thing_id, startTime, variable, table_name)
+        timeseries = fetch_timeseries_from_db(thing_id, start_time, variable, table_name)
         return https_fn.Response(
             json.dumps(timeseries),
             mimetype="application/json",
@@ -374,9 +374,13 @@ def peakHoursHelper(
     peak: bool = True,
 ) -> list:
     model = RandomForestModel(load_model=True)
-    df = generate_prediction_data(thing_id, start_time, end_time)
-    return model.predict_hours(df, date, start_time, end_time, peak)
 
+    try:
+        df = generate_prediction_data(thing_id, start_time, end_time)
+        return model.predict_hours(df, date, start_time, end_time, peak)
+    except Exception as e:
+        print(f"No valid data for {thing_id} on {date} from {start_time} to {end_time}")
+        return []
 
 # =============================================================================
 # Cloud Functions
@@ -587,13 +591,9 @@ def getStateTimeseries(req: https_fn.Request) -> https_fn.Response:
     return getTimeseries(req, "machine_states")
 
 
-@https_fn.on_request()
-def getStateTimeseriesDummy(req: https_fn.Request) -> https_fn.Response:
-    return getTimeseries(req, "machine_states_dummy")
 
-
-# retrain model every 30 minutes
-@scheduler_fn.on_schedule(schedule="*/30 * * * *")
+# retrain model every 4 hours
+@scheduler_fn.on_schedule(schedule="0 */4 * * *")
 def retrainModel():
     # train model with current data (note only online mode )
     df = get_machine_states_df()
@@ -622,10 +622,20 @@ def getPeakHours(req: https_fn.Request) -> https_fn.Response:
     # convert time to datetime
     start_time = pd.to_datetime(pd.Timestamp(start_time))
     end_time = pd.to_datetime(pd.Timestamp(end_time))
-
+    try: 
+        hours = peakHoursHelper(thing_id, date, start_time, end_time, peak=peak)
+    except Exception as e:
+        print(f"Error in getPeakHours: {str(e)}")
+        return https_fn.Response(
+            json.dumps(
+                {"hours": "No data."}
+            ),
+            status=500,
+            headers=CORS_HEADERS,
+        )
     return https_fn.Response(
         json.dumps(
-            {"hours": peakHoursHelper(thing_id, date, start_time, end_time, peak=peak)}
+            {"hours": hours}
         ),
         status=200,
         headers=CORS_HEADERS,
@@ -648,15 +658,23 @@ def generate_prediction_data(
     return pd.DataFrame({"thing_id": thing_id, "timestamp": timestamps})
 
 
-# if __name__ == "__main__":
-#     model = RandomForestModel(load_model=True)
-#     # start at 7 am end at 8 pm
-#     start_time = "2025-04-17 07:00:00"
-#     end_time = "2025-04-17 20:00:00"
-#     dummy_df = generate_prediction_data("0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8", start_time, end_time)
+if __name__ == "__main__":
+    model = RandomForestModel(load_model=True)
 
-#     peak_hours = peakHoursHelper("0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8", "2025-04-17", start_time, end_time, peak=True)
-#     print("peak hours: ", peak_hours)
+    # start at 7 am end at 8 pm
+    start_time = "2025-04-17 07:00:00"
+    end_time = "2025-04-17 20:00:00"
 
-#     least_likely_hours = peakHoursHelper("0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8", "2025-04-17", start_time, end_time, peak=False)
-#     print("least likely hours: ", least_likely_hours)
+    print("Building dummy df")
+
+    # 0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8
+    print("================================================")
+    print("Thing id: ", "0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8")
+    dummy_df = generate_prediction_data("0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8", start_time, end_time)
+
+    peak_hours = peakHoursHelper("0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8", "2025-04-17", start_time, end_time, peak=True)
+    print("peak hours: ", peak_hours)
+
+    least_likely_hours = peakHoursHelper("0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8", "2025-04-17", start_time, end_time, peak=False)
+    print("least likely hours: ", least_likely_hours)
+
