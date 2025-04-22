@@ -53,7 +53,7 @@ jobs:
       - name: Write Firebase credentials to file
         working-directory: functions
         run: |
-          echo "${{ secrets.FIREBASE_CREDENTIALS_JSON }}" > firebase-credentials.json
+          echo '${{ secrets.FIREBASE_CREDENTIALS_JSON }}' > firebase-credentials.json
         shell: bash
 
       - name: Run Tests
