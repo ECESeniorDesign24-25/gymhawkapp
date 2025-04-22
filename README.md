@@ -124,11 +124,19 @@ from the root of this repository. This will generate a static build of the appli
 **Returns:** JSON object in the following form:
 ```json
 {
-    "hours": [
+    [
         "2025-04-17T18:30:00",
         "2025-04-17T16:00:00",
         "2025-04-17T15:30:00"
     ]
+}
+```
+
+#### Note:
+Any API with an invalid request should return a JSON object in the following form:
+```json
+{
+    []
 }
 ```
 

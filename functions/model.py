@@ -205,6 +205,10 @@ class RandomForestModel:
             ["probability_on", "timestamp"], ascending=[not peak, False]
         )
 
-        return (
-            sorted_states.head(3)["timestamp"].dt.strftime("%Y-%m-%dT%H:%M:%S").tolist()
-        )
+        timestamps = sorted_states.head(3)["timestamp"]
+        
+        # convert to UTC
+        if timestamps.dt.tz is None:
+            timestamps = timestamps.dt.tz_localize('UTC')
+        
+        return timestamps.dt.strftime("%Y-%m-%dT%H:%M:%S.%f").str[:-3].str.cat(["Z"]*len(timestamps)).tolist()
