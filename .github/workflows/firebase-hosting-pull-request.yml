@@ -13,7 +13,6 @@ jobs:
       checks: 'write'
       pull-requests: 'write'
       
-    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -39,7 +38,7 @@ jobs:
           NEXT_PUBLIC_FIREBASE_MESSAGE_SENDER_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_MESSAGE_SENDER_ID }}
           NEXT_PUBLIC_FIREBASE_APP_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID }}
       
-  run_tests:
+  test:
     permissions:
       contents: 'read'
       id-token: 'write'
@@ -75,3 +74,5 @@ jobs:
           DB_USER: ${{ secrets.DB_USER }}
           DB_PASS: ${{ secrets.DB_PASS }}
           DB_INSTANCE_NAME: ${{ secrets.DB_INSTANCE_NAME }}
+          MODEL_FILENAME: ${{ secrets.MODEL_FILENAME }}
+          MODEL_BUCKET: ${{ secrets.MODEL_BUCKET }}
