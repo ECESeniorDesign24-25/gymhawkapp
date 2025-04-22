@@ -383,22 +383,24 @@ def retrieve(field, snapshot):
 
 def send_email(to_addr: str, machine_name: str):
     msg = EmailMessage()
-    msg["Subject"] = f"{machine_name} is now available!"
+    msg["Subject"] = f"Your machine is now available!"
     msg["From"]    = f"GymHawks <{EMAIL_ADDRESS}>"
     msg["To"]      = to_addr
     msg.set_content(
-        f"The {machine_name} you’ve been waiting for is free.\n\n"
+        f"The machine you’ve been waiting for is free.\n\n"
         "We can’t guarantee it will still be free when you arrive 🏋️‍♂️"
     )
     msg.add_alternative(
         f"""
-        <p>The <strong>{machine_name}</strong> you’ve been waiting for is now
+        <p>The <strong>machine</strong> you’ve been waiting for is now
         <span style="color:green">available</span>. See you there 🏋️‍♂️</p>
         """,
         subtype="html",
     )
 
     with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+#         print(EMAIL_ADDRESS)
+#         print(EMAIL_PASS)
         smtp.login(EMAIL_ADDRESS, EMAIL_PASS)
         smtp.send_message(msg)
 
@@ -932,22 +934,29 @@ def getLastUsedTime(req: https_fn.Request) -> https_fn.Response:
 
 @https_fn.on_request()
 def email_on_available(req: https_fn.Request) -> https_fn.Response:
+    print("EMAILING")
     if req.method == "OPTIONS":
         return https_fn.Response("", status=204, headers=CORS_HEADERS)
 
     try:
-        data = req.get_json()
+        data = req.get_json(force=True)
+        print("Request data:", data)
 
         machine_id   = data.get("machine_id")
-        machine_name = data.get("machine_name")  # sent in email
-        previous     = data.get("previous_state")  # state from last check, stored by sql backend
+        machine_name = data.get("machine_name")
+        previous     = data.get("previous_state")
 
-        # get current state from SQL
+        print(f"machine_id: {machine_id}, machine_name: {machine_name}, previous: {previous}")
+
         recent = fetchMostRecentVarFromDb(machine_id, "state", "machine_states")
-        current = recent[0]["state"] if recent else None
+        print("Recent SQL result:", recent)
 
-        # trigger only on "on" ➝ "off" transition
+        current = recent[0]["state"] if recent else None
+        print(f"Current state: {current}")
+
         if previous == "on" and current == "off":
+            print("Triggering notify logic")
+
             waiters_ref = (
                 db.collection("subscriptions")
                   .document(machine_id)
@@ -957,6 +966,7 @@ def email_on_available(req: https_fn.Request) -> https_fn.Response:
             for doc in waiters_ref.stream():
                 email = doc.to_dict().get("email")
                 if email:
+                    print("Sending email to:", email)
                     send_email(email, machine_name)
                 doc.reference.delete()
 

@@ -23,6 +23,31 @@ const DynamicSelect = dynamic(() => Promise.resolve(Select), { ssr: false });
 const DynamicMachineUsageChart = dynamic(() => import('@/components/graph'), { ssr: false });
 
 
+async function triggerEmailNotification(machine: Machine) {
+  try {
+    const response = await fetch("https://us-central1-gymhawk-2ed7f.cloudfunctions.net/email_on_available", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        machine_id: machine.thing_id,
+        machine_name: machine.machine,
+        previous_state: "on"
+      })
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || "Unknown error");
+    }
+    console.log("Email function triggered:", data);
+  } catch (err) {
+    console.error("Failed to trigger email function:", err);
+  }
+}
+
+
 function Analytics() {
   const router = useRouter();
   const [selectedGym, setSelectedGym] = useState<GymOption | null>(null);
@@ -265,6 +290,16 @@ function Analytics() {
             } catch (err) {
               console.error('Error fetching device state, using last known value:', err);
             }
+
+            if (
+                machine.subscribed &&
+                oldStates[machine.machine] === "on" &&
+                state === "off"
+            ) {
+              console.log(`[${machine.machine}] transitioned from ON to OFF. Triggering notify.`);
+              triggerEmailNotification(machine);
+            }
+
 
             // return existing machine properties plus updated states
             const newStatus = { 
@@ -544,12 +579,11 @@ function Analytics() {
     try {
       await subscribeToMachine(machine.thing_id);
 
-      /* update local UI */
-      // setMachines((prev) =>
-      //   prev.map((m) =>
-      //     m.thing_id === machine.thing_id ? { ...m, subscribed: true } : m
-      //   )
-      // );
+      setMachines((prev) =>
+        prev.map((m) =>
+          m.thing_id === machine.thing_id ? { ...m, subscribed: true } : m
+        )
+      );
     } catch (err) {
       console.error(err);
     }
