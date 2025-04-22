@@ -1,7 +1,7 @@
 import pytest
 import json
 import pandas as pd
-from main import getTimeseries, fetchMostRecentVarFromDb, peakHoursHelper
+from main import getTimeseries, fetchMostRecentVarFromDb, peakHoursHelper, getLastLat, getLastLong
 
 
 def time_checker(timestamp1, timestamp2):
@@ -35,8 +35,8 @@ def test_d1_green_state_timeseries():
         assert False, f"d1GreenTestGetStateTimeseries | Error: {e}"
 
 
-@pytest.mark.d2_green
-def test_d2_green_state_timeseries():
+@pytest.mark.d1_green2
+def test_d1_green2_state_timeseries():
     thing_id = "c7996422-9462-4fa7-8d02-bfe8c7aba7e4"
     start_time = "2025-04-22T01:35:02.007Z"
     variable = "state"
@@ -155,8 +155,8 @@ def test_d1_green_get_device_state():
         assert False, f"d1GreenTestGetDeviceState | Error: {e}"
 
 
-@pytest.mark.d2_green
-def test_d2_green_get_device_state():
+@pytest.mark.d1_green2
+def test_d1_green2_get_device_state():
     thing_id = "c7996422-9462-4fa7-8d02-bfe8c7aba7e4"
     variable = "state"
     state = fetchMostRecentVarFromDb(thing_id, variable, "machine_states")
@@ -209,8 +209,8 @@ def test_d1_green_get_peak_hours():
         )
 
 
-@pytest.mark.d2_green
-def test_d2_green_get_peak_hours():
+@pytest.mark.d1_green2
+def test_d1_green2_get_peak_hours():
     thing_id = "c7996422-9462-4fa7-8d02-bfe8c7aba7e4"
     date = "2025-04-22"
     start_time = "2025-04-22T06:00:00.000Z"
@@ -239,3 +239,52 @@ def test_d1_blue_get_peak_hours():
         assert time_checker(end_time, hour), (
             f"d1BlueTestGetPeakHours | Timestamp is not before end time: {hour}"
         )
+
+
+@pytest.mark.d1_green
+def test_d1_green_get_lat():
+    thing_id = "6ad4d9f7-8444-4595-bf0b-5fb62c36430c"
+    lat = getLastLat(thing_id)
+    assert lat is not None, f"d1GreenTestGetLat | Response is None: {lat}"
+    assert lat == 41.662696838378906
+
+
+@pytest.mark.d1_green2
+def test_d1_green2_get_lat():
+    thing_id = "c7996422-9462-4fa7-8d02-bfe8c7aba7e4"
+    lat = getLastLat(thing_id)
+    assert lat is not  None, f"d2GreenTestGetLat | Response is None: {lat}"
+    assert lat == 41.659698486328125
+
+
+@pytest.mark.d1_blue
+def test_d1_blue_get_lat():
+    thing_id = "0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8"
+    lat = getLastLat(thing_id)
+    assert lat is not None, f"d1BlueTestGetLat | Response is None: {lat}"
+    assert lat == 41.663124084472656
+
+
+@pytest.mark.d1_blue
+def test_d1_blue_get_long():
+    thing_id = "0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8"
+    long = getLastLong(thing_id)
+    assert long is not None, f"d1BlueTestGetLong | Response is None: {long}"
+    assert long == -91.53729248046875
+
+
+@pytest.mark.d1_green2
+def test_d1_green2_get_long():
+    thing_id = "c7996422-9462-4fa7-8d02-bfe8c7aba7e4"
+    long = getLastLong(thing_id)
+    assert long is not None, f"d2GreenTestGetLong | Response is None: {long}"
+    assert long == -91.5367431640625
+
+
+@pytest.mark.d1_green
+def test_d1_green_get_long():
+    thing_id = "6ad4d9f7-8444-4595-bf0b-5fb62c36430c"
+    long = getLastLong(thing_id)
+    assert long is not None, f"d1GreenTestGetLong | Response is None: {long}"
+    assert long == -91.53703308105469
+

@@ -9,3 +9,14 @@ export async function getThingId(machine: string) {
     const thing_id = machineDoc?.data().thingId;
     return thing_id;
 }
+
+
+export async function formatState(state: string) {
+    if (state === "on") {
+        return "In Use"
+    } else if (state === "off") {
+        return "Available"
+    } else {
+        return "Unknown"
+    }
+}

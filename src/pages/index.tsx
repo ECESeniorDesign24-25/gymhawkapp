@@ -60,14 +60,6 @@ export default function Home() {
       const machines = await fetchMachines(selectedOption.id);
       setMachines(machines || []);
       
-      // Log all machine coordinates
-      console.log("All machines with coordinates:", 
-        machines.map(m => ({
-          machine: m.machine,
-          lat: m.lat,
-          lng: m.lng
-        }))
-      );
     }
     loadMachines();
   }, [selectedOption]);
@@ -138,7 +130,7 @@ export default function Home() {
         Promise.all(
           prevMachines.map(async (machine) => {
             try {
-              const state = await fetchDeviceState(machine.machine, controller.signal, oldStates[machine.machine]);
+              const state = await fetchDeviceState(machine.machine, controller.signal, oldStates[machine.machine], "state");
 
               // store new state with old state
               const newState = { ...machine, state, oldState: oldStates[machine.machine] };
@@ -157,7 +149,7 @@ export default function Home() {
         // updates are async return old when processing
         return prevMachines;
       });
-    }, 1000);
+    }, 5000);
 
     // Cleanup function to clear the interval when component unmounts
     return () => clearInterval(intervalId);

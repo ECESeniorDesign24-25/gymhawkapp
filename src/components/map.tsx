@@ -62,10 +62,6 @@ export default function Map({
         bounds.extend(center);
         map.fitBounds(bounds);
       }
-    } else {
-      if (!map) console.log("Map instance not set");
-      if (!maps) console.log("Maps API not set");
-      if (!buildingOutline) console.log("Building outline is null or undefined");
     }
   }, [buildingOutline, map, maps, center, userZoomed]);
 

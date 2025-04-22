@@ -371,6 +371,32 @@ def peakHoursHelper(
         return []
 
 
+def getLastLat(thing_id: str) -> float:
+    try:
+        engine = init_db_connection()
+        query = """
+            SELECT lat FROM machine_states WHERE thing_id = :thing_id AND lat IS NOT NULL and lat != 0 ORDER BY timestamp DESC LIMIT 1
+        """
+        with engine.connect() as conn:
+            result = conn.execute(text(query), {"thing_id": thing_id})
+            return result.scalar()
+    except Exception as e:
+        print(f"Error fetching last lat for {thing_id}: {e}")
+        return None
+    
+def getLastLong(thing_id: str) -> float:
+    try:
+        engine = init_db_connection()
+        query = """
+            SELECT long FROM machine_states WHERE thing_id = :thing_id AND long IS NOT NULL and long != 0 ORDER BY timestamp DESC LIMIT 1
+        """
+        with engine.connect() as conn:
+            result = conn.execute(text(query), {"thing_id": thing_id})
+            return result.scalar()
+    except Exception as e:
+        print(f"Error fetching last long for {thing_id}: {e}")
+        return None
+
 # =============================================================================
 # Cloud Functions
 # =============================================================================
@@ -607,6 +633,18 @@ def retrainModel():
         {"timestamp": timestamp, "accuracy": acc, "datapoints": n_datapoints},
         table_name="training_results",
     )
+
+@https_fn.on_request()
+def getLat(req: https_fn.Request) -> https_fn.Response:
+    thing_id = req.args.get("thing_id")
+    lat = getLastLat(thing_id)
+    return https_fn.Response(json.dumps({"lat": lat}), status=200, headers=CORS_HEADERS)
+
+@https_fn.on_request()
+def getLong(req: https_fn.Request) -> https_fn.Response:
+    thing_id = req.args.get("thing_id")
+    long = getLastLong(thing_id)
+    return https_fn.Response(json.dumps({"long": long}), status=200, headers=CORS_HEADERS)
 
 
 @https_fn.on_request()

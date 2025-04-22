@@ -2,7 +2,8 @@ import { getDocs, collection, query } from "firebase/firestore";
 import { db } from "@/lib/firebase"
 import { getCoords, getBuildingOutline, getLat, getLong } from "./map_utils";
 import { API_ENDPOINT } from "./consts";
-import { getThingId } from "./common";
+
+
 export async function fetchMachines(gymId: string) {
     try {
         if (!gymId) {
@@ -22,9 +23,6 @@ export async function fetchMachines(gymId: string) {
             const lat = await getLat(doc.id);
             const lng = await getLong(doc.id);
             
-            // Log machine and coordinates
-            console.log(`Machine ${doc.id} coordinates:`, { lat, lng });
-
             return {
                 machine: doc.id,
                 lat,
@@ -86,9 +84,6 @@ export async function fetchMachineTimeseries(machineId: string, startTime: strin
             }
         });
         
-        // With no-cors mode, we can't access response.ok or response.json()
-        // So we'll just return empty data
-        console.log("Attempted to fetch timeseries for machine: ", machineId);
         return [];
         
     } catch (e) {
@@ -110,11 +105,8 @@ export async function fetchDeviceState(machine: string, signal?: AbortSignal, ol
         return oldState || "loading";
       }
   
-      console.log('Fetching device state for:', { machine, thing_id, variable });
       const request = `${API_ENDPOINT}/getDeviceState?thing_id=${thing_id}&variable=${variable}`;
       const response = await fetch(request, { signal });
-      console.log('Response:', response);
-
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -124,7 +116,7 @@ export async function fetchDeviceState(machine: string, signal?: AbortSignal, ol
           error: errorText,
           machine,
           thing_id,
-          variable
+          variable,
         });
         return oldState || "loading";
       }
