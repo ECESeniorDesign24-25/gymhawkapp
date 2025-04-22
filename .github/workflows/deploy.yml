@@ -42,9 +42,12 @@ jobs:
           source venv/bin/activate
           pip install -r requirements.txt
           
-          # Write the service account key to a file
-          echo "${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}" > ./service-account-key.json
+          # Decode and write the service account key to a file
+          echo "${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}" | base64 -d > ./service-account-key.json
           export GOOGLE_APPLICATION_CREDENTIALS="${PWD}/service-account-key.json"
+          
+          # Verify the file has the correct format
+          grep -q '"type": "service_account"' ./service-account-key.json || { echo "Error: Invalid service account format"; cat ./service-account-key.json | grep type; exit 1; }
           
           # Deploy with the service account
           npx firebase-tools deploy --project=${{ secrets.GOOGLE_CLOUD_PROJECT }} --debug

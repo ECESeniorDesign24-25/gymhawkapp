@@ -26,6 +26,10 @@
       {
         "source": "/api/retrainModel",
         "function": "retrainModel"
+      },
+      {
+        "source": "**",
+        "destination": "/index.html"
       }
     ]
   },
@@ -47,12 +51,6 @@
         "firebase-debug.*.log",
         "*.local"
       ]
-    }
-  ],
-  "rewrites": [
-    {
-      "source": "**",
-      "destination": "/index.html"
     }
   ]
 }
