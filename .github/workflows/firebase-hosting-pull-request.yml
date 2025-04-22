@@ -11,7 +11,7 @@ permissions:
   pull-requests: write
 
 jobs:
-  build_and_preview:
+  build_and_test:
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
 
@@ -53,8 +53,18 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run Tests
-      
         working-directory: functions
-        run: |
-          cd functions
-          pytest
+        run: pytest
+        env:
+          ARDUINO_CLIENT_ID: ${{ secrets.ARDUINO_CLIENT_ID }}
+          ARDUINO_CLIENT_SECRET: ${{ secrets.ARDUINO_CLIENT_SECRET }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASS: ${{ secrets.DB_PASS }}
+          DB_INSTANCE_NAME: ${{ secrets.DB_INSTANCE_NAME }}
+          MODEL_BUCKET: ${{ secrets.MODEL_BUCKET }}
+          MODEL_FILENAME: ${{ secrets.MODEL_FILENAME }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          GOOGLE_CLOUD_PROJECT: ${{ secrets.GOOGLE_CLOUD_PROJECT }}
+
