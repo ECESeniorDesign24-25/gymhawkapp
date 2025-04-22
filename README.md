@@ -128,15 +128,15 @@ Application deployment is handled by Firebase, and is automatically run once all
 }
 ```
 
+**To test locally:**
+```bash
+./scripts/test_api.sh --function getPeakHours --thing_id <thing_id> --date <date> --start_time <start_time> --end_time <end_time> --peak <peak>
+```
+
 #### Note:
-Any API with an invalid request should return a JSON object in the following form:
+Any API with an invalid request or internal failure should return a JSON object in the following form:
 ```json
 {
     []
 }
-```
-
-**To test locally:**
-```bash
-./scripts/test_api.sh --function getPeakHours --thing_id <thing_id> --date <date> --start_time <start_time> --end_time <end_time> --peak <peak>
 ```
