@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { CustomMarker } from '@/interfaces/marker';
 import { markerStyle, imageStyle, popupStyle } from '@/styles/markerStyles';
 import { formatState } from '@/utils/common';
-// marker for device on map
+
+
 export const Marker = ({ lat, lng, state, machine, thing_id }: CustomMarker) => {
   let backgroundColor = 'grey';
   if (state === "on") {

@@ -92,7 +92,7 @@ export async function getLat(machine: string) {
     }
     
     const data = await response.json();
-    
+    console.log("Fetched latitude: ", data);
     // Return the latitude value from the response
     if (data[0] && data[0].lat !== undefined) {
       return parseFloat(data[0].lat);
@@ -122,7 +122,7 @@ export async function getLong(machine: string) {
     }
     
     const data = await response.json();
-    
+    console.log("Fetched longitude: ", data);
     if (data[0] && data[0].long !== undefined) {
       return parseFloat(data[0].long);
     }

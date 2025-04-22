@@ -1,5 +1,3 @@
-import React from 'react';
-
 export const markerStyle: React.CSSProperties = {
     width: '24px',
     height: '24px',

@@ -26,7 +26,7 @@ export default function Home() {
   useEffect(() => {
     async function loadGyms() {
       const gyms = await fetchGyms();
-      setGyms(gyms || []);
+      setGyms(gyms || []);  
 
       // check if we have a past gym saved in the browser 
       const lastGym = localStorage.getItem("lastGym");
@@ -117,10 +117,6 @@ export default function Home() {
 
   // poll machine states every 1s and update dict
   useEffect(() => {
-    const controller = new AbortController();
-
-    // store old states
-    const oldStates: any = {};
     const intervalId = setInterval(() => {
       setMachines(prevMachines => {
         // return empty if no machines
@@ -130,15 +126,8 @@ export default function Home() {
         Promise.all(
           prevMachines.map(async (machine) => {
             try {
-              const state = await fetchDeviceState(machine.machine, controller.signal, oldStates[machine.machine], "state");
-
-              // store new state with old state
-              const newState = { ...machine, state, oldState: oldStates[machine.machine] };
-
-              // update old state
-              oldStates[machine.machine] = state;
-
-              return newState;
+              const state = await fetchDeviceState(machine.machine, "Unknown", "state");
+              return { ...machine, state };
             } catch (err) {
               console.error('Error fetching device state for', machine.machine, err);
               return machine;
@@ -149,7 +138,7 @@ export default function Home() {
         // updates are async return old when processing
         return prevMachines;
       });
-    }, 5000);
+    }, 1000);
 
     // Cleanup function to clear the interval when component unmounts
     return () => clearInterval(intervalId);

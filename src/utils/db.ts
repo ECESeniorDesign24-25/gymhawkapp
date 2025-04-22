@@ -2,6 +2,7 @@ import { getDocs, collection, query } from "firebase/firestore";
 import { db } from "@/lib/firebase"
 import { getCoords, getBuildingOutline, getLat, getLong } from "./map_utils";
 import { API_ENDPOINT } from "./consts";
+import { constants } from "buffer";
 
 
 export async function fetchMachines(gymId: string) {
@@ -28,7 +29,7 @@ export async function fetchMachines(gymId: string) {
                 lat,
                 lng,
                 thing_id: data.thingId,
-                state: fetchDeviceState(doc.id, undefined, undefined, "state")
+                state: fetchDeviceState(doc.id, 'Unknown', "state")
             }
         })
 
@@ -90,10 +91,10 @@ export async function fetchMachineTimeseries(machineId: string, startTime: strin
         console.error('Error in fetchMachineTimeseries:', e);
         return [];
     }
-}
+}  
 
 
-export async function fetchDeviceState(machine: string, signal?: AbortSignal, oldState?: string, variable?: string) {
+export async function fetchDeviceState(machine: string, oldState?: string, variable?: string) {
     try {
       // always default to loading state
       const machines = collection(db, "machines");
@@ -102,12 +103,12 @@ export async function fetchDeviceState(machine: string, signal?: AbortSignal, ol
     
       if (!thing_id) {
         console.error('Thing ID not found for machine:', machine);
-        return oldState || "loading";
+        return oldState || 'Unknown';
       }
   
       const request = `${API_ENDPOINT}/getDeviceState?thing_id=${thing_id}&variable=${variable}`;
-      const response = await fetch(request, { signal });
-
+      const response = await fetch(request);
+      
       if (!response.ok) {
         const errorText = await response.text();
         console.error('Failed to fetch device state:', {
@@ -117,27 +118,29 @@ export async function fetchDeviceState(machine: string, signal?: AbortSignal, ol
           machine,
           thing_id,
           variable,
-        });
-        return oldState || "loading";
+        });        
+        return oldState || 'Unknown';
       }
   
       const data = await response.json();
+      console.log("Fetched device state: ", data);
+      
       // make sure the variable exists in the response
       if (variable && data[0][variable] !== undefined) {
         return data[0][variable];
       }
       
-      return oldState || "loading";
+      return oldState || 'Unknown';
     } catch (err: any) {
       if (err.name === 'AbortError') {
-        return oldState || "loading";
+        return oldState || 'Unknown';
       } else {
         console.error('Failed to fetch device state:', {
           error: err,
           machine,
           variable
         });
-        return oldState || "loading";
+        return oldState || 'Unknown';
       }
     }
 }

@@ -80,7 +80,7 @@ export default function Map({
         <Marker
           key={machineObj.machine}
           lat={machineObj.lat}
-          lng={machineObj.lng}
+          lng={machineObj.long}
           state={machineObj.state ? machineObj.state : "na"}
           machine={machineObj.machine}
           thing_id={machineObj.thing_id}
