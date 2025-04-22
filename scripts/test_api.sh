@@ -77,6 +77,12 @@ case "$FUNCTION" in
     addTimeStep)
         URL="https://gymhawk-2ed7f.web.app/api/$FUNCTION"
         ;;
+    getLat)
+        URL="https://gymhawk-2ed7f.web.app/api/$FUNCTION?thing_id=$THING_ID"
+        ;;
+    getLong)
+        URL="https://gymhawk-2ed7f.web.app/api/$FUNCTION?thing_id=$THING_ID"
+        ;;
     *)
         echo "Unknown function: $FUNCTION"
         usage

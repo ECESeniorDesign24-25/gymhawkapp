@@ -137,6 +137,36 @@ Application deployment is handled by Firebase, and is automatically run once all
 ./scripts/test_api.sh --function getPeakHours --thing_id <thing_id> --date <date> --start_time <start_time> --end_time <end_time> --peak <peak>
 ```
 
+#### Get Latitude
+**Endpoint:** `/getLat`  
+**Method:** GET  
+**Parameters:**
+- `thing_id`: The thing_id of the device
+**Returns:** JSON object in the following form:
+```json
+    12345.67890
+```
+
+**To test locally:**
+```bash
+./scripts/test_api.sh --function getLat --thing_id <thing_id>
+```
+
+#### Get Longitude
+**Endpoint:** `/getLong`  
+**Method:** GET  
+**Parameters:**
+- `thing_id`: The thing_id of the device
+**Returns:** JSON object in the following form:
+```json
+    12345.67890
+```
+
+**To test locally:**
+```bash
+./scripts/test_api.sh --function getLong --thing_id <thing_id>
+```
+
 #### Note:
 Any API with an invalid request or internal failure should return a JSON object in the following form:
 ```json
