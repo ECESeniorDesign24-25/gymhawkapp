@@ -237,15 +237,17 @@ def getTimeseries(req: https_fn.Request, table_name: str) -> https_fn.Response:
             json.dumps({"error": "Thing ID not found"}),
             mimetype="application/json",
             status=404,
-            headers=CORS_HEADERS
+            headers=CORS_HEADERS,
         )
     try:
-        timeseries = fetch_timeseries_from_db(thing_id, start_time, variable, table_name)
+        timeseries = fetch_timeseries_from_db(
+            thing_id, start_time, variable, table_name
+        )
         return https_fn.Response(
             json.dumps(timeseries),
             mimetype="application/json",
             status=200,
-            headers=CORS_HEADERS
+            headers=CORS_HEADERS,
         )
     except Exception as e:
         print(f"Error fetching timeseries: {str(e)}")
@@ -253,7 +255,7 @@ def getTimeseries(req: https_fn.Request, table_name: str) -> https_fn.Response:
             json.dumps({"error": f"Database error: {str(e)}"}),
             mimetype="application/json",
             status=500,
-            headers=CORS_HEADERS
+            headers=CORS_HEADERS,
         )
 
 
@@ -381,6 +383,7 @@ def peakHoursHelper(
     except Exception as e:
         print(f"No valid data for {thing_id} on {date} from {start_time} to {end_time}")
         return []
+
 
 # =============================================================================
 # Cloud Functions
@@ -591,7 +594,6 @@ def getStateTimeseries(req: https_fn.Request) -> https_fn.Response:
     return getTimeseries(req, "machine_states")
 
 
-
 # retrain model every 4 hours
 @scheduler_fn.on_schedule(schedule="0 */4 * * *")
 def retrainModel():
@@ -622,21 +624,17 @@ def getPeakHours(req: https_fn.Request) -> https_fn.Response:
     # convert time to datetime
     start_time = pd.to_datetime(pd.Timestamp(start_time))
     end_time = pd.to_datetime(pd.Timestamp(end_time))
-    try: 
+    try:
         hours = peakHoursHelper(thing_id, date, start_time, end_time, peak=peak)
     except Exception as e:
         print(f"Error in getPeakHours: {str(e)}")
         return https_fn.Response(
-            json.dumps(
-                {"hours": "No data."}
-            ),
+            json.dumps({"hours": "No data."}),
             status=500,
             headers=CORS_HEADERS,
         )
     return https_fn.Response(
-        json.dumps(
-            {"hours": hours}
-        ),
+        json.dumps({"hours": hours}),
         status=200,
         headers=CORS_HEADERS,
     )
@@ -670,11 +668,24 @@ if __name__ == "__main__":
     # 0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8
     print("================================================")
     print("Thing id: ", "0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8")
-    dummy_df = generate_prediction_data("0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8", start_time, end_time)
+    dummy_df = generate_prediction_data(
+        "0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8", start_time, end_time
+    )
 
-    peak_hours = peakHoursHelper("0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8", "2025-04-17", start_time, end_time, peak=True)
+    peak_hours = peakHoursHelper(
+        "0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8",
+        "2025-04-17",
+        start_time,
+        end_time,
+        peak=True,
+    )
     print("peak hours: ", peak_hours)
 
-    least_likely_hours = peakHoursHelper("0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8", "2025-04-17", start_time, end_time, peak=False)
+    least_likely_hours = peakHoursHelper(
+        "0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8",
+        "2025-04-17",
+        start_time,
+        end_time,
+        peak=False,
+    )
     print("least likely hours: ", least_likely_hours)
-
