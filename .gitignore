@@ -74,5 +74,8 @@ out/
 
 functions/venv
 functions/__pycache__
-
+__pycache__
 package-lock.json
+
+functions/.pytest_cache
+*.pytest_cache

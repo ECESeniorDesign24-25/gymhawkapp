@@ -225,7 +225,9 @@ def get_thing_id(machine):
     return None
 
 
-def getTimeseries(thing_id: str, start_time: str, variable: str, table_name: str = "machine_states") -> dict:
+def getTimeseries(
+    thing_id: str, start_time: str, variable: str, table_name: str = "machine_states"
+) -> dict:
     try:
         timeseries = fetch_timeseries_from_db(
             thing_id, start_time, variable, table_name
@@ -568,14 +570,13 @@ def addTimeStep(event: scheduler_fn.ScheduledEvent = None) -> None:
 
 @https_fn.on_request()
 def getStateTimeseries(req: https_fn.Request) -> https_fn.Response:
-
     if req.method == "OPTIONS":
         return https_fn.Response("", status=204, headers=CORS_HEADERS)
 
     thing_id = req.args.get("thing_id")
     start_time = req.args.get("start_time")
     variable = req.args.get("variable")
-    
+
     return https_fn.Response(
         getTimeseries(thing_id, start_time, variable),
         mimetype="application/json",
@@ -684,4 +685,4 @@ if __name__ == "__main__":
     start_time = "2025-04-22T01:35:02.007Z"
     variable = "state"
     timeseries = getTimeseries(thing_id, start_time, variable)
-    print(timeseries)   
+    print(timeseries)
