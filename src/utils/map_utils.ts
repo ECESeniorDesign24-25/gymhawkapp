@@ -85,7 +85,7 @@ export async function getLat(machine: string) {
       return null;
     }
     
-    const response = await fetch(`${API_ENDPOINT}/getDeviceState?thing_id=${thing_id}&variable=lat`);
+    const response = await fetch(`${API_ENDPOINT}/getLat?thing_id=${thing_id}`);
     
     if (!response.ok) {
       throw new Error(`Error fetching latitude: ${response.statusText}`);
@@ -115,7 +115,7 @@ export async function getLong(machine: string) {
       return null;
     }
     
-    const response = await fetch(`${API_ENDPOINT}/getDeviceState?thing_id=${thing_id}&variable=long`);
+    const response = await fetch(`${API_ENDPOINT}/getLong?thing_id=${thing_id}`);
     
     if (!response.ok) {
       throw new Error(`Error fetching longitude: ${response.statusText}`);

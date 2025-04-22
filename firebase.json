@@ -28,6 +28,14 @@
         "function": "retrainModel"
       },
       {
+        "source": "/api/getLat",
+        "function": "getLat"
+      },
+      {
+        "source": "/api/getLong",
+        "function": "getLong"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
@@ -50,7 +58,25 @@
         "firebase-debug.log",
         "firebase-debug.*.log",
         "*.local"
-      ]
+      ],
+      "runtime_options": {
+        "memory": "512MB",
+        "timeoutSeconds": 60
+      },
+      "function_overrides": {
+        "retrainModel": {
+          "memory": "1GB"
+        },
+        "addTimeStep": {
+          "memory": "1GB"
+        },
+        "getStateTimeseries": {
+          "memory": "1GB"
+        },
+        "getPeakHours": {
+          "memory": "1GB"
+        }
+      }
     }
   ]
 }
