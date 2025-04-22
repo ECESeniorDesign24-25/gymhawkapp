@@ -1,5 +1,8 @@
 import axios from 'axios';
 import { MAPS_ENDPOINT } from './consts';
+import { getThingId } from './common';
+import { API_ENDPOINT } from './consts';
+
 
 interface GeocodeResponse {
   results: {
@@ -71,3 +74,64 @@ export const getBuildingOutline = async (id: string) => {
         return null;
     }
 };
+
+
+export async function getLat(machine: string) {
+  try {
+    const thing_id = await getThingId(machine);
+    
+    if (!thing_id) {
+      console.error('No thing_id found for machine:', machine);
+      return null;
+    }
+    
+    const response = await fetch(`${API_ENDPOINT}/getDeviceState?thing_id=${thing_id}&variable=lat`);
+    
+    if (!response.ok) {
+      throw new Error(`Error fetching latitude: ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    
+    // Return the latitude value from the response
+    if (data[0] && data[0].lat !== undefined) {
+      return parseFloat(data[0].lat);
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error getting latitude:', error);
+    return null;
+  }
+}
+
+
+export async function getLong(machine: string) {
+  try {
+    const thing_id = await getThingId(machine);
+    
+    if (!thing_id) {
+      console.error('No thing_id found for machine:', machine);
+      return null;
+    }
+    
+    const response = await fetch(`${API_ENDPOINT}/getDeviceState?thing_id=${thing_id}&variable=long`);
+    
+    if (!response.ok) {
+      throw new Error(`Error fetching longitude: ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    
+    if (data[0] && data[0].long !== undefined) {
+      return parseFloat(data[0].long);
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error getting longitude:', error);
+    return null;
+  }
+}
+
+

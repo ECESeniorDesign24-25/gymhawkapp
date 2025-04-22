@@ -1,9 +1,8 @@
 import { getDocs, collection, query } from "firebase/firestore"; 
 import { db } from "@/lib/firebase"
-import { getCoords, getBuildingOutline } from "./mapsAPI";
+import { getCoords, getBuildingOutline, getLat, getLong } from "./map_utils";
 import { API_ENDPOINT } from "./consts";
-// const cors = require('cors')({origin: true});
-
+import { getThingId } from "./common";
 export async function fetchMachines(gymId: string) {
     try {
         if (!gymId) {
@@ -19,11 +18,17 @@ export async function fetchMachines(gymId: string) {
                 return null;
             }
             const data = doc.data();
+            
+            const lat = await getLat(doc.id);
+            const lng = await getLong(doc.id);
+            
+            // Log machine and coordinates
+            console.log(`Machine ${doc.id} coordinates:`, { lat, lng });
 
             return {
                 machine: doc.id,
-                lat: fetchDeviceState(doc.id, undefined, undefined, "lat"),
-                lng: fetchDeviceState(doc.id, undefined, undefined, "lng"),
+                lat,
+                lng,
                 thing_id: data.thingId,
                 state: fetchDeviceState(doc.id, undefined, undefined, "state")
             }
