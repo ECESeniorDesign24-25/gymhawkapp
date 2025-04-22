@@ -17,7 +17,7 @@ gcloud functions deploy $function_name \
   --allow-unauthenticated \
   --memory $memory \
   --cpu=1 \
-  --runtime python311 \
+  --runtime python312 \
   --region=us-central1 \
   --entry-point=$function_name \
   --trigger-http \
