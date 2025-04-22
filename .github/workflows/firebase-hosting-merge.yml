@@ -32,23 +32,15 @@ jobs:
       - name: Set up Python 
         uses: actions/setup-python@v4
         with:
-          python-version: '3.x'
+          python-version: '3.12'
 
-      - name: Set up venv 
+      - name: Deploy to Firebase
         working-directory: functions
         run: |
           python -m venv venv
           source venv/bin/activate
-
-      - name: Install dependencies
-        working-directory: functions
-        run: |
           pip install -r requirements.txt
-
-      - name: Deploy to Firebase
-        run: |
           echo '${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_JSON }}' > /tmp/service-account.json
-          npx firebase-tools deploy \
-            --project=${{ secrets.GOOGLE_CLOUD_PROJECT }} 
+          npx firebase-tools deploy --project=${{ secrets.GOOGLE_CLOUD_PROJECT }}
         env:
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/service-account.json
