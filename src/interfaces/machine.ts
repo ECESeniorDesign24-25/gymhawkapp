@@ -9,4 +9,5 @@ export interface Machine {
     last_used_time?: string;
     machine_type?: string;
     floor?: string | number;
+    subscribed: boolean;
 }
