@@ -55,10 +55,6 @@ jobs:
       - name: Run Tests
       
         working-directory: functions
-        run: pytest
-
-      # - uses: FirebaseExtended/action-hosting-deploy@v0
-      #   with:
-      #     repoToken: ${{ secrets.GITHUB_TOKEN }}
-      #     firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_GYMHAWK_2ED7F }}
-      #     projectId: gymhawk-2ed7f
+        run: |
+          cd functions
+          pytest
