@@ -1,8 +1,9 @@
 from datetime import datetime, timezone, time, timedelta
 import time as t
 import json
+import os
 from firebase_functions import https_fn, scheduler_fn
-from firebase_admin import initialize_app, firestore
+from firebase_admin import initialize_app, firestore, credentials
 import iot_api_client as iot
 from iot_api_client.rest import ApiException
 from iot_api_client.configuration import Configuration
@@ -18,7 +19,13 @@ import pandas as pd
 from model import RandomForestModel
 
 # set up firebase app
-initialize_app()
+cred_path = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
+if cred_path and os.path.exists(cred_path):
+    cred = credentials.Certificate(cred_path)
+    initialize_app(cred)
+else:
+    # Fall back to default credentials if no explicit credentials provided
+    initialize_app()
 db = firestore.client()
 
 

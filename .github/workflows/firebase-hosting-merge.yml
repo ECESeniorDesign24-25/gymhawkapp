@@ -17,13 +17,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Authenticate with GCP
-        uses: 'google-github-actions/auth@v2'
-        with:
-          workload_identity_provider: ${{ secrets.IDENTITY_POOL_PROVIDER }}
-          service_account:               ${{ secrets.SERVICE_ACCOUNT }}
-          project_id:                    ${{ secrets.GOOGLE_CLOUD_PROJECT }}
-
       - name: Build Client
         run: |
           npm install
@@ -48,4 +41,12 @@ jobs:
           python -m venv venv
           source venv/bin/activate
           pip install -r requirements.txt
-          npx firebase-tools deploy --project=${{ secrets.GOOGLE_CLOUD_PROJECT }}
+          
+          # Write the service account key to a file
+          echo "${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}" > ./service-account-key.json
+          export GOOGLE_APPLICATION_CREDENTIALS="${PWD}/service-account-key.json"
+          
+          # Deploy with the service account
+          npx firebase-tools deploy --project=${{ secrets.GOOGLE_CLOUD_PROJECT }} --debug
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ./service-account-key.json
