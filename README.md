@@ -1,3 +1,5 @@
+[![Build and Test](https://github.com/ECESeniorDesign24-25/gymhawkapp/actions/workflows/firebase-hosting-pull-request.yml/badge.svg)](https://github.com/ECESeniorDesign24-25/gymhawkapp/actions/workflows/firebase-hosting-pull-request.yml)
+
 ## GymHawk Web Application
 
 ### Setup
