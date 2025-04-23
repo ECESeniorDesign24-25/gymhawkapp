@@ -8,6 +8,7 @@ from main import (
     getLastLat,
     getLastLong,
     getLastUsedTimeHelper,
+    addTimeStepUtil,
 )
 import math
 
@@ -345,3 +346,13 @@ def test_unknown_get_last_used_time():
     assert last_used_time is None, (
         f"UnknownTestGetLastUsedTime | Response is not None: {last_used_time}"
     )
+
+
+@pytest.mark.unknown
+def test_add_time_step():
+    try:
+        addTimeStepUtil()
+        assert True
+    except Exception as e:
+        print(f"addTimeStepTest | Error: {e}")
+        assert False, f"addTimeStepTest | Error: {e}"
