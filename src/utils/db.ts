@@ -88,34 +88,45 @@ export async function fetchGyms(){
     }
 }
 
-export async function fetchMachineTimeseries(machineId: string, startTime: string, devMode: boolean, variable: string) {
+export async function fetchMachineTimeseries(machineId: string, startTime: string, variable: string) {
     try {
-        let endpoint = "";
-        if (devMode) {
-            endpoint = `${API_ENDPOINT}/getStateTimeseriesDummy?thing_id=${machineId}&startTime=${startTime}&variable=${variable}`;
+        if (!machineId) {
+            console.error("No machineId provided to fetchMachineTimeseries");
+            return [];
         }
-        else {
-            endpoint = `${API_ENDPOINT}/getStateTimeseries?thing_id=${machineId}&startTime=${startTime}&variable=${variable}`;
-        }
+
+        // Format query parameters according to the API requirements
+        const params = new URLSearchParams({
+            thing_id: machineId,
+            startTime: startTime,
+            variable: variable
+        });
         
-        // Use no-cors mode to bypass CORS restrictions
+        const endpoint = `${API_ENDPOINT}/getStateTimeseries?${params.toString()}`;
+        
+        console.log("fetching timeseries for machine: ", machineId, "at endpoint: ", endpoint);
         const response = await fetch(endpoint, {
             method: 'GET',
-            mode: 'no-cors',
             headers: {
                 'Accept': 'application/json',
                 'Content-Type': 'application/json',
             }
         });
         
-        return [];
+        if (!response.ok) {
+            console.error('Error fetching timeseries:', response.status, response.statusText);
+            return [];
+        }
+        
+        const data = await response.json();
+        
+        return data || [];
         
     } catch (e) {
         console.error('Error in fetchMachineTimeseries:', e);
         return [];
     }
-}  
-
+}
 
 export async function fetchDeviceState(machine: string, oldState?: string, variable?: string) {
     try {
@@ -172,4 +183,64 @@ export async function fetchLastUsedTime(machine: string) {
     const request = `${API_ENDPOINT}/getLastUsedTime?thing_id=${thing_id}`;
     const response = await fetch(request);
     return await response.json();
+}
+
+export async function fetchMachineDetails(thingId: string) {
+    try {
+        if (!thingId) {
+            console.error("No thingId provided to fetchMachineDetails");
+            return null;
+        }
+        
+        const machines = collection(db, "machines");
+        const thing_ids = collection(db, "thing_ids");
+        const querySnapshot = await getDocs(machines);
+        
+        // Find the machine document with the matching thingId
+        const machineDoc = querySnapshot.docs.find(doc => doc.data().thingId === thingId);
+        
+        if (!machineDoc) {
+            console.error(`No machine found with thingId: ${thingId}`);
+            return null;
+        }
+        
+        const machineId = machineDoc.id;
+        const data = machineDoc.data();
+        
+        const lat = await getLat(machineId);
+        const lng = await getLong(machineId);
+        const type = await fetchDeviceState(machineId, 'Unknown', "type");
+        const state = await fetchDeviceState(machineId, 'Unknown', "state");
+        const device_status = await fetchDeviceState(machineId, 'OFFLINE', "device_status");
+        
+        const thing_id_doc = await getDoc(doc(thing_ids, data.thingId));
+        
+        let floor;
+        if (thing_id_doc.exists()) {
+            floor = thing_id_doc.data()?.floor;
+        } else {
+            floor = undefined;
+        }
+        
+        let last_used_time = await fetchLastUsedTime(machineId);
+        if (last_used_time === null) {
+            last_used_time = "Never";
+        }
+        
+        return {
+            machine: machineId,
+            lat,
+            lng,
+            thing_id: data.thingId,
+            state: state,
+            device_status: device_status,
+            machine_type: type,
+            floor: floor,
+            last_used_time: last_used_time
+        };
+        
+    } catch (e) {
+        console.error('Error fetching machine details: ', e);
+        return null;
+    }
 }

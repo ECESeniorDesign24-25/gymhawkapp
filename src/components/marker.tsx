@@ -14,18 +14,23 @@ export const Marker = ({ lat, lng, state, machine, thing_id, machine_type, floor
     return null;
   }
 
-  // Determine the background color based on device status and state
+  // set background color based on status
   let backgroundColor;
   if (device_status === "OFFLINE" || device_status === "UNKNOWN") {
-    backgroundColor = 'rgba(128, 128, 128, 0.75)'; // Gray for offline/unknown devices
+    
+    // offline/unknown = gray
+    backgroundColor = 'rgba(128, 128, 128, 0.75)'; 
   } else if (state === "on") {
-    backgroundColor = 'rgba(139, 0, 0, 0.75)';     // Red for machines in use
+   
+    // in use = red
+    backgroundColor = 'rgba(139, 0, 0, 0.75)';
   } else {
-    backgroundColor = 'rgba(0, 100, 0, 0.75)';     // Green for available machines
+    
+    // available = green
+    backgroundColor = 'rgba(0, 100, 0, 0.75)'; 
   }
 
 
-  // Create a custom style for this marker by combining the base style with our specific backgroundColor
   const customMarkerStyle = {
     ...markerStyle,
     backgroundColor: backgroundColor
@@ -34,6 +39,7 @@ export const Marker = ({ lat, lng, state, machine, thing_id, machine_type, floor
   const [showPopup, setShowPopup] = useState(false);
   const [formattedStateValue, setFormattedStateValue] = useState('Loading...');
 
+  // format the current state of each machine
   useEffect(() => {
     let isMounted = true;
     
@@ -58,6 +64,7 @@ export const Marker = ({ lat, lng, state, machine, thing_id, machine_type, floor
     };
   }, [state]);
 
+  // handle click on marker - take right to analytics page
   const handleClick = () => {
     localStorage.setItem("lastMachine", JSON.stringify({ thing_id: thing_id, machine: machine }));
     window.location.href = "/analytics";

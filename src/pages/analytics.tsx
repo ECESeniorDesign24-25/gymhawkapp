@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
+import { useRouter } from 'next/router';
 import Select from 'react-select';
 import Footer from '@/components/footer';
 import Banner from '@/components/banner';
@@ -19,8 +20,9 @@ const DynamicMachineUsageChart = dynamic(() => import('@/components/analytics_ch
 const DynamicAdminUsageChart = dynamic(() => import('@/components/admin_analytics_chart'), { ssr: false });
 
 function Analytics() {
+  const router = useRouter();
   const [selectedGym, setSelectedGym] = useState<GymOption | null>(null);
-  const [selectedMachine, setSelectedMachine] = useState<Machine | null>(null);
+  const [selectedAdminMachine, setSelectedAdminMachine] = useState<Machine | null>(null);
   const [activeTab, setActiveTab] = useState('user');
   const [gyms, setGyms] = useState<any[]>([]);
   const [machines, setMachines] = useState<Machine[]>([]);
@@ -52,7 +54,7 @@ function Analytics() {
     async function loadMachines() {
       if (!selectedGym) {
         setMachines([]);
-        setSelectedMachine(null);
+        setSelectedAdminMachine(null);
         return;
       }
       
@@ -61,7 +63,7 @@ function Analytics() {
       // Always set machines to empty array if no machines found
       if (!machines || machines.length === 0) {
         setMachines([]);
-        setSelectedMachine(null);
+        setSelectedAdminMachine(null);
         return;
       }
       
@@ -76,15 +78,16 @@ function Analytics() {
         const matchingMachine = machines.find(m => m.thing_id === machineData.thing_id);
         if (matchingMachine) {
           // @ts-ignore
-          setSelectedMachine(matchingMachine);
+          setSelectedAdminMachine(matchingMachine);
         }
-      } else if (machines.length > 0) {
+      } else if (machines.length > 0 && activeTab === 'admin') {
+        // Only auto-select the first machine in admin view
         // @ts-ignore
-        setSelectedMachine(machines[0]);
+        setSelectedAdminMachine(machines[0]);
       }
     }
     loadMachines();
-  }, [selectedGym]);
+  }, [selectedGym, activeTab]);
 
 
  // poll machine states every 1s and update dict
@@ -173,7 +176,7 @@ function Analytics() {
     const gymOption = selectedOption as GymOption | null;
     
     // clear selected
-    setSelectedMachine(null);
+    setSelectedAdminMachine(null);
     setMachines([]);
 
     // set selected gym and placeholder
@@ -188,6 +191,48 @@ function Analytics() {
     }
   }
 
+  const handleAdminMachineSelect = (machine: Machine) => {
+    setSelectedAdminMachine(machine);
+  };
+
+  const renderAdminMachineDetails = () => {
+    if (!selectedAdminMachine) {
+      return (
+        <div className={styles.machineSelectionPrompt}>
+          <p>Select a machine from the list to view detailed analytics</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className={styles.machineAnalyticsContent}>
+        <h1 className={styles.machineTitle}>{selectedAdminMachine.machine_type || 'Machine'}</h1>
+        
+        <div className={styles.machineDetailsCard}>
+          <div className={styles.machineDetail}>
+            <strong>ID:</strong> {selectedAdminMachine.machine}
+          </div>
+          <div className={styles.machineDetail}>
+            <strong>Floor:</strong> {selectedAdminMachine.floor}
+          </div>
+          <div className={styles.machineDetail}>
+            <strong>Status:</strong> {selectedAdminMachine.device_status || 'UNKNOWN'}
+          </div>
+          <div className={styles.machineDetail}>
+            <strong>Current State:</strong> {selectedAdminMachine.state === 'on' ? 'In Use' : 'Available'}
+          </div>
+          <div className={styles.machineDetail}>
+            <strong>Last Used:</strong> {formatLastUsedTime(selectedAdminMachine.last_used_time)}
+          </div>
+        </div>
+
+        <div className={styles.usageChartContainer}>
+          <h2>Usage Analytics</h2>
+          <DynamicMachineUsageChart machineId={selectedAdminMachine.thing_id} machineName={selectedAdminMachine.machine} viewMode="admin" />
+        </div>
+      </div>
+    );
+  };
 
   // render page
   return (
@@ -231,63 +276,57 @@ function Analytics() {
               onChange={handleGymSelect}
             />
           </div>
+          
           {/* user analytics */}
           {activeTab === 'user' && (
             <div className={styles.userAnalytics}>
-              {selectedMachine ? (
-                <DynamicMachineUsageChart machineId={selectedMachine.thing_id} machineName={selectedMachine.machine} />
-              ) : (
-                null
-              )}
               <h2>All Machines</h2>
-              <p>Select a machine to view its usage chart</p>
-              &nbsp;
-
+              
               {machines.length === 0 ? (
                 <div className={styles.machineStatus} style={{ backgroundColor: '#f8f9fa', textAlign: 'center', padding: '20px' }}>
                   <h3 className="text-lg font-bold">No machines found</h3>
                 </div>
               ) : (
-                <div className={styles.machineGrid}>
+                <div className={styles.machinesWithCharts}>
                   {machines.map((machine) => (
-                    <div
-                      key={machine.machine}
-                      className={styles.machineStatus}
-                      style={{
-                        backgroundColor: machine.device_status === "OFFLINE" || machine.device_status === "UNKNOWN" 
-                          ? 'rgba(128, 128, 128, 0.75)' // Gray for offline/unknown devices
-                          : machine.state === 'on' 
-                            ? 'rgba(139, 0, 0, 0.75)'  // Red for machines in use
-                            : 'rgba(0, 100, 0, 0.75)', // Green for available machines
-                        cursor: 'pointer'
-                      }}
-                      onClick={() => setSelectedMachine(machine)}
-                    >
-                      <div><strong>{machine.machine_type || 'Unknown Type'}</strong></div>
-                      {machine.device_status === "ONLINE" ? (
-                        <div className="flex flex-row items-center space-x-4">
-                          <div className="flex flex-row items-center space-x-2">
-                            <div className="w-4 h-4" style={{ backgroundColor: 'rgba(0, 100, 0, 0.3)' }}></div>
-                            <span>Available</span>
+                    <div key={machine.machine} className={styles.machineWithChart}>
+                      <div
+                        className={styles.machineStatus}
+                        style={{
+                          backgroundColor: machine.device_status === "OFFLINE" || machine.device_status === "UNKNOWN" 
+                            ? 'rgba(128, 128, 128, 0.75)' // Gray for offline/unknown devices
+                            : machine.state === 'on' 
+                              ? 'rgba(139, 0, 0, 0.75)'  // Red for machines in use
+                              : 'rgba(0, 100, 0, 0.75)', // Green for available machines
+                        }}
+                      >
+                        <div><strong>{machine.machine_type || 'Unknown Type'}</strong></div>
+                        {machine.device_status === "ONLINE" ? (
+                          <div className="flex flex-row items-center space-x-4">
+                            <div className="flex flex-row items-center space-x-2">
+                              <div className="w-4 h-4" style={{ backgroundColor: 'rgba(0, 100, 0, 0.3)' }}></div>
+                              <span>Available</span>
+                            </div>
+                            <div className="flex flex-row items-center space-x-2">
+                              <div className="w-4 h-4" style={{ backgroundColor: 'rgba(139, 0, 0, 0.3)' }}></div>
+                              <span>In Use</span>
+                            </div>
                           </div>
-                          <div className="flex flex-row items-center space-x-2">
-                            <div className="w-4 h-4" style={{ backgroundColor: 'rgba(139, 0, 0, 0.3)' }}></div>
-                            <span>In Use</span>
+                        ) : (
+                          <div className="mt-2">
+                            <span>Status: {machine.device_status || 'UNKNOWN'}</span>
                           </div>
-                        </div>
-                      ) : (
+                        )}
                         <div className="mt-2">
-                          <span>Status: {machine.device_status || 'UNKNOWN'}</span>
+                          <span>Floor: {machine.floor}</span>
                         </div>
-                      )}
-                      <div className="mt-2">
-                        <span>Floor: {machine.floor}</span>
+                        <div className="mt-2">
+                          <span>Last Used: {formatLastUsedTime(machine.last_used_time)}</span>
+                        </div>
                       </div>
-                      <div className="mt-2">
-                        <span>Last Used: {formatLastUsedTime(machine.last_used_time)}</span>
-                      </div>
-                      <div className="mt-2">
-                        <span>Device: {machine.machine}</span>
+                      
+                      <div className={styles.machineChartContainer}>
+                        <DynamicMachineUsageChart machineId={machine.thing_id} machineName={machine.machine} viewMode="user" />
                       </div>
                     </div>
                   ))}
@@ -295,10 +334,45 @@ function Analytics() {
               )}
             </div>
           )}
+          
           {/* admin analytics */}
           {activeTab === 'admin' && isAdmin && (
             <div className={styles.adminAnalytics}>
-              <DynamicAdminUsageChart />
+              <div className={styles.adminPanels}>
+                <div className={styles.adminMachineList}>
+                  <h2>Machines</h2>
+                  {machines.length === 0 ? (
+                    <div className={styles.noMachines}>No machines found</div>
+                  ) : (
+                    <div className={styles.machineGrid}>
+                      {machines.map((machine) => (
+                        <div
+                          key={machine.machine}
+                          className={`${styles.machineCard} ${selectedAdminMachine?.machine === machine.machine ? styles.selectedMachine : ''}`}
+                          onClick={() => handleAdminMachineSelect(machine)}
+                        >
+                          <div className={styles.machineCardHeader}>
+                            <strong>{machine.machine_type || 'Unknown Type'}</strong>
+                          </div>
+                          <div className={styles.machineCardStatus} style={{
+                            backgroundColor: machine.device_status === "OFFLINE" || machine.device_status === "UNKNOWN" 
+                              ? 'rgba(128, 128, 128, 0.75)' // Gray for offline/unknown devices
+                              : machine.state === 'on' 
+                                ? 'rgba(139, 0, 0, 0.75)'  // Red for machines in use
+                                : 'rgba(0, 100, 0, 0.75)', // Green for available machines
+                          }}>
+                            {machine.state === 'on' ? 'In Use' : 'Available'}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                
+                <div className={styles.adminMachineDetails}>
+                  {renderAdminMachineDetails()}
+                </div>
+              </div>
             </div>
           )}
         </div>

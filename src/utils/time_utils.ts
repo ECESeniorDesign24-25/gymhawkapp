@@ -12,14 +12,48 @@ export const get12amOnDate = (date: Date) => {
     // get 12am on a given date (start of day) to use for fetching filtered timeseries data
     const targetDate = new Date(date);
     targetDate.setHours(0, 0, 0, 0);
-    return targetDate.toISOString();
+    
+    // Format to ISO 8601 format that the API expects - "YYYY-MM-DD"
+    const year = targetDate.getFullYear();
+    const month = String(targetDate.getMonth() + 1).padStart(2, '0');
+    const day = String(targetDate.getDate()).padStart(2, '0');
+    
+    // Return simple ISO date format without time component
+    return `${year}-${month}-${day}`;
 }
 
-export const convertTimeseriesToDate = (point: { timestamp: string }) => {
-    // convert a timeseries point to a date object
-    const date = new Date(point.timestamp);
-    date.setTime(date.getTime() + date.getTimezoneOffset() * 60000);
-    return date;
+export const convertTimeseriesToDate = (point: any) => {
+    // Handle different timestamp formats
+    let timestamp = null;
+    
+    if (typeof point === 'object') {
+        // Try known field names that might contain the timestamp
+        timestamp = point.timestamp || point.time || point.date;
+    } else if (typeof point === 'string') {
+        // If the point itself is a string, assume it's the timestamp
+        timestamp = point;
+    }
+    
+    if (!timestamp) {
+        console.warn('Unable to extract timestamp from point:', point);
+        return new Date(); // Return current time as fallback
+    }
+    
+    try {
+        // Try to parse the timestamp
+        const date = new Date(timestamp);
+        
+        // Check if date is valid
+        if (isNaN(date.getTime())) {
+            console.warn('Invalid date parsed from timestamp:', timestamp);
+            return new Date();
+        }
+        
+        return date;
+    } catch (error) {
+        console.error('Error parsing timestamp:', error, timestamp);
+        return new Date();
+    }
 }
 
 export const isToday = (date: Date) => {

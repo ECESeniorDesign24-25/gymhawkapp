@@ -86,6 +86,8 @@ export default function Map({
         return hasValidCoords;
       })
       .map(machineObj => {
+        
+        // render marker on map
         return (
           <Marker
             key={machineObj.machine}
@@ -103,6 +105,7 @@ export default function Map({
       });
   };
 
+  // render entire map and markers
   return (
     <GoogleMapReact
       bootstrapURLKeys={{ key: process.env.NEXT_PUBLIC_MAPS_API_KEY! }}

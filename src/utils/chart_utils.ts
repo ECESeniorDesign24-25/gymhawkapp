@@ -190,6 +190,20 @@ export const getLineChartOptions = (machineName: string, chartStartTime: Date, c
             mode: 'index' as const,
             intersect: false,
             backgroundColor: function(context: any) {
+              // Get the raw data point if available
+              const dataPoint = context.tooltip.dataPoints[0].raw;
+              
+              // Check if this is a custom data point with device_status
+              if (dataPoint && dataPoint.device_status) {
+                if (dataPoint.device_status === 'OFFLINE' || dataPoint.device_status === 'UNKNOWN') {
+                  return 'rgba(128, 128, 128, 0.75)'; // Gray for offline/unknown
+                }
+                if (dataPoint.device_status === 'NO_DATA') {
+                  return 'rgba(200, 200, 200, 0.75)'; // Light gray for no data
+                }
+              }
+              
+              // Use original coloring based on state if the device is online
               const value = context.tooltip.dataPoints[0].raw.y;
               return value === 1 ? 'rgba(0, 100, 0, 0.75)' : 'rgba(139, 0, 0, 0.75)';
             },
@@ -205,9 +219,30 @@ export const getLineChartOptions = (machineName: string, chartStartTime: Date, c
                 return '';
               },
               label: function(tooltipItem: any) {
-                if (tooltipItem.datasetIndex === 0) {
+                if (tooltipItem.datasetIndex === 0 || tooltipItem.datasetIndex === 1) {
+                  const dataPoint = tooltipItem.raw;
+                  
+                  // Get device status if available in the raw data
+                  let deviceStatus = "ONLINE";
+                  if (dataPoint && dataPoint.device_status) {
+                    deviceStatus = dataPoint.device_status;
+                  }
+                  
+                  // For NO_DATA status, show a specific message
+                  if (deviceStatus === 'NO_DATA') {
+                    return 'No data available for this time';
+                  }
+                  
                   const value = tooltipItem.raw.y;
-                  return value === 1 ? 'Status: Available' : 'Status: In Use';
+                  let stateText = value === 1 ? 'Available' : 'In Use';
+                  
+                  // If device is offline or unknown, override state display
+                  if (deviceStatus === 'OFFLINE' || deviceStatus === 'UNKNOWN') {
+                    stateText = deviceStatus;
+                    return `Status: ${stateText}`;
+                  } else {
+                    return `Status: ${deviceStatus}, State: ${stateText}`;
+                  }
                 }
                 return '';
               }
