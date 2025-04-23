@@ -74,9 +74,13 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
     
     const hourlyData: { [key: number]: { total: number; on: number } } = {};
 
-    // calculate "on" counts per hour
+    // calculate "on" counts per hour - ONLY FOR ONLINE STATUS
     usageData.forEach(point => {
-      const hour = point.time.getHours();
+      // Skip data points that aren't ONLINE
+      if (point.device_status !== STATUS_ONLINE) return;
+      
+      // Get hour in local timezone
+      const hour = new Date(point.time).getHours();
       if (!hourlyData[hour]) {
         hourlyData[hour] = { total: 0, on: 0 };
       }
@@ -94,9 +98,12 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
 
     setHourlyUsage(hourlyUsageData);
 
-    // calculate "on" counts per day 
+    // calculate "on" counts per day - ONLY FOR ONLINE STATUS
     const dailyData: { [key: string]: { total: number; on: number } } = {};
     usageData.forEach(point => {
+      // Skip data points that aren't ONLINE
+      if (point.device_status !== STATUS_ONLINE) return;
+      
       const day = point.time.toLocaleDateString('en-US', { weekday: 'long' });
       if (!dailyData[day]) {
         dailyData[day] = { total: 0, on: 0 };
@@ -180,10 +187,10 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
         point.device_status === STATUS_ONLINE
       );
       
-      // Aggregate by hour
+      // Aggregate by hour in local timezone
       const hourlyData: { [key: number]: { total: number; on: number } } = {};
       onlinePoints.forEach(point => {
-        const hour = point.time.getHours();
+        const hour = new Date(point.time).getHours();
         if (!hourlyData[hour]) {
           hourlyData[hour] = { total: 0, on: 0 };
         }
@@ -468,6 +475,23 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
   const aggregatedHourlyChartData = getHourlyChartData(aggregatedHourlyUsage);
   const aggregatedDailyChartData = getDailyChartData(aggregatedDailyUsage);
 
+  // New function to calculate total usage hours
+  const calculateTotalUsageHours = (): { hours: number; minutes: number } => {
+    if (usageData.length === 0) return { hours: 0, minutes: 0 };
+    
+    // Filter for ONLINE status and count points where state is 0 (in use)
+    const usagePoints = usageData.filter(point => 
+      point.device_status === STATUS_ONLINE && point.state === 0
+    ).length;
+    
+    // Each data point represents approximately 1 minute of usage
+    const totalMinutes = usagePoints;
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    
+    return { hours, minutes };
+  };
+
   // Render different views based on viewMode
   if (viewMode === 'user') {
     return (
@@ -540,6 +564,20 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
           </div>
         ) : (
           <>
+            {/* Add total usage hours display */}
+            <div style={{ textAlign: 'center', margin: '10px 0', backgroundColor: 'rgba(240, 249, 255, 0.8)', padding: '10px', borderRadius: '5px', border: '1px solid #e0e0e0' }}>
+              <h4 style={{ margin: '0 0 8px 0' }}>
+                {isToday(selectedDate) ? "Today's" : `${selectedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}'s`} Total Usage Time
+              </h4>
+              {(() => {
+                const { hours, minutes } = calculateTotalUsageHours();
+                return (
+                  <div style={{ fontSize: '18px', fontWeight: 'bold' }}>
+                    {hours} hour{hours !== 1 ? 's' : ''} {minutes} minute{minutes !== 1 ? 's' : ''}
+                  </div>
+                );
+              })()}
+            </div>
             <div>
               <h4 style={{ textAlign: 'center', margin: '10px 0' }}>Hourly Usage Pattern</h4>
               <div className="h-64">
