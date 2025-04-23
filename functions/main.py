@@ -17,6 +17,8 @@ from consts import *
 import statistics
 import pandas as pd
 from model import RandomForestModel
+import smtplib 
+from email.message import EmailMessage
 
 # set up firebase app
 # cred_path = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
@@ -397,6 +399,33 @@ def getLastLong(thing_id: str) -> float:
         print(f"Error fetching last long for {thing_id}: {e}")
         return None
 
+def retrieve(field, snapshot):
+    return next(iter(snapshot[field].values()))
+
+
+def send_email(to_addr: str, machine_name: str):
+    msg = EmailMessage()
+    msg["Subject"] = f"Your machine is now available!"
+    msg["From"]    = f"GymHawks <{EMAIL_ADDRESS}>"
+    msg["To"]      = to_addr
+    msg.set_content(
+        f"The machine you’ve been waiting for is free.\n\n"
+        "We can’t guarantee it will still be free when you arrive 🏋️‍♂️"
+    )
+    msg.add_alternative(
+        f"""
+        <p>The <strong>machine</strong> you’ve been waiting for is now
+        <span style="color:green">available. See you there 🏋️‍♂️</p></span>
+        """,
+        subtype="html",
+    )
+
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+#         print(EMAIL_ADDRESS)
+#         print(EMAIL_PASS)
+        smtp.login(EMAIL_ADDRESS, EMAIL_PASS)
+        smtp.send_message(msg)
+
 # =============================================================================
 # Cloud Functions
 # =============================================================================
@@ -691,6 +720,41 @@ def generate_prediction_data(
     timestamps = pd.date_range(start=start_time, end=end_time, freq="30min")
     return pd.DataFrame({"thing_id": thing_id, "timestamp": timestamps})
 
+
+@https_fn.on_request()
+def email_on_available(req: https_fn.Request) -> https_fn.Response:
+    print("EMAILING")
+    if req.method == "OPTIONS":
+        return https_fn.Response("", status=204, headers=CORS_HEADERS)
+
+    try:
+        data = req.get_json()
+        print("Request data:", data)
+
+        machine_id   = data.get("machine_id")
+        machine_name = data.get("machine_name")
+        previous     = data.get("previous_state")
+
+        print(f"machine_id: {machine_id}, machine_name: {machine_name}, previous: {previous}")
+
+        recent = fetchMostRecentVarFromDb(machine_id, "state", "machine_states")
+        print("Recent SQL result:", recent)
+
+        if recent == "on" and previous == "off":
+            send_email(machine_id, machine_name)
+
+        return https_fn.Response(
+            json.dumps({"success": True}),
+            status=200,
+            headers=CORS_HEADERS,
+        )
+    except Exception as e:
+        print(f"Error in email_on_available: {str(e)}")
+        return https_fn.Response(
+            json.dumps({"success": False}),
+            status=500,
+            headers=CORS_HEADERS,
+        )
 
 if __name__ == "__main__":
     model = RandomForestModel(load_model=True)

@@ -38,6 +38,10 @@
       {
         "source": "**",
         "destination": "/index.html"
+      },
+      {
+        "source": "/api/email_on_available",
+        "function": "email_on_available"
       }
     ]
   },
@@ -75,7 +79,14 @@
         },
         "getPeakHours": {
           "memory": "1GB"
-        }
+        },
+        "getLat": {
+          "memory": "512GB"
+        },
+        "getLong": {
+          "memory": "512GB"
+        },
+        
       }
     }
   ]

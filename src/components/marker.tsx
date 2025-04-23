@@ -2,9 +2,23 @@ import React, { useState, useEffect } from 'react';
 import { CustomMarker } from '@/interfaces/marker';
 import { markerStyle, imageStyle, popupStyle } from '@/styles/markerStyles';
 import { formatState } from '@/utils/common';
-
+import { dynamicMarkerStyle, enhancedPopupStyle } from '@/styles/markerStyles';
 
 export const Marker = ({ lat, lng, state, machine, thing_id }: CustomMarker) => {
+  // Ensure lat and lng are valid numbers
+  const numLat = typeof lat === 'string' ? parseFloat(lat) : lat;
+  const numLng = typeof lng === 'string' ? parseFloat(lng) : lng;
+  
+  // More rigorous validation - check for NaN, 0, null, undefined
+  if (numLat === null || numLat === undefined || isNaN(numLat) || numLat === 0 || 
+      numLng === null || numLng === undefined || isNaN(numLng) || numLng === 0) {
+    console.log(`Skipping invalid marker for ${machine}: lat=${lat}, lng=${lng}`);
+    return null;
+  }
+  
+  // Log valid coordinates to confirm they're being used
+  console.log(`Rendering marker at: lat=${numLat}, lng=${numLng} for ${machine}`);
+  
   let backgroundColor = 'grey';
   if (state === "on") {
     backgroundColor = 'red';
@@ -15,7 +29,6 @@ export const Marker = ({ lat, lng, state, machine, thing_id }: CustomMarker) => 
   const [showPopup, setShowPopup] = useState(false);
   const [formattedStateValue, setFormattedStateValue] = useState('Loading...');
 
-  // Handle async formatState function
   useEffect(() => {
     let isMounted = true;
     
@@ -44,31 +57,16 @@ export const Marker = ({ lat, lng, state, machine, thing_id }: CustomMarker) => 
     localStorage.setItem("lastMachine", JSON.stringify({ thing_id: thing_id, machine: machine }));
     window.location.href = "/analytics";
   }
-  
-  // Create a new style object with the dynamic backgroundColor
-  const dynamicMarkerStyle = {
-    ...markerStyle,
-    backgroundColor
-  };
-  
-  // Enhanced popup style with more width for multiple lines
-  const enhancedPopupStyle = {
-    ...popupStyle,
-    width: 'auto',
-    minWidth: '120px',
-    whiteSpace: 'normal',
-    textAlign: 'left' as const
-  };
 
   // Format coordinates to 6 decimal places for readability
-  const formattedLat = lat ? lat.toFixed(6) : 'N/A';
-  const formattedLng = lng ? lng.toFixed(6) : 'N/A';
+  const formattedLat = numLat ? numLat.toFixed(6) : 0;
+  const formattedLng = numLng ? numLng.toFixed(6) : 0;
   
   return (
     <div style={{ position: 'relative' }} onMouseEnter={() => setShowPopup(true)} onMouseLeave={() => setShowPopup(false)}>
-      <div style={dynamicMarkerStyle} onClick={handleClick}>
+      <div style={dynamicMarkerStyle(backgroundColor)} onClick={handleClick}>
         <img src="/gym-icon.webp" alt="Marker" style={imageStyle}/>
-      </div>
+      </div>  
       {showPopup && (
         <div style={enhancedPopupStyle}>
           <div><strong>{machine}</strong></div>

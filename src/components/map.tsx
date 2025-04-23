@@ -18,8 +18,20 @@ export default function Map({
   const [maps, setMaps] = useState<any>(null);
   const polygonRef = useRef<any>(null);
 
+  // Debug machines data
+  useEffect(() => {
+    console.log("Machines data:", machines);
+    // Count valid machines with coordinates
+    const validMachines = machines.filter(machine => 
+      machine.lat !== null && machine.lat !== undefined && !isNaN(machine.lat) && 
+      machine.lng !== null && machine.lng !== undefined && !isNaN(machine.lng)
+    );
+    console.log(`Received ${machines.length} machines, ${validMachines.length} have valid coordinates`);
+  }, [machines]);
+
   // handle API loaded
   const handleApiLoaded = ({ map, maps }: { map: any; maps: any }) => {
+    console.log("Google Maps API loaded");
     setMap(map);
     setMaps(maps);
     if (onMapLoaded) {
@@ -65,6 +77,38 @@ export default function Map({
     }
   }, [buildingOutline, map, maps, center, userZoomed]);
 
+  // render markers with explicit validation
+  const renderMarkers = () => {
+    return machines
+      .filter(machineObj => {
+        const hasValidCoords = 
+          machineObj.lat !== null && 
+          machineObj.lat !== undefined && 
+          !isNaN(machineObj.lat) &&
+          machineObj.lat !== 0 &&
+          machineObj.lng !== null && 
+          machineObj.lng !== undefined && 
+          !isNaN(machineObj.lng) &&
+          machineObj.lng !== 0;
+        
+        if (!hasValidCoords) {
+          console.log(`Filtered out marker for ${machineObj.machine} due to invalid coords: lat=${machineObj.lat}, lng=${machineObj.lng}`);
+        }
+        
+        return hasValidCoords;
+      })
+      .map(machineObj => (
+        <Marker
+          key={machineObj.machine}
+          lat={machineObj.lat}
+          lng={machineObj.lng}
+          state={machineObj.state ? machineObj.state : "na"}
+          machine={machineObj.machine}
+          thing_id={machineObj.thing_id}
+        />
+      ));
+  };
+
   return (
     <GoogleMapReact
       bootstrapURLKeys={{ key: process.env.NEXT_PUBLIC_MAPS_API_KEY! }}
@@ -76,16 +120,7 @@ export default function Map({
       resetBoundsOnResize={true}
       onChange={({ center }) => onMapChange?.(center)}
     >
-      {machines.map((machineObj: any) => (
-        <Marker
-          key={machineObj.machine}
-          lat={machineObj.lat}
-          lng={machineObj.long}
-          state={machineObj.state ? machineObj.state : "na"}
-          machine={machineObj.machine}
-          thing_id={machineObj.thing_id}
-        />
-      ))}
+      {renderMarkers()}
     </GoogleMapReact>
   );
 }

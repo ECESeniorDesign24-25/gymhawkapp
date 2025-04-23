@@ -2,24 +2,11 @@ import axios from 'axios';
 import { MAPS_ENDPOINT } from './consts';
 import { getThingId } from './common';
 import { API_ENDPOINT } from './consts';
+import { GeocodeResponse } from '../interfaces/geocode'; 
 
-
-interface GeocodeResponse {
-  results: {
-    formatted_address: string;
-    geometry: {
-      location: {
-        lat: number;
-        lng: number;
-      };
-    };
-    buildings?: {
-      building_outlines: any[];
-      place_id: string;
-    }[];
-  }[];
-  status: string;
-}
+// cache coordinates to only poll every 15 min
+const coordCache: Record<string, {value: number|null, timestamp: number}> = {};
+const CACHE_EXPIRY = 15 * 60 * 1000;
 
 export const getCoords = async (id: string) => {
     try {
@@ -77,6 +64,15 @@ export const getBuildingOutline = async (id: string) => {
 
 
 export async function getLat(machine: string) {
+  // check cache first
+  const cacheKey = `lat_${machine}`;
+  const now = Date.now();
+  
+  if (coordCache[cacheKey] && (now - coordCache[cacheKey].timestamp) < CACHE_EXPIRY) {
+    console.log(`Using cached lat for ${machine}: ${coordCache[cacheKey].value}`);
+    return coordCache[cacheKey].value;
+  }
+  
   try {
     const thing_id = await getThingId(machine);
     
@@ -85,6 +81,7 @@ export async function getLat(machine: string) {
       return null;
     }
     
+    console.log(`Fetching lat for ${machine} with thing_id=${thing_id}`);
     const response = await fetch(`${API_ENDPOINT}/getLat?thing_id=${thing_id}`);
     
     if (!response.ok) {
@@ -92,13 +89,26 @@ export async function getLat(machine: string) {
     }
     
     const data = await response.json();
-    console.log("Fetched latitude: ", data);
-    // Return the latitude value from the response
-    if (data[0] && data[0].lat !== undefined) {
-      return parseFloat(data[0].lat);
+    console.log(`Raw latitude data for ${machine}:`, data);
+    
+    // Handle various response formats
+    let latValue = null;
+    
+    if (data && data.lat !== undefined) {
+      latValue = parseFloat(data.lat);
+    } else if (data && data[0] && data[0].lat !== undefined) {
+      latValue = parseFloat(data[0].lat);
     }
     
-    return null;
+    // Validate the number
+    if (latValue !== null && !isNaN(latValue) && latValue !== 0) {
+      console.log(`Valid latitude for ${machine}: ${latValue}`);
+      coordCache[cacheKey] = { value: latValue, timestamp: now };
+      return latValue;
+    } else {
+      console.warn(`Invalid latitude for ${machine}: ${latValue}`);
+      return null;
+    }
   } catch (error) {
     console.error('Error getting latitude:', error);
     return null;
@@ -107,6 +117,15 @@ export async function getLat(machine: string) {
 
 
 export async function getLong(machine: string) {
+  // check cache first
+  const cacheKey = `lng_${machine}`;
+  const now = Date.now();
+  
+  if (coordCache[cacheKey] && (now - coordCache[cacheKey].timestamp) < CACHE_EXPIRY) {
+    console.log(`Using cached lng for ${machine}: ${coordCache[cacheKey].value}`);
+    return coordCache[cacheKey].value;
+  }
+  
   try {
     const thing_id = await getThingId(machine);
     
@@ -115,6 +134,7 @@ export async function getLong(machine: string) {
       return null;
     }
     
+    console.log(`Fetching lng for ${machine} with thing_id=${thing_id}`);
     const response = await fetch(`${API_ENDPOINT}/getLong?thing_id=${thing_id}`);
     
     if (!response.ok) {
@@ -122,12 +142,30 @@ export async function getLong(machine: string) {
     }
     
     const data = await response.json();
-    console.log("Fetched longitude: ", data);
-    if (data[0] && data[0].long !== undefined) {
-      return parseFloat(data[0].long);
+    console.log(`Raw longitude data for ${machine}:`, data);
+    
+    // Handle various response formats
+    let lngValue = null;
+    
+    if (data && data.long !== undefined) {
+      lngValue = parseFloat(data.long);
+    } else if (data && data.lng !== undefined) {
+      lngValue = parseFloat(data.lng);
+    } else if (data && data[0] && data[0].long !== undefined) {
+      lngValue = parseFloat(data[0].long);
+    } else if (data && data[0] && data[0].lng !== undefined) {
+      lngValue = parseFloat(data[0].lng);
     }
     
-    return null;
+    // Validate the number
+    if (lngValue !== null && !isNaN(lngValue) && lngValue !== 0) {
+      console.log(`Valid longitude for ${machine}: ${lngValue}`);
+      coordCache[cacheKey] = { value: lngValue, timestamp: now };
+      return lngValue;
+    } else {
+      console.warn(`Invalid longitude for ${machine}: ${lngValue}`);
+      return null;
+    }
   } catch (error) {
     console.error('Error getting longitude:', error);
     return null;

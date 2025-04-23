@@ -35,3 +35,17 @@ export const popupStyle: React.CSSProperties = {
     zIndex: 10,
     boxShadow: '0px 2px 6px rgba(0,0,0,0.3)'
   };
+
+
+export const dynamicMarkerStyle = (backgroundColor: string) => ({
+    ...markerStyle,
+    backgroundColor
+  });
+      
+export const enhancedPopupStyle = {
+    ...popupStyle,
+    width: 'auto',
+    minWidth: '120px',
+    whiteSpace: 'normal',
+    textAlign: 'left' as const
+    };

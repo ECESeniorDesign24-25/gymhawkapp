@@ -123,7 +123,6 @@ export async function fetchDeviceState(machine: string, oldState?: string, varia
       }
   
       const data = await response.json();
-      console.log("Fetched device state: ", data);
       
       // make sure the variable exists in the response
       if (variable && data[0][variable] !== undefined) {
