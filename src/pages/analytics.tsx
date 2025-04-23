@@ -248,10 +248,8 @@ function Analytics() {
           {activeTab === 'user' && (
             <div className={styles.userAnalytics}>
               {selectedMachine ? (
-                <DynamicMachineUsageChart machineId={selectedMachine.thing_id} machineName={selectedMachine.machine} />
-              ) : (
-                null
-              )}
+                <DynamicMachineUsageChart machineId={selectedMachine.thing_id} machineName={selectedMachine.machine} admin={false} />
+              ) : null}
               <h2>All Machines</h2>
               <p>Select a machine to view its usage chart</p>
               &nbsp;
@@ -298,7 +296,34 @@ function Analytics() {
           {/* admin analytics */}
           {activeTab === 'admin' && isAdmin && (
             <div className={styles.adminAnalytics}>
-              <DynamicAdminUsageChart />
+              {selectedMachine ? (
+                  <DynamicMachineUsageChart machineId={selectedMachine.thing_id} machineName={selectedMachine.machine} admin={isAdmin} />
+              ) : null}
+              {machines.length === 0 ? (
+                  <div className={styles.machineStatus} style={{ backgroundColor: '#f8f9fa', textAlign: 'center', padding: '20px' }}>
+                    <h3 className="text-lg font-bold">No machines found</h3>
+                  </div>
+              ) : (
+                  <div className={styles.machineGrid}>
+                    <h2>All Machines</h2>
+                    <p>Select a machine to view its usage chart</p>
+                    &nbsp;
+                    {machines.map((machine) => (
+                        <div
+                            key={machine.machine}
+                            className={styles.machineStatus}
+                            style={{
+                              backgroundColor: machine.state === 'on' ? 'rgba(139, 0, 0, 0.75)' : 'rgba(0, 100, 0, 0.75)',
+                              cursor: 'pointer'
+                            }}
+                            onClick={() => setSelectedMachine(machine)}
+                        >
+                          <h3>{machine.machine}</h3>
+                        </div>
+                    ))}
+                  </div>
+              )}
+
             </div>
           )}
         </div>

@@ -8,12 +8,12 @@ export const CustomBarChart = ({ barChartData, barChartOptions, machineName }: {
           ...barChartOptions,
           scales: {
             ...barChartOptions.scales,
-            x: {
-              title: {
-                display: true,
-                text: 'Hour of Day'
-              }
-            }
+            // x: {
+            //   title: {
+            //     display: true,
+            //     text: 'Hour of Day'
+            //   }
+            // }
           },
           plugins: {
             ...barChartOptions.plugins,
