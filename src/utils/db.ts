@@ -3,6 +3,7 @@ import { db } from "@/lib/firebase"
 import { getCoords, getBuildingOutline, getLat, getLong } from "./map_utils";
 import { API_ENDPOINT } from "./consts";
 import { constants } from "buffer";
+import { getThingId } from "./common";
 
 
 export async function fetchMachines(gymId: string) {
@@ -35,6 +36,13 @@ export async function fetchMachines(gymId: string) {
             } else {
                 floor = undefined;
             }
+            
+            let last_used_time = await fetchLastUsedTime(docSnapshot.id);
+            if (last_used_time === null) {
+                last_used_time = "Never";
+            }
+
+            console.log("last_used_time: ", last_used_time);
 
             return {
                 machine: docSnapshot.id,
@@ -43,7 +51,8 @@ export async function fetchMachines(gymId: string) {
                 thing_id: data.thingId,
                 state: state,
                 machine_type: type,
-                floor: floor
+                floor: floor,
+                last_used_time: last_used_time
             }
         })
 
@@ -114,7 +123,7 @@ export async function fetchDeviceState(machine: string, oldState?: string, varia
       const machines = collection(db, "machines");
       const querySnapshot = await getDocs(machines);
       const thing_id = querySnapshot.docs.find((doc) => doc.id === machine)?.data().thingId;
-    
+
       if (!thing_id) {
         console.error('Thing ID not found for machine:', machine);
         return oldState || 'Unknown';
@@ -156,4 +165,11 @@ export async function fetchDeviceState(machine: string, oldState?: string, varia
         return oldState || 'Unknown';
       }
     }
+}
+
+export async function fetchLastUsedTime(machine: string) {
+    const thing_id = await getThingId(machine);
+    const request = `${API_ENDPOINT}/getLastUsedTime?thing_id=${thing_id}`;
+    const response = await fetch(request);
+    return await response.json();
 }

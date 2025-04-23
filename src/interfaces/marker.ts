@@ -6,4 +6,5 @@ export interface CustomMarker {
     thing_id: string;
     machine_type: string;
     floor: string;
+    last_used_time: string;
 }

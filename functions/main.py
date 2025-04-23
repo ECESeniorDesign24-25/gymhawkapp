@@ -401,32 +401,37 @@ def getLastLong(thing_id: str) -> float:
         return None
 
 
-def retrieve(field, snapshot):
-    return next(iter(snapshot[field].values()))
+def generate_prediction_data(
+    thing_id: str, start_time: str, end_time: str
+) -> pd.DataFrame:
+    start_time = pd.to_datetime(pd.Timestamp(start_time))
+    end_time = pd.to_datetime(pd.Timestamp(end_time))
+
+    # round to nearest 30min interval
+    start_time = start_time.floor("30min")
+    end_time = end_time.floor("30min")
+    start_time = start_time.replace(minute=0 if start_time.minute < 30 else 30)
+    end_time = end_time.replace(minute=0 if end_time.minute < 30 else 30)
+
+    timestamps = pd.date_range(start=start_time, end=end_time, freq="30min")
+    return pd.DataFrame({"thing_id": thing_id, "timestamp": timestamps})
 
 
-def send_email(to_addr: str, machine_name: str):
-    msg = EmailMessage()
-    msg["Subject"] = f"Your machine is now available!"
-    msg["From"] = f"GymHawks <{EMAIL_ADDRESS}>"
-    msg["To"] = to_addr
-    msg.set_content(
-        f"The machine you’ve been waiting for is free.\n\n"
-        "We can’t guarantee it will still be free when you arrive 🏋️‍♂️"
-    )
-    msg.add_alternative(
-        f"""
-        <p>The <strong>machine</strong> you’ve been waiting for is now
-        <span style="color:green">available. See you there 🏋️‍♂️</p></span>
-        """,
-        subtype="html",
-    )
+def getLastUsedTimeHelper(thing_id: str) -> str:
+    try:
+        engine = init_db_connection()
+        query = """
+            SELECT timestamp FROM machine_states WHERE thing_id = :thing_id AND state = 'on' ORDER BY timestamp DESC LIMIT 1
+        """
 
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-        #         print(EMAIL_ADDRESS)
-        #         print(EMAIL_PASS)
-        smtp.login(EMAIL_ADDRESS, EMAIL_PASS)
-        smtp.send_message(msg)
+        with engine.connect() as conn:
+            result = conn.execute(text(query), {"thing_id": thing_id})
+
+            # convert to human readable format
+            return result.scalar().strftime("%Y-%m-%d %H:%M")
+    except Exception as e:
+        print(f"Error fetching last used time for {thing_id}: {e}")
+        return None
 
 
 # =============================================================================
@@ -712,57 +717,15 @@ def getPeakHours(req: https_fn.Request) -> https_fn.Response:
     )
 
 
-def generate_prediction_data(
-    thing_id: str, start_time: str, end_time: str
-) -> pd.DataFrame:
-    start_time = pd.to_datetime(pd.Timestamp(start_time))
-    end_time = pd.to_datetime(pd.Timestamp(end_time))
-
-    # round to nearest 30min interval
-    start_time = start_time.floor("30min")
-    end_time = end_time.floor("30min")
-    start_time = start_time.replace(minute=0 if start_time.minute < 30 else 30)
-    end_time = end_time.replace(minute=0 if end_time.minute < 30 else 30)
-
-    timestamps = pd.date_range(start=start_time, end=end_time, freq="30min")
-    return pd.DataFrame({"thing_id": thing_id, "timestamp": timestamps})
-
-
 @https_fn.on_request()
-def email_on_available(req: https_fn.Request) -> https_fn.Response:
-    print("EMAILING")
-    if req.method == "OPTIONS":
-        return https_fn.Response("", status=204, headers=CORS_HEADERS)
-
-    try:
-        data = req.get_json()
-        print("Request data:", data)
-
-        machine_id = data.get("machine_id")
-        machine_name = data.get("machine_name")
-        previous = data.get("previous_state")
-
-        print(
-            f"machine_id: {machine_id}, machine_name: {machine_name}, previous: {previous}"
-        )
-
-        recent = fetchMostRecentVarFromDb(machine_id, "state", "machine_states")
-        print("Recent SQL result:", recent)
-
-        if recent == "on" and previous == "off":
-            send_email(machine_id, machine_name)
-
+def getLastUsedTime(req: https_fn.Request) -> https_fn.Response:
+    thing_id = req.args.get("thing_id")
+    last_used_time = getLastUsedTimeHelper(thing_id)
+    if last_used_time is None:
+        return https_fn.Response(json.dumps([]), status=200, headers=CORS_HEADERS)
+    else:
         return https_fn.Response(
-            json.dumps({"success": True}),
-            status=200,
-            headers=CORS_HEADERS,
-        )
-    except Exception as e:
-        print(f"Error in email_on_available: {str(e)}")
-        return https_fn.Response(
-            json.dumps({"success": False}),
-            status=500,
-            headers=CORS_HEADERS,
+            json.dumps(last_used_time), status=200, headers=CORS_HEADERS
         )
 
 

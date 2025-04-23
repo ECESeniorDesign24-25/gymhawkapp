@@ -95,6 +95,7 @@ export default function Map({
           thing_id={machineObj.thing_id}
           machine_type={machineObj.machine_type}
           floor={machineObj.floor}
+          last_used_time={machineObj.last_used_time}
         />
       ));
   };

@@ -7,6 +7,7 @@ from main import (
     peakHoursHelper,
     getLastLat,
     getLastLong,
+    getLastUsedTimeHelper,
 )
 import math
 
@@ -272,6 +273,13 @@ def test_d1_blue_get_lat():
     assert abs(lat) > 0
 
 
+@pytest.mark.unknown
+def test_unknown_get_lat():
+    thing_id = "unknown"
+    lat = getLastLat(thing_id)
+    assert lat is None, f"UnknownTestGetLat | Response is not None: {lat}"
+
+
 @pytest.mark.d1_blue
 def test_d1_blue_get_long():
     thing_id = "0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8"
@@ -294,3 +302,46 @@ def test_d1_green_get_long():
     long = getLastLong(thing_id)
     assert long is not None, f"d1GreenTestGetLong | Response is None: {long}"
     assert abs(long) > 0
+
+
+@pytest.mark.unknown
+def test_unknown_get_long():
+    thing_id = "unknown"
+    long = getLastLong(thing_id)
+    assert long is None, f"UnknownTestGetLong | Response is not None: {long}"
+
+
+@pytest.mark.d1_green
+def test_d1_green_get_last_used_time():
+    thing_id = "6ad4d9f7-8444-4595-bf0b-5fb62c36430c"
+    last_used_time = getLastUsedTimeHelper(thing_id)
+    assert last_used_time is not None, (
+        f"d1GreenTestGetLastUsedTime | Response is None: {last_used_time}"
+    )
+
+
+@pytest.mark.d1_green2
+def test_d1_green2_get_last_used_time():
+    thing_id = "c7996422-9462-4fa7-8d02-bfe8c7aba7e4"
+    last_used_time = getLastUsedTimeHelper(thing_id)
+    assert last_used_time is not None, (
+        f"d2GreenTestGetLastUsedTime | Response is None: {last_used_time}"
+    )
+
+
+@pytest.mark.d1_blue
+def test_d1_blue_get_last_used_time():
+    thing_id = "0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8"
+    last_used_time = getLastUsedTimeHelper(thing_id)
+    assert last_used_time is not None, (
+        f"d1BlueTestGetLastUsedTime | Response is None: {last_used_time}"
+    )
+
+
+@pytest.mark.unknown
+def test_unknown_get_last_used_time():
+    thing_id = "unknown"
+    last_used_time = getLastUsedTimeHelper(thing_id)
+    assert last_used_time is None, (
+        f"UnknownTestGetLastUsedTime | Response is not None: {last_used_time}"
+    )

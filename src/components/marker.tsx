@@ -4,7 +4,7 @@ import { imageStyle } from '@/styles/markerStyles';
 import { formatState } from '@/utils/common';
 import { dynamicMarkerStyle, enhancedPopupStyle } from '@/styles/markerStyles';
 
-export const Marker = ({ lat, lng, state, machine, thing_id, machine_type, floor }: CustomMarker) => {
+export const Marker = ({ lat, lng, state, machine, thing_id, machine_type, floor, last_used_time }: CustomMarker) => {
   const numLat = typeof lat === 'string' ? parseFloat(lat) : lat;
   const numLng = typeof lng === 'string' ? parseFloat(lng) : lng;
   
@@ -62,6 +62,7 @@ export const Marker = ({ lat, lng, state, machine, thing_id, machine_type, floor
           <div><strong>{machine_type}</strong></div>
           <div>State: {formattedStateValue}</div>
           <div>Floor: {floor}</div>
+          <div>Last Used: {last_used_time}</div>
         </div>
       )}
     </div>

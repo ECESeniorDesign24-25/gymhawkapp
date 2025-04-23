@@ -6,6 +6,10 @@
       "**/.*",
       "**/node_modules/**"
     ],
+    "frameworksBackend": {
+      "region": "us-central1",
+      "memory": "512MiB"
+    },
     "rewrites": [
       {
         "source": "/api/getDeviceState",
@@ -36,12 +40,16 @@
         "function": "getLong"
       },
       {
-        "source": "**",
-        "destination": "/index.html"
-      },
-      {
         "source": "/api/email_on_available",
         "function": "email_on_available"
+      },
+      {
+        "source": "/api/getLastUsedTime",
+        "function": "getLastUsedTime"
+      },
+      {
+        "source": "**",
+        "destination": "/index.html"
       }
     ]
   },
@@ -81,12 +89,14 @@
           "memory": "1GB"
         },
         "getLat": {
-          "memory": "512GB"
+          "memory": "512MB"
         },
         "getLong": {
-          "memory": "512GB"
+          "memory": "512MB"
         },
-        
+        "getLastUsedTime": {
+          "memory": "512MB"
+        }
       }
     }
   ]
