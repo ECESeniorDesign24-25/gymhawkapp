@@ -4,4 +4,6 @@ export interface CustomMarker {
     state: string;
     machine: string;
     thing_id: string;
+    machine_type: string;
+    floor: string;
 }

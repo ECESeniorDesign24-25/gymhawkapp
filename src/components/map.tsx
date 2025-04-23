@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { DARK_MAP_THEME, ZOOM_LEVEL } from '@/styles/customStyles';
+import { DARK_MAP_THEME } from '@/styles/customStyles';
 import { Marker } from '@/components/marker';
 import { CustomMap } from '@/interfaces/map';
+import { ZOOM_LEVEL } from '@/utils/consts';
 const GoogleMapReact = dynamic(() => import('google-map-react'), { ssr: false });
 
 
@@ -18,20 +19,9 @@ export default function Map({
   const [maps, setMaps] = useState<any>(null);
   const polygonRef = useRef<any>(null);
 
-  // Debug machines data
-  useEffect(() => {
-    console.log("Machines data:", machines);
-    // Count valid machines with coordinates
-    const validMachines = machines.filter(machine => 
-      machine.lat !== null && machine.lat !== undefined && !isNaN(machine.lat) && 
-      machine.lng !== null && machine.lng !== undefined && !isNaN(machine.lng)
-    );
-    console.log(`Received ${machines.length} machines, ${validMachines.length} have valid coordinates`);
-  }, [machines]);
 
-  // handle API loaded
+  // handle google maps api
   const handleApiLoaded = ({ map, maps }: { map: any; maps: any }) => {
-    console.log("Google Maps API loaded");
     setMap(map);
     setMaps(maps);
     if (onMapLoaded) {
@@ -79,6 +69,8 @@ export default function Map({
 
   // render markers with explicit validation
   const renderMarkers = () => {
+
+    // filter out invalid lat/long
     return machines
       .filter(machineObj => {
         const hasValidCoords = 
@@ -91,10 +83,6 @@ export default function Map({
           !isNaN(machineObj.lng) &&
           machineObj.lng !== 0;
         
-        if (!hasValidCoords) {
-          console.log(`Filtered out marker for ${machineObj.machine} due to invalid coords: lat=${machineObj.lat}, lng=${machineObj.lng}`);
-        }
-        
         return hasValidCoords;
       })
       .map(machineObj => (
@@ -105,6 +93,8 @@ export default function Map({
           state={machineObj.state ? machineObj.state : "na"}
           machine={machineObj.machine}
           thing_id={machineObj.thing_id}
+          machine_type={machineObj.machine_type}
+          floor={machineObj.floor}
         />
       ));
   };

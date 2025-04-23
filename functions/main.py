@@ -17,7 +17,7 @@ from consts import *
 import statistics
 import pandas as pd
 from model import RandomForestModel
-import smtplib 
+import smtplib
 from email.message import EmailMessage
 
 # set up firebase app
@@ -385,7 +385,8 @@ def getLastLat(thing_id: str) -> float:
     except Exception as e:
         print(f"Error fetching last lat for {thing_id}: {e}")
         return None
-    
+
+
 def getLastLong(thing_id: str) -> float:
     try:
         engine = init_db_connection()
@@ -399,6 +400,7 @@ def getLastLong(thing_id: str) -> float:
         print(f"Error fetching last long for {thing_id}: {e}")
         return None
 
+
 def retrieve(field, snapshot):
     return next(iter(snapshot[field].values()))
 
@@ -406,8 +408,8 @@ def retrieve(field, snapshot):
 def send_email(to_addr: str, machine_name: str):
     msg = EmailMessage()
     msg["Subject"] = f"Your machine is now available!"
-    msg["From"]    = f"GymHawks <{EMAIL_ADDRESS}>"
-    msg["To"]      = to_addr
+    msg["From"] = f"GymHawks <{EMAIL_ADDRESS}>"
+    msg["To"] = to_addr
     msg.set_content(
         f"The machine you’ve been waiting for is free.\n\n"
         "We can’t guarantee it will still be free when you arrive 🏋️‍♂️"
@@ -421,10 +423,11 @@ def send_email(to_addr: str, machine_name: str):
     )
 
     with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-#         print(EMAIL_ADDRESS)
-#         print(EMAIL_PASS)
+        #         print(EMAIL_ADDRESS)
+        #         print(EMAIL_PASS)
         smtp.login(EMAIL_ADDRESS, EMAIL_PASS)
         smtp.send_message(msg)
+
 
 # =============================================================================
 # Cloud Functions
@@ -663,17 +666,21 @@ def retrainModel():
         table_name="training_results",
     )
 
+
 @https_fn.on_request()
 def getLat(req: https_fn.Request) -> https_fn.Response:
     thing_id = req.args.get("thing_id")
     lat = getLastLat(thing_id)
     return https_fn.Response(json.dumps({"lat": lat}), status=200, headers=CORS_HEADERS)
 
+
 @https_fn.on_request()
 def getLong(req: https_fn.Request) -> https_fn.Response:
     thing_id = req.args.get("thing_id")
     long = getLastLong(thing_id)
-    return https_fn.Response(json.dumps({"long": long}), status=200, headers=CORS_HEADERS)
+    return https_fn.Response(
+        json.dumps({"long": long}), status=200, headers=CORS_HEADERS
+    )
 
 
 @https_fn.on_request()
@@ -731,11 +738,13 @@ def email_on_available(req: https_fn.Request) -> https_fn.Response:
         data = req.get_json()
         print("Request data:", data)
 
-        machine_id   = data.get("machine_id")
+        machine_id = data.get("machine_id")
         machine_name = data.get("machine_name")
-        previous     = data.get("previous_state")
+        previous = data.get("previous_state")
 
-        print(f"machine_id: {machine_id}, machine_name: {machine_name}, previous: {previous}")
+        print(
+            f"machine_id: {machine_id}, machine_name: {machine_name}, previous: {previous}"
+        )
 
         recent = fetchMostRecentVarFromDb(machine_id, "state", "machine_states")
         print("Recent SQL result:", recent)
@@ -755,6 +764,7 @@ def email_on_available(req: https_fn.Request) -> https_fn.Response:
             status=500,
             headers=CORS_HEADERS,
         )
+
 
 if __name__ == "__main__":
     model = RandomForestModel(load_model=True)

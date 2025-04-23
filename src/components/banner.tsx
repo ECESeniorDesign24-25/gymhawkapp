@@ -8,7 +8,6 @@ export default function Banner() {
   const handleLogout = async () => {
     try {
       await logout();
-      // Redirect handled in auth context
     } catch (error) {
       console.error('Logout failed:', error);
     }

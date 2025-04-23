@@ -1,4 +1,4 @@
-import { getDocs, collection, query } from "firebase/firestore"; 
+import { getDocs, collection, query, getDoc, doc } from "firebase/firestore"; 
 import { db } from "@/lib/firebase"
 import { getCoords, getBuildingOutline, getLat, getLong } from "./map_utils";
 import { API_ENDPOINT } from "./consts";
@@ -12,24 +12,38 @@ export async function fetchMachines(gymId: string) {
             return [];
         }
         const machines = collection(db, "machines");
+        const thing_ids = collection(db, "thing_ids");
         const querySnapshot = await getDocs(machines);
 
         // this is so we wait for each to load
-        const machinePromises = querySnapshot.docs.map(async (doc) => {
-            if (doc.data().gymId !== gymId) {
+        const machinePromises = querySnapshot.docs.map(async (docSnapshot) => {
+            if (docSnapshot.data().gymId !== gymId) {
                 return null;
             }
-            const data = doc.data();
+            const data = docSnapshot.data();
             
-            const lat = await getLat(doc.id);
-            const lng = await getLong(doc.id);
+            const lat = await getLat(docSnapshot.id);
+            const lng = await getLong(docSnapshot.id);
+            const type = await fetchDeviceState(docSnapshot.id, 'Unknown', "type");
+            const state = await fetchDeviceState(docSnapshot.id, 'Unknown', "state");
+
+            const thing_id_doc = await getDoc(doc(thing_ids, data.thingId));
             
+            let floor;
+            if (thing_id_doc.exists()) {
+                floor = thing_id_doc.data()?.floor;
+            } else {
+                floor = undefined;
+            }
+
             return {
-                machine: doc.id,
+                machine: docSnapshot.id,
                 lat,
                 lng,
                 thing_id: data.thingId,
-                state: fetchDeviceState(doc.id, 'Unknown', "state")
+                state: state,
+                machine_type: type,
+                floor: floor
             }
         })
 

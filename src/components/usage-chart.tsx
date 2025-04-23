@@ -20,7 +20,7 @@ import dynamic from 'next/dynamic';
 import { convertTimeseriesToDate, get12amOnDate, isToday } from "../utils/time_utils";
 import { getDatasetStyle, getBarChartOptions, getDailyChartData, getHourlyChartData, getLineChartOptions } from "../utils/chart_utils";
 import { CustomBarChart } from "./custom_bar_chart";
-
+import { MachineChart } from "@/interfaces/chart";
 // set up chart js
 ChartJS.register(
   CategoryScale,
@@ -36,15 +36,10 @@ ChartJS.register(
   zoomPlugin
 );
 
-// chart properties
-interface MachineUsageChartProps {
-  machineId: string;
-  machineName: string;
-}
 
 //===================================================================================
 // builds the usage chart
-const MachineUsageChart: React.FC<MachineUsageChartProps> = ({ machineId, machineName }) => {
+const MachineUsageChart: React.FC<MachineChart> = ({ machineId, machineName }) => {
   const [usageData, setUsageData] = useState<{ time: Date; state: number }[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [isDevMode, setIsDevMode] = useState<boolean>(false);
