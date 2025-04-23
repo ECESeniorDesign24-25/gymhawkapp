@@ -110,6 +110,7 @@ def fix_param_types(params: dict) -> dict:
         "type": str,
         "name": str,
         "rms": float,
+        "floor": int,
     }
 
     for key, value in params.items():
@@ -434,25 +435,7 @@ def getLastUsedTimeHelper(thing_id: str) -> str:
         return None
 
 
-# =============================================================================
-# Cloud Functions
-# =============================================================================
-@https_fn.on_request()
-def getDeviceState(req: https_fn.Request) -> https_fn.Response:
-    if req.method == "OPTIONS":
-        return https_fn.Response("", status=204, headers=CORS_HEADERS)
-
-    thing_id = req.args.get("thing_id")
-    variable = req.args.get("variable")
-
-    # get most recent db entry for the variable and thing id
-    db_entry = fetchMostRecentVarFromDb(thing_id, variable, "machine_states")
-    return https_fn.Response(json.dumps(db_entry), status=200, headers=CORS_HEADERS)
-
-
-# cron job to add a time step to the database for each machine every 1 minute
-@scheduler_fn.on_schedule(schedule="*/1 * * * *")
-def addTimeStep(event: scheduler_fn.ScheduledEvent = None) -> None:
+def addTimeStepUtil() -> None:
     try:
         start = t.time()
         current_time = datetime.now(timezone.utc)
@@ -583,7 +566,9 @@ def addTimeStep(event: scheduler_fn.ScheduledEvent = None) -> None:
             values_to_write[thing_id]["machineName"] = (
                 db.collection("thing_ids").document(thing_id).get().to_dict()["name"]
             )
-
+            values_to_write[thing_id]["floor"] = (
+                db.collection("thing_ids").document(thing_id).get().to_dict()["floor"]
+            )
             device_status = getDeviceStatus(thing_id, devices)
             values_to_write[thing_id]["device_status"] = device_status
 
@@ -636,6 +621,28 @@ def addTimeStep(event: scheduler_fn.ScheduledEvent = None) -> None:
     except Exception as e:
         print(f"Error in addTimeStep: {str(e)}")
         raise
+
+
+# =============================================================================
+# Cloud Functions
+# =============================================================================
+@https_fn.on_request()
+def getDeviceState(req: https_fn.Request) -> https_fn.Response:
+    if req.method == "OPTIONS":
+        return https_fn.Response("", status=204, headers=CORS_HEADERS)
+
+    thing_id = req.args.get("thing_id")
+    variable = req.args.get("variable")
+
+    # get most recent db entry for the variable and thing id
+    db_entry = fetchMostRecentVarFromDb(thing_id, variable, "machine_states")
+    return https_fn.Response(json.dumps(db_entry), status=200, headers=CORS_HEADERS)
+
+
+# cron job to add a time step to the database for each machine every 1 minute
+@scheduler_fn.on_schedule(schedule="*/1 * * * *")
+def addTimeStep(event: scheduler_fn.ScheduledEvent = None) -> None:
+    addTimeStepUtil()
 
 
 @https_fn.on_request()
@@ -730,41 +737,4 @@ def getLastUsedTime(req: https_fn.Request) -> https_fn.Response:
 
 
 if __name__ == "__main__":
-    model = RandomForestModel(load_model=True)
-
-    # start at 7 am end at 8 pm
-    start_time = "2025-04-17 07:00:00"
-    end_time = "2025-04-17 20:00:00"
-
-    print("Building dummy df")
-
-    # 0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8
-    # print("================================================")
-    # print("Thing id: ", "0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8")
-    # dummy_df = generate_prediction_data(
-    #     "0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8", start_time, end_time
-    # )
-
-    # peak_hours = peakHoursHelper(
-    #     "0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8",
-    #     "2025-04-17",
-    #     start_time,
-    #     end_time,
-    #     peak=True,
-    # )
-    # print("peak hours: ", peak_hours)
-
-    # least_likely_hours = peakHoursHelper(
-    #     "0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8",
-    #     "2025-04-17",
-    #     start_time,
-    #     end_time,
-    #     peak=False,
-    # )
-    # print("least likely hours: ", least_likely_hours)
-
-    thing_id = "6ad4d9f7-8444-4595-bf0b-5fb62c36430c"
-    start_time = "2025-04-22T01:35:02.007Z"
-    variable = "state"
-    timeseries = getTimeseries(thing_id, start_time, variable)
-    print(timeseries)
+    addTimeStepUtil()
