@@ -66,6 +66,7 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [hasError, setHasError] = useState<boolean>(false);
   const [isAggregateLoading, setIsAggregateLoading] = useState<boolean>(true);
+  const [totalThirtyDayUsage, setTotalThirtyDayUsage] = useState<{ hours: number; minutes: number }>({ hours: 0, minutes: 0 });
 
   //===================================================================================
   // client-side useEffect to calculate hourly and daily usage patterns from usageData
@@ -85,6 +86,7 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
         hourlyData[hour] = { total: 0, on: 0 };
       }
       hourlyData[hour].total++;
+      // If state is 0, it means the machine is in use (on)
       if (point.state === 0) { // 0 means in use
         hourlyData[hour].on++;
       }
@@ -109,6 +111,7 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
         dailyData[day] = { total: 0, on: 0 };
       }
       dailyData[day].total++;
+      // If state is 0, it means the machine is in use (on)
       if (point.state === 0) { // 0 means in use
         dailyData[day].on++;
       }
@@ -158,7 +161,7 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
             
             const formattedData = timeseries.map((point: any) => {
               const timestamp = point.timestamp || point.time || '';
-              const state = point.state || point.value || 'off';
+              const rawState = point.state || point.value || 'off';
               const deviceStatus = point.status || point.device_status || STATUS_ONLINE;
               
               if (!timestamp) {
@@ -166,9 +169,15 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
               }
               
               const date = convertTimeseriesToDate(point);
+              
+              // IMPORTANT: For gym equipment, "on" means the machine is in use (someone is using it)
+              // We convert this to: 0 = in use (on), 1 = not in use (off)
+              const isInUse = rawState === "on";
+              const normalizedState = isInUse ? 0 : 1;
+              
               return {
                 time: date,
-                state: state === "on" ? 0 : 1,
+                state: normalizedState,
                 device_status: deviceStatus
               };
             }).filter(Boolean);
@@ -187,6 +196,25 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
         point.device_status === STATUS_ONLINE
       );
       
+      // Calculate total usage over 30 days
+      // IMPORTANT: Only count points where device is ONLINE and in use (state === 0)
+      const onlinePointsCount = onlinePoints.length;
+      const inUsePointsCount = allDataPoints.filter(point => point.state === 0).length;
+      const totalUsagePoints = onlinePoints.filter(point => point.state === 0).length;
+      
+      console.log('📊 30-day usage calculation:', {
+        totalDataPoints: allDataPoints.length,
+        onlinePoints: onlinePointsCount,
+        inUsePoints: inUsePointsCount,
+        actualUsagePoints: totalUsagePoints
+      });
+      
+      const totalMinutes = totalUsagePoints;
+      const totalHours = Math.floor(totalMinutes / 60);
+      const remainingMinutes = totalMinutes % 60;
+      // Store these values to display later
+      setTotalThirtyDayUsage({ hours: totalHours, minutes: remainingMinutes });
+      
       // Aggregate by hour in local timezone
       const hourlyData: { [key: number]: { total: number; on: number } } = {};
       onlinePoints.forEach(point => {
@@ -195,6 +223,7 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
           hourlyData[hour] = { total: 0, on: 0 };
         }
         hourlyData[hour].total++;
+        // If state is 0, it means the machine is in use (on)
         if (point.state === 0) { // 0 means in use
           hourlyData[hour].on++;
         }
@@ -215,6 +244,7 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
           dailyData[day] = { total: 0, on: 0 };
         }
         dailyData[day].total++;
+        // If state is 0, it means the machine is in use (on)
         if (point.state === 0) { // 0 means in use
           dailyData[day].on++;
         }
@@ -272,7 +302,7 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
         const formattedData = timeseries.map((point: any) => {
           // Handle different possible API response structures
           const timestamp = point.timestamp || point.time || '';
-          const state = point.state || point.value || 'off';
+          const rawState = point.state || point.value || 'off';
           
           // API returns "status" not "device_status"
           const deviceStatus = point.status || point.device_status || STATUS_ONLINE;
@@ -283,9 +313,15 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
           }
           
           const date = convertTimeseriesToDate(point);
+          
+          // IMPORTANT: For gym equipment, "on" means the machine is in use (someone is using it)
+          // We convert this to: 0 = in use (on), 1 = not in use (off)
+          const isInUse = rawState === "on";
+          const normalizedState = isInUse ? 0 : 1;
+          
           return {
             time: date,
-            state: state === "on" ? 0 : 1, // convert state to binary for plot purposes
+            state: normalizedState,
             device_status: deviceStatus
           };
         }).filter(Boolean); // Remove any null values
@@ -479,10 +515,31 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
   const calculateTotalUsageHours = (): { hours: number; minutes: number } => {
     if (usageData.length === 0) return { hours: 0, minutes: 0 };
     
+    // Count total data points
+    const totalPoints = usageData.length;
+    
+    // Count points by different status/state combinations for debugging
+    const onlinePoints = usageData.filter(point => 
+      point.device_status === STATUS_ONLINE
+    ).length;
+    
+    const inUsePoints = usageData.filter(point => 
+      point.state === 0
+    ).length;
+    
     // Filter for ONLINE status and count points where state is 0 (in use)
+    // IMPORTANT: Only count points where device is ONLINE
     const usagePoints = usageData.filter(point => 
       point.device_status === STATUS_ONLINE && point.state === 0
     ).length;
+    
+    console.log('📊 Usage calculation:', {
+      totalPoints,
+      onlinePoints,
+      inUsePoints,
+      actualUsagePoints: usagePoints,
+      date: selectedDate.toISOString().split('T')[0]
+    });
     
     // Each data point represents approximately 1 minute of usage
     const totalMinutes = usagePoints;
@@ -578,6 +635,17 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
                 );
               })()}
             </div>
+            
+            {/* Add 30-day total usage display */}
+            <div style={{ textAlign: 'center', margin: '10px 0', backgroundColor: 'rgba(240, 249, 255, 0.8)', padding: '10px', borderRadius: '5px', border: '1px solid #e0e0e0' }}>
+              <h4 style={{ margin: '0 0 8px 0' }}>
+                Total Usage Time (Past 30 Days)
+              </h4>
+              <div style={{ fontSize: '18px', fontWeight: 'bold' }}>
+                {totalThirtyDayUsage.hours} hour{totalThirtyDayUsage.hours !== 1 ? 's' : ''} {totalThirtyDayUsage.minutes} minute{totalThirtyDayUsage.minutes !== 1 ? 's' : ''}
+              </div>
+            </div>
+            
             <div>
               <h4 style={{ textAlign: 'center', margin: '10px 0' }}>Hourly Usage Pattern</h4>
               <div className="h-64">
