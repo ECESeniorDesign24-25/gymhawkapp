@@ -39,7 +39,7 @@ ChartJS.register(
 
 //===================================================================================
 // builds the usage chart
-const MachineUsageChart: React.FC<MachineChart> = ({ machineId, machineName }) => {
+const MachineUsageChart: React.FC<MachineChart> = ({ machineId, machineName, admin }) => {
   const [usageData, setUsageData] = useState<{ time: Date; state: number }[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [isDevMode, setIsDevMode] = useState<boolean>(false);
@@ -202,15 +202,22 @@ const MachineUsageChart: React.FC<MachineChart> = ({ machineId, machineName }) =
           Next Day
         </button>
       </div>
-      <div className="h-64">
-        <Line data={chartData} options={lineChartOptions} />
-      </div>
-      <div className="h-64">
-        <CustomBarChart barChartData={hourlyChartData} barChartOptions={barChartOptions} machineName={machineName} />
-      </div>
-      <div className="h-64">
-        <CustomBarChart barChartData={dailyChartData} barChartOptions={barChartOptions} machineName={machineName} />
-      </div>
+      {!admin ? (
+          <>
+            <div style={{ height: '200px' }}>
+              <Line data={chartData} options={lineChartOptions} />
+            </div>
+            <div style={{ height: '300px' }}>
+              <CustomBarChart barChartData={hourlyChartData} barChartOptions={barChartOptions} machineName={machineName} />
+            </div>
+          </>
+      ) : (
+          <div style={{ height: '300px' }}>
+            <CustomBarChart barChartData={dailyChartData} barChartOptions={barChartOptions} machineName={machineName} />
+          </div>
+      )}
+      <div style={{ marginBottom: '1rem' }}></div>
+
     </div>
   );
 };
