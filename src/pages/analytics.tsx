@@ -305,6 +305,9 @@ function Analytics() {
                   </div>
               ) : (
                   <div className={styles.machineGrid}>
+                    <h2>All Machines</h2>
+                    <p>Select a machine to view its usage chart</p>
+                    &nbsp;
                     {machines.map((machine) => (
                         <div
                             key={machine.machine}
