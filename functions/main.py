@@ -121,7 +121,7 @@ def fix_param_types(params: dict) -> dict:
                 print(
                     f"Warning: Could not convert {key} value {value} to {types[key].__name__}"
                 )
-                continue
+                params[key] = None
 
     return params
 
