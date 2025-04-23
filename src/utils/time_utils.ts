@@ -13,13 +13,22 @@ export const get12amOnDate = (date: Date) => {
     const targetDate = new Date(date);
     targetDate.setHours(0, 0, 0, 0);
     
-    // Format to ISO 8601 format that the API expects - "YYYY-MM-DD"
+    // Format to ISO 8601 format that the API expects - "YYYY-MM-DDT00:00:00Z"
     const year = targetDate.getFullYear();
     const month = String(targetDate.getMonth() + 1).padStart(2, '0');
     const day = String(targetDate.getDate()).padStart(2, '0');
     
-    // Return simple ISO date format without time component
-    return `${year}-${month}-${day}`;
+    // Return formatted date with time component as specified in the README
+    const dateStr = `${year}-${month}-${day}T00:00:00Z`;
+    
+    console.log('🕛 Date formatting for timeseries request:', {
+        inputDate: date.toString(),
+        targetDate: targetDate.toString(),
+        formattedDate: dateStr,
+        year, month, day
+    });
+    
+    return dateStr;
 }
 
 export const convertTimeseriesToDate = (point: any) => {

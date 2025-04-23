@@ -82,7 +82,6 @@ export const Marker = ({ lat, lng, state, machine, thing_id, machine_type, floor
           {device_status !== "ONLINE" && <div>Status: {device_status || 'UNKNOWN'}</div>}
           <div>Floor: {floor}</div>
           <div>Last Used: {formatLastUsedTime(last_used_time)}</div>
-          <div>Device: {machine}</div>
         </div>
       )}
     </div>

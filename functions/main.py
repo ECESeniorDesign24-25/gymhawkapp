@@ -161,7 +161,7 @@ def fetch_timeseries_from_db(
     try:
         engine = init_db_connection()
         query = f"""
-        SELECT {variable}, timestamp 
+        SELECT {variable}, timestamp, device_status
         FROM {table_name} 
         WHERE thing_id = :machine AND timestamp >= :startTime
         ORDER BY timestamp
@@ -174,7 +174,8 @@ def fetch_timeseries_from_db(
 
             # Serialize into a list of dictionaries
             return [
-                {variable: row[0], "timestamp": row[1].isoformat()} for row in result
+                {variable: row[0], "timestamp": row[1].isoformat(), "status": row[2]}
+                for row in result
             ]
     except Exception as e:
         print(f"Error fetching from db: {e}")

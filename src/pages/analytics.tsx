@@ -6,18 +6,18 @@ import Footer from '@/components/footer';
 import Banner from '@/components/banner';
 import styles from '@/styles/index.module.css';
 import { HOME_STYLE } from '@/styles/customStyles';
-import { fetchGyms, fetchMachines, fetchDeviceState } from '@/utils/db';
+import { fetchGyms, fetchMachines, fetchDeviceState, fetchLastUsedTime } from '@/utils/db';
 import { useAuth } from '@/lib/auth';
 import { EMAIL } from '@/utils/consts';
 import { RequireAuth } from '@/components/requireAuth';
 import { Machine } from '@/interfaces/machine';
 import { GymOption } from '@/interfaces/gym';
 import { formatLastUsedTime } from '@/utils/time_utils';
+import { Spinner } from '@/components/spinner';
 
 // dynamically import Select 
 const DynamicSelect = dynamic(() => Promise.resolve(Select), { ssr: false });
-const DynamicMachineUsageChart = dynamic(() => import('@/components/analytics_chart'), { ssr: false });
-const DynamicAdminUsageChart = dynamic(() => import('@/components/admin_analytics_chart'), { ssr: false });
+const DynamicMachineUsageChart = dynamic(() => import('@/components/graph'), { ssr: false });
 
 function Analytics() {
   const router = useRouter();
@@ -29,13 +29,48 @@ function Analytics() {
   const { user, isAdmin } = useAuth();
   const [selectPlaceholder, setSelectPlaceholder] = useState<any>("Select a gym");
   const [oldStates, setOldStates] = useState<any>({});
+  const [isLoadingGyms, setIsLoadingGyms] = useState<boolean>(true);
+  const [isLoadingMachines, setIsLoadingMachines] = useState<boolean>(false);
+  const [chartsLoading, setChartsLoading] = useState<boolean>(true);
+  const [isLoadingMachineDetails, setIsLoadingMachineDetails] = useState<boolean>(false);
 
+  // Add effect to control chart loading indicators
+  useEffect(() => {
+    // Function to check if charts are loaded
+    const checkChartsLoaded = () => {
+      // Charts are considered loaded when canvas elements are present
+      const chartCanvases = document.querySelectorAll('canvas');
+      const chartLoadingContainers = document.querySelectorAll('.chart-loading-container');
+      
+      if (chartCanvases.length > 0) {
+        // Charts are loaded, hide spinners
+        setChartsLoading(false);
+        chartLoadingContainers.forEach(container => {
+          (container as HTMLElement).style.visibility = 'hidden';
+        });
+      } else {
+        // Charts are loading, show spinners
+        setChartsLoading(true);
+        chartLoadingContainers.forEach(container => {
+          (container as HTMLElement).style.visibility = 'visible';
+        });
+      }
+    };
+    
+    // Check initially and then every second until charts are loaded
+    const intervalId = setInterval(checkChartsLoaded, 1000);
+    
+    // Cleanup interval on component unmount
+    return () => clearInterval(intervalId);
+  }, [selectedGym, machines.length]);
 
   // fetch gyms from database on first render
   useEffect(() => {
     async function loadGyms() {
+      setIsLoadingGyms(true);
       const gyms = await fetchGyms();
       setGyms(gyms || []);
+      setIsLoadingGyms(false);
 
       // check if we have a past gym saved in the browser and set it as the selected gym
       const lastGym = localStorage.getItem("lastGym");
@@ -58,7 +93,9 @@ function Analytics() {
         return;
       }
       
+      setIsLoadingMachines(true);
       const machines = await fetchMachines(selectedGym.id);
+      setIsLoadingMachines(false);
       
       // Always set machines to empty array if no machines found
       if (!machines || machines.length === 0) {
@@ -128,8 +165,8 @@ function Analytics() {
               state = newState;
               deviceStatus = newDeviceStatus;
               
-              // We don't need to poll last_used_time frequently as it doesn't change often
-              // We'll just use the value we got from the initial machine fetch
+              // Use the getLastUsedTime API for the last used time
+              lastUsedTime = await fetchLastUsedTime(machine.machine);
             } catch (err) {
               console.error('Error fetching device state, using last known value:', err);
               // Keep using the last known values
@@ -192,7 +229,10 @@ function Analytics() {
   }
 
   const handleAdminMachineSelect = (machine: Machine) => {
+    setIsLoadingMachineDetails(true);
     setSelectedAdminMachine(machine);
+    // Reset loading after a brief delay to allow chart components to load
+    setTimeout(() => setIsLoadingMachineDetails(false), 500);
   };
 
   const renderAdminMachineDetails = () => {
@@ -204,22 +244,50 @@ function Analytics() {
       );
     }
 
+    if (isLoadingMachineDetails) {
+      return (
+        <div className="flex items-center justify-center h-full" style={{ height: "300px" }}>
+          <Spinner text="Loading machine details..." />
+        </div>
+      );
+    }
+
+    // Determine color scheme based on state and status
+    const isOffline = selectedAdminMachine.device_status === "OFFLINE" || selectedAdminMachine.device_status === "UNKNOWN";
+    const isInUse = selectedAdminMachine.state === 'on';
+    const statusColor = isOffline ? 'rgba(128, 128, 128, 0.75)' : // Gray for offline
+                        isInUse ? 'rgba(139, 0, 0, 0.75)' :       // Red for in use
+                        'rgba(0, 100, 0, 0.75)';                 // Green for available
+    const statusBorder = isOffline ? '5px solid rgba(128, 128, 128, 1)' :
+                        isInUse ? '5px solid rgba(139, 0, 0, 1)' :
+                        '5px solid rgba(0, 100, 0, 1)';
+
     return (
       <div className={styles.machineAnalyticsContent}>
-        <h1 className={styles.machineTitle}>{selectedAdminMachine.machine_type || 'Machine'}</h1>
+        <h1 className={styles.machineTitle} style={{ borderLeft: statusBorder, paddingLeft: '10px' }}>
+          {selectedAdminMachine.machine_type || 'Machine'}
+        </h1>
         
-        <div className={styles.machineDetailsCard}>
+        <div className={styles.machineDetailsCard} style={{ borderLeft: statusBorder }}>
           <div className={styles.machineDetail}>
-            <strong>ID:</strong> {selectedAdminMachine.machine}
+            <strong>Device Name:</strong> {selectedAdminMachine.machine}
+          </div>
+          <div className={styles.machineDetail}>
+            <strong>Thing ID:</strong> {selectedAdminMachine.thing_id}
           </div>
           <div className={styles.machineDetail}>
             <strong>Floor:</strong> {selectedAdminMachine.floor}
           </div>
           <div className={styles.machineDetail}>
-            <strong>Status:</strong> {selectedAdminMachine.device_status || 'UNKNOWN'}
+            <strong>Status:</strong> <span style={{ color: isOffline ? 'gray' : 'inherit' }}>{selectedAdminMachine.device_status || 'UNKNOWN'}</span>
           </div>
           <div className={styles.machineDetail}>
-            <strong>Current State:</strong> {selectedAdminMachine.state === 'on' ? 'In Use' : 'Available'}
+            <strong>Current State:</strong> <span style={{ 
+              color: isOffline ? 'gray' : (isInUse ? 'darkred' : 'darkgreen'),
+              fontWeight: 'bold'
+            }}>
+              {isInUse ? 'In Use' : 'Available'}
+            </span>
           </div>
           <div className={styles.machineDetail}>
             <strong>Last Used:</strong> {formatLastUsedTime(selectedAdminMachine.last_used_time)}
@@ -228,7 +296,17 @@ function Analytics() {
 
         <div className={styles.usageChartContainer}>
           <h2>Usage Analytics</h2>
-          <DynamicMachineUsageChart machineId={selectedAdminMachine.thing_id} machineName={selectedAdminMachine.machine} viewMode="admin" />
+          {isLoadingMachines ? (
+            <div className="flex items-center justify-center h-full" style={{ height: "200px" }}>
+              <Spinner text="Loading analytics..." />
+            </div>
+          ) : (
+            <DynamicMachineUsageChart 
+              machineId={selectedAdminMachine.thing_id} 
+              machineName={selectedAdminMachine.machine} 
+              viewMode="admin" 
+            />
+          )}
         </div>
       </div>
     );
@@ -268,13 +346,19 @@ function Analytics() {
           <br />
           {/* search bar */}
           <div className={styles.searchBarContainer} style={{ marginBottom: '20px' }}>
-            <DynamicSelect
-              key="gym-select"
-              options={gyms}
-              placeholder={selectPlaceholder}
-              styles={HOME_STYLE}
-              onChange={handleGymSelect}
-            />
+            {isLoadingGyms ? (
+              <div className="flex items-center justify-center p-2">
+                <Spinner size="small" text="Loading gyms..." />
+              </div>
+            ) : (
+              <DynamicSelect
+                key="gym-select"
+                options={gyms}
+                placeholder={selectPlaceholder}
+                styles={HOME_STYLE}
+                onChange={handleGymSelect}
+              />
+            )}
           </div>
           
           {/* user analytics */}
@@ -282,7 +366,15 @@ function Analytics() {
             <div className={styles.userAnalytics}>
               <h2>All Machines</h2>
               
-              {machines.length === 0 ? (
+              {isLoadingGyms ? (
+                <div className="flex items-center justify-center h-full" style={{ height: "200px" }}>
+                  <Spinner text="Loading gyms..." />
+                </div>
+              ) : isLoadingMachines ? (
+                <div className="flex items-center justify-center h-full" style={{ height: "200px" }}>
+                  <Spinner text="Loading machines..." />
+                </div>
+              ) : machines.length === 0 ? (
                 <div className={styles.machineStatus} style={{ backgroundColor: '#f8f9fa', textAlign: 'center', padding: '20px' }}>
                   <h3 className="text-lg font-bold">No machines found</h3>
                 </div>
@@ -298,25 +390,38 @@ function Analytics() {
                             : machine.state === 'on' 
                               ? 'rgba(139, 0, 0, 0.75)'  // Red for machines in use
                               : 'rgba(0, 100, 0, 0.75)', // Green for available machines
+                          borderLeft: machine.state === 'on' ? '5px solid rgba(139, 0, 0, 1)' : machine.state === 'off' ? '5px solid rgba(0, 100, 0, 1)' : '5px solid rgba(128, 128, 128, 1)'
                         }}
                       >
                         <div><strong>{machine.machine_type || 'Unknown Type'}</strong></div>
-                        {machine.device_status === "ONLINE" ? (
-                          <div className="flex flex-row items-center space-x-4">
-                            <div className="flex flex-row items-center space-x-2">
-                              <div className="w-4 h-4" style={{ backgroundColor: 'rgba(0, 100, 0, 0.3)' }}></div>
-                              <span>Available</span>
-                            </div>
-                            <div className="flex flex-row items-center space-x-2">
-                              <div className="w-4 h-4" style={{ backgroundColor: 'rgba(139, 0, 0, 0.3)' }}></div>
-                              <span>In Use</span>
-                            </div>
+                        <div className="mt-2">
+                          <div className="flex flex-row items-center space-x-2">
+                            <div className={`${styles.statusIndicator} ${
+                              machine.device_status === "OFFLINE" || machine.device_status === "UNKNOWN" 
+                                ? styles.statusOffline
+                                : styles.statusOnline
+                            }`}></div>
+                            <span>Device: {machine.device_status || 'UNKNOWN'}</span>
                           </div>
-                        ) : (
-                          <div className="mt-2">
-                            <span>Status: {machine.device_status || 'UNKNOWN'}</span>
+                        </div>
+                        <div className="mt-2">
+                          <div className="flex flex-row items-center space-x-2">
+                            <div className={`${styles.statusIndicator} ${
+                              machine.device_status === "OFFLINE" || machine.device_status === "UNKNOWN"
+                                ? styles.statusOffline
+                                : machine.state === 'on' 
+                                  ? styles.statusInUse
+                                  : styles.statusAvailable
+                            }`}></div>
+                            <span>
+                              {machine.device_status === "OFFLINE" || machine.device_status === "UNKNOWN"
+                                ? 'Unavailable'
+                                : machine.state === 'on' 
+                                  ? 'In Use' 
+                                  : 'Available'}
+                            </span>
                           </div>
-                        )}
+                        </div>
                         <div className="mt-2">
                           <span>Floor: {machine.floor}</span>
                         </div>
@@ -327,6 +432,22 @@ function Analytics() {
                       
                       <div className={styles.machineChartContainer}>
                         <DynamicMachineUsageChart machineId={machine.thing_id} machineName={machine.machine} viewMode="user" />
+                        {/* Loading indicator for charts - displayed before the chart loads */}
+                        <div className="chart-loading-container" style={{ 
+                          position: 'absolute', 
+                          top: 0, 
+                          left: 0, 
+                          width: '100%', 
+                          height: '100%', 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          justifyContent: 'center',
+                          backgroundColor: 'rgba(255, 255, 255, 0.7)',
+                          zIndex: 10,
+                          visibility: 'hidden'
+                        }}>
+                          <Spinner size="small" text="Loading chart..." />
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -341,7 +462,15 @@ function Analytics() {
               <div className={styles.adminPanels}>
                 <div className={styles.adminMachineList}>
                   <h2>Machines</h2>
-                  {machines.length === 0 ? (
+                  {isLoadingGyms ? (
+                    <div className="flex items-center justify-center h-full" style={{ height: "200px" }}>
+                      <Spinner text="Loading gyms..." />
+                    </div>
+                  ) : isLoadingMachines ? (
+                    <div className="flex items-center justify-center h-full" style={{ height: "200px" }}>
+                      <Spinner text="Loading machines..." />
+                    </div>
+                  ) : machines.length === 0 ? (
                     <div className={styles.noMachines}>No machines found</div>
                   ) : (
                     <div className={styles.machineGrid}>
@@ -360,8 +489,13 @@ function Analytics() {
                               : machine.state === 'on' 
                                 ? 'rgba(139, 0, 0, 0.75)'  // Red for machines in use
                                 : 'rgba(0, 100, 0, 0.75)', // Green for available machines
+                            borderLeft: machine.state === 'on' ? '5px solid rgba(139, 0, 0, 1)' : machine.state === 'off' ? '5px solid rgba(0, 100, 0, 1)' : '5px solid rgba(128, 128, 128, 1)'
                           }}>
-                            {machine.state === 'on' ? 'In Use' : 'Available'}
+                            {machine.device_status === "OFFLINE" || machine.device_status === "UNKNOWN"
+                              ? 'Offline'
+                              : machine.state === 'on' 
+                                ? 'In Use' 
+                                : 'Available'}
                           </div>
                         </div>
                       ))}

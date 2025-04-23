@@ -98,13 +98,19 @@ export async function fetchMachineTimeseries(machineId: string, startTime: strin
         // Format query parameters according to the API requirements
         const params = new URLSearchParams({
             thing_id: machineId,
-            startTime: startTime,
+            start_time: startTime,
             variable: variable
         });
         
         const endpoint = `${API_ENDPOINT}/getStateTimeseries?${params.toString()}`;
         
-        console.log("fetching timeseries for machine: ", machineId, "at endpoint: ", endpoint);
+        console.log("📊 TIMESERIES REQUEST:", {
+            machineId, 
+            startTime,
+            variable,
+            endpoint
+        });
+        
         const response = await fetch(endpoint, {
             method: 'GET',
             headers: {
@@ -113,17 +119,36 @@ export async function fetchMachineTimeseries(machineId: string, startTime: strin
             }
         });
         
-        if (!response.ok) {
-            console.error('Error fetching timeseries:', response.status, response.statusText);
-            return [];
+        // Attempt to parse the response body regardless of HTTP status
+        let data = [];
+        try {
+            const responseText = await response.text();
+            
+            // Check if the response is valid JSON before parsing
+            if (responseText && responseText.trim().startsWith('[')) {
+                data = JSON.parse(responseText);
+                console.log(`📊 TIMESERIES RESPONSE for ${machineId}:`, {
+                    status: response.status,
+                    dataLength: data?.length || 0,
+                    firstPoint: data?.length > 0 ? data[0] : null,
+                    lastPoint: data?.length > 0 ? data[data.length - 1] : null
+                });
+            } else {
+                console.error('❌ Invalid JSON response:', responseText);
+            }
+        } catch (parseError) {
+            console.error('❌ Failed to parse response:', parseError);
         }
         
-        const data = await response.json();
+        // Log an error if the response status is not OK
+        if (!response.ok) {
+            console.warn(`⚠️ API returned status ${response.status}, but we're still processing the data if available`);
+        }
         
         return data || [];
         
     } catch (e) {
-        console.error('Error in fetchMachineTimeseries:', e);
+        console.error('❌ Error in fetchMachineTimeseries:', e);
         return [];
     }
 }

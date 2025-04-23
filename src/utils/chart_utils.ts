@@ -57,7 +57,7 @@ export const getBarChartOptions = (machineName: string) => {
         },
         plugins: {
           title: {
-            display: true,
+            display: false,
             text: machineName
           },
           tooltip: {
@@ -143,7 +143,7 @@ export const getLineChartOptions = (machineName: string, chartStartTime: Date, c
             min: chartStartTime.getTime(),
             max: chartEndTime.getTime(),
             title: {
-              display: true,
+              display: false,
               text: 'Time of Day (Central Time)',
             },
           },
@@ -182,7 +182,7 @@ export const getLineChartOptions = (machineName: string, chartStartTime: Date, c
             }
           },
           title: {
-            display: true,
+            display: false,
             text: machineName,
           },
           tooltip: {
