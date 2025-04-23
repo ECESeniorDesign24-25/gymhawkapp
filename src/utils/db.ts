@@ -1,8 +1,10 @@
-import { getDocs, collection, query } from "firebase/firestore"; 
+import { getDocs, collection, query, getDoc, doc } from "firebase/firestore"; 
 import { db } from "@/lib/firebase"
-import { getCoords, getBuildingOutline } from "./mapsAPI";
+import { getCoords, getBuildingOutline, getLat, getLong } from "./map_utils";
 import { API_ENDPOINT } from "./consts";
-// const cors = require('cors')({origin: true});
+import { constants } from "buffer";
+import { getThingId } from "./common";
+
 
 export async function fetchMachines(gymId: string) {
     try {
@@ -11,21 +13,46 @@ export async function fetchMachines(gymId: string) {
             return [];
         }
         const machines = collection(db, "machines");
+        const thing_ids = collection(db, "thing_ids");
         const querySnapshot = await getDocs(machines);
 
         // this is so we wait for each to load
-        const machinePromises = querySnapshot.docs.map(async (doc) => {
-            if (doc.data().gymId !== gymId) {
+        const machinePromises = querySnapshot.docs.map(async (docSnapshot) => {
+            if (docSnapshot.data().gymId !== gymId) {
                 return null;
             }
-            const data = doc.data();
+            const data = docSnapshot.data();
+            
+            const lat = await getLat(docSnapshot.id);
+            const lng = await getLong(docSnapshot.id);
+            const type = await fetchDeviceState(docSnapshot.id, 'Unknown', "type");
+            const state = await fetchDeviceState(docSnapshot.id, 'Unknown', "state");
+
+            const thing_id_doc = await getDoc(doc(thing_ids, data.thingId));
+            
+            let floor;
+            if (thing_id_doc.exists()) {
+                floor = thing_id_doc.data()?.floor;
+            } else {
+                floor = undefined;
+            }
+            
+            let last_used_time = await fetchLastUsedTime(docSnapshot.id);
+            if (last_used_time === null) {
+                last_used_time = "Never";
+            }
+
+            console.log("last_used_time: ", last_used_time);
 
             return {
-                machine: doc.id,
-                lat: fetchDeviceState(doc.id, undefined, undefined, "lat"),
-                lng: fetchDeviceState(doc.id, undefined, undefined, "lng"),
+                machine: docSnapshot.id,
+                lat,
+                lng,
                 thing_id: data.thingId,
-                state: fetchDeviceState(doc.id, undefined, undefined, "state")
+                state: state,
+                machine_type: type,
+                floor: floor,
+                last_used_time: last_used_time
             }
         })
 
@@ -81,36 +108,30 @@ export async function fetchMachineTimeseries(machineId: string, startTime: strin
             }
         });
         
-        // With no-cors mode, we can't access response.ok or response.json()
-        // So we'll just return empty data
-        console.log("Attempted to fetch timeseries for machine: ", machineId);
         return [];
         
     } catch (e) {
         console.error('Error in fetchMachineTimeseries:', e);
         return [];
     }
-}
+}  
 
 
-export async function fetchDeviceState(machine: string, signal?: AbortSignal, oldState?: string, variable?: string) {
+export async function fetchDeviceState(machine: string, oldState?: string, variable?: string) {
     try {
       // always default to loading state
       const machines = collection(db, "machines");
       const querySnapshot = await getDocs(machines);
       const thing_id = querySnapshot.docs.find((doc) => doc.id === machine)?.data().thingId;
-    
+
       if (!thing_id) {
         console.error('Thing ID not found for machine:', machine);
-        return oldState || "loading";
+        return oldState || 'Unknown';
       }
   
-      console.log('Fetching device state for:', { machine, thing_id, variable });
       const request = `${API_ENDPOINT}/getDeviceState?thing_id=${thing_id}&variable=${variable}`;
-      const response = await fetch(request, { signal });
-      console.log('Response:', response);
-
-
+      const response = await fetch(request);
+      
       if (!response.ok) {
         const errorText = await response.text();
         console.error('Failed to fetch device state:', {
@@ -119,28 +140,36 @@ export async function fetchDeviceState(machine: string, signal?: AbortSignal, ol
           error: errorText,
           machine,
           thing_id,
-          variable
-        });
-        return oldState || "loading";
+          variable,
+        });        
+        return oldState || 'Unknown';
       }
   
       const data = await response.json();
+      
       // make sure the variable exists in the response
       if (variable && data[0][variable] !== undefined) {
         return data[0][variable];
       }
       
-      return oldState || "loading";
+      return oldState || 'Unknown';
     } catch (err: any) {
       if (err.name === 'AbortError') {
-        return oldState || "loading";
+        return oldState || 'Unknown';
       } else {
         console.error('Failed to fetch device state:', {
           error: err,
           machine,
           variable
         });
-        return oldState || "loading";
+        return oldState || 'Unknown';
       }
     }
+}
+
+export async function fetchLastUsedTime(machine: string) {
+    const thing_id = await getThingId(machine);
+    const request = `${API_ENDPOINT}/getLastUsedTime?thing_id=${thing_id}`;
+    const response = await fetch(request);
+    return await response.json();
 }

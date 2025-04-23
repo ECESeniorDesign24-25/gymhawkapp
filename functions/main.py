@@ -17,6 +17,8 @@ from consts import *
 import statistics
 import pandas as pd
 from model import RandomForestModel
+import smtplib
+from email.message import EmailMessage
 
 # set up firebase app
 # cred_path = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
@@ -371,6 +373,67 @@ def peakHoursHelper(
         return []
 
 
+def getLastLat(thing_id: str) -> float:
+    try:
+        engine = init_db_connection()
+        query = """
+            SELECT lat FROM machine_states WHERE thing_id = :thing_id AND lat IS NOT NULL and lat != 0 ORDER BY timestamp DESC LIMIT 1
+        """
+        with engine.connect() as conn:
+            result = conn.execute(text(query), {"thing_id": thing_id})
+            return result.scalar()
+    except Exception as e:
+        print(f"Error fetching last lat for {thing_id}: {e}")
+        return None
+
+
+def getLastLong(thing_id: str) -> float:
+    try:
+        engine = init_db_connection()
+        query = """
+            SELECT long FROM machine_states WHERE thing_id = :thing_id AND long IS NOT NULL and long != 0 ORDER BY timestamp DESC LIMIT 1
+        """
+        with engine.connect() as conn:
+            result = conn.execute(text(query), {"thing_id": thing_id})
+            return result.scalar()
+    except Exception as e:
+        print(f"Error fetching last long for {thing_id}: {e}")
+        return None
+
+
+def generate_prediction_data(
+    thing_id: str, start_time: str, end_time: str
+) -> pd.DataFrame:
+    start_time = pd.to_datetime(pd.Timestamp(start_time))
+    end_time = pd.to_datetime(pd.Timestamp(end_time))
+
+    # round to nearest 30min interval
+    start_time = start_time.floor("30min")
+    end_time = end_time.floor("30min")
+    start_time = start_time.replace(minute=0 if start_time.minute < 30 else 30)
+    end_time = end_time.replace(minute=0 if end_time.minute < 30 else 30)
+
+    timestamps = pd.date_range(start=start_time, end=end_time, freq="30min")
+    return pd.DataFrame({"thing_id": thing_id, "timestamp": timestamps})
+
+
+def getLastUsedTimeHelper(thing_id: str) -> str:
+    try:
+        engine = init_db_connection()
+        query = """
+            SELECT timestamp FROM machine_states WHERE thing_id = :thing_id AND state = 'on' ORDER BY timestamp DESC LIMIT 1
+        """
+
+        with engine.connect() as conn:
+            result = conn.execute(text(query), {"thing_id": thing_id})
+
+            # convert to human readable format
+            return result.scalar().strftime("%Y-%m-%d %H:%M")
+    except Exception as e:
+        print(f"Error fetching last used time for {thing_id}: {e}")
+        return None
+
+
 # =============================================================================
 # Cloud Functions
 # =============================================================================
@@ -610,6 +673,22 @@ def retrainModel():
 
 
 @https_fn.on_request()
+def getLat(req: https_fn.Request) -> https_fn.Response:
+    thing_id = req.args.get("thing_id")
+    lat = getLastLat(thing_id)
+    return https_fn.Response(json.dumps({"lat": lat}), status=200, headers=CORS_HEADERS)
+
+
+@https_fn.on_request()
+def getLong(req: https_fn.Request) -> https_fn.Response:
+    thing_id = req.args.get("thing_id")
+    long = getLastLong(thing_id)
+    return https_fn.Response(
+        json.dumps({"long": long}), status=200, headers=CORS_HEADERS
+    )
+
+
+@https_fn.on_request()
 def getPeakHours(req: https_fn.Request) -> https_fn.Response:
     # parse req
     thing_id = req.args.get("thing_id")
@@ -638,20 +717,16 @@ def getPeakHours(req: https_fn.Request) -> https_fn.Response:
     )
 
 
-def generate_prediction_data(
-    thing_id: str, start_time: str, end_time: str
-) -> pd.DataFrame:
-    start_time = pd.to_datetime(pd.Timestamp(start_time))
-    end_time = pd.to_datetime(pd.Timestamp(end_time))
-
-    # round to nearest 30min interval
-    start_time = start_time.floor("30min")
-    end_time = end_time.floor("30min")
-    start_time = start_time.replace(minute=0 if start_time.minute < 30 else 30)
-    end_time = end_time.replace(minute=0 if end_time.minute < 30 else 30)
-
-    timestamps = pd.date_range(start=start_time, end=end_time, freq="30min")
-    return pd.DataFrame({"thing_id": thing_id, "timestamp": timestamps})
+@https_fn.on_request()
+def getLastUsedTime(req: https_fn.Request) -> https_fn.Response:
+    thing_id = req.args.get("thing_id")
+    last_used_time = getLastUsedTimeHelper(thing_id)
+    if last_used_time is None:
+        return https_fn.Response(json.dumps([]), status=200, headers=CORS_HEADERS)
+    else:
+        return https_fn.Response(
+            json.dumps(last_used_time), status=200, headers=CORS_HEADERS
+        )
 
 
 if __name__ == "__main__":

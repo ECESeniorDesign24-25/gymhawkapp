@@ -2,36 +2,12 @@ import { useState, useEffect, useRef } from 'react';
 import Select from 'react-select';
 import Footer from '@/components/footer';
 import Banner from '@/components/banner';
-import dynamic from 'next/dynamic';
 import styles from '@/styles/index.module.css';
-import { HOME_STYLE, DARK_MAP_THEME, ZOOM_LEVEL } from '@/styles/customStyles';
+import { HOME_STYLE } from '@/styles/customStyles';
 import { fetchGyms, fetchMachines, fetchDeviceState } from '@/utils/db';
-import { MachineMarker } from '@/components/marker';
 import { RequireAuth } from '@/components/requireAuth';
-
-interface Gym {
-  id: string;
-  label: string;
-  floors: any[];
-  coords: {
-    lat: number;
-    lng: number;
-  } | null;
-  building: any;
-}
-
-interface GymOption {
-  value: string;
-  label: string;
-  id: string;
-  coords: {
-    lat: number;
-    lng: number;
-  };
-  building: any[];
-}
-
-const GoogleMapReact = dynamic(() => import('google-map-react'), { ssr: false });
+import { Gym, GymOption } from '@/interfaces/gym';
+import Map from '@/components/map';
 
 export default function Home() {
 
@@ -46,13 +22,11 @@ export default function Home() {
   const [machines, setMachines] = useState<any[]>([]);
   const [selectPlaceholder, setSelectPlaceholder] = useState<string>("Select a gym");
 
-  const polygonRef = useRef<any>(null);
-
   // fetch gyms from database on first render
   useEffect(() => {
     async function loadGyms() {
       const gyms = await fetchGyms();
-      setGyms(gyms || []);
+      setGyms(gyms || []);  
 
       // check if we have a past gym saved in the browser 
       const lastGym = localStorage.getItem("lastGym");
@@ -85,6 +59,7 @@ export default function Home() {
       }
       const machines = await fetchMachines(selectedOption.id);
       setMachines(machines || []);
+      
     }
     loadMachines();
   }, [selectedOption]);
@@ -129,61 +104,19 @@ export default function Home() {
     }
   };
 
-  // draw building outline on map change
-  useEffect(() => {
-    if (map && maps && buildingOutline) {
-      if (polygonRef.current) {
-        polygonRef.current.setMap(null);
-      }
-  
-      let convertedPath;
-      if (Array.isArray(buildingOutline[0])) {
-        convertedPath = buildingOutline[0].map((coord) => ({
-          lat: coord[1],
-          lng: coord[0]
-        }));
-      } else {
-        convertedPath = buildingOutline.map((coord) => ({
-          lat: coord[1],
-          lng: coord[0]
-        }));
-      }
-  
-      polygonRef.current = new maps.Polygon({
-        paths: convertedPath,
-        strokeColor: "#0000FF",
-        strokeOpacity: 0.8,
-        strokeWeight: 2,
-        map: map
-      });
-  
-      // fit bounds if not zoomed
-      if (!userZoomed) {
-        const bounds = new maps.LatLngBounds();
-        convertedPath.forEach(coord => bounds.extend(coord));
-        bounds.extend(center);
-        map.fitBounds(bounds);
-      }
+  // handle map and maps API references
+  const handleMapLoaded = (mapInstance: any, mapsApi: any) => {
+    setMap(mapInstance);
+    setMaps(mapsApi);
+  };
 
-    } else {
-      if (!map) console.log("Map instance not set");
-      if (!maps) console.log("Maps API not set");
-      if (!buildingOutline) console.log("Building outline is null or undefined");
-    }
-  }, [buildingOutline, map, maps, center, userZoomed]);
-
-  // set initial map
-  const handleApiLoaded = ({ map, maps }: {map: any, maps: any}) => {
-    setMap(map);
-    setMaps(maps);
+  // handle map center change
+  const handleMapChange = (newCenter: { lat: number; lng: number }) => {
+    setCenter(newCenter);
   };
 
   // poll machine states every 1s and update dict
   useEffect(() => {
-    const controller = new AbortController();
-
-    // store old states
-    const oldStates: any = {};
     const intervalId = setInterval(() => {
       setMachines(prevMachines => {
         // return empty if no machines
@@ -193,15 +126,8 @@ export default function Home() {
         Promise.all(
           prevMachines.map(async (machine) => {
             try {
-              const state = await fetchDeviceState(machine.machine, controller.signal, oldStates[machine.machine]);
-
-              // store new state with old state
-              const newState = { ...machine, state, oldState: oldStates[machine.machine] };
-
-              // update old state
-              oldStates[machine.machine] = state;
-
-              return newState;
+              const state = await fetchDeviceState(machine.machine, "Unknown", "state");
+              return { ...machine, state };
             } catch (err) {
               console.error('Error fetching device state for', machine.machine, err);
               return machine;
@@ -236,27 +162,14 @@ export default function Home() {
             </div>
           </div>
           <div className={styles.mapContainer}>
-            <GoogleMapReact
-              bootstrapURLKeys={{ key: process.env.NEXT_PUBLIC_MAPS_API_KEY! }}
+            <Map
               center={center}
-              defaultZoom={ZOOM_LEVEL}
-              yesIWantToUseGoogleMapApiInternals
-              options={DARK_MAP_THEME}
-              onGoogleApiLoaded={handleApiLoaded}
-              resetBoundsOnResize={true}
-              onChange={({ center }) => setCenter(center)}
-            >
-              {machines.map((machineObj) => (
-                <MachineMarker
-                  key={machineObj.machine}
-                  lat={machineObj.lat}
-                  lng={machineObj.lng}
-                  state={machineObj.state ? machineObj.state : "na"}
-                  machine={machineObj.machine}
-                  thing_id={machineObj.thing_id}
-                />
-              ))}
-            </GoogleMapReact>
+              machines={machines}
+              buildingOutline={buildingOutline}
+              onMapChange={handleMapChange}
+              onMapLoaded={handleMapLoaded}
+              userZoomed={userZoomed}
+            />
           </div>
         </div>
         <Footer />

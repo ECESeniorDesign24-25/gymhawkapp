@@ -6,6 +6,10 @@
       "**/.*",
       "**/node_modules/**"
     ],
+    "frameworksBackend": {
+      "region": "us-central1",
+      "memory": "512MiB"
+    },
     "rewrites": [
       {
         "source": "/api/getDeviceState",
@@ -26,6 +30,22 @@
       {
         "source": "/api/retrainModel",
         "function": "retrainModel"
+      },
+      {
+        "source": "/api/getLat",
+        "function": "getLat"
+      },
+      {
+        "source": "/api/getLong",
+        "function": "getLong"
+      },
+      {
+        "source": "/api/email_on_available",
+        "function": "email_on_available"
+      },
+      {
+        "source": "/api/getLastUsedTime",
+        "function": "getLastUsedTime"
       },
       {
         "source": "**",
@@ -50,7 +70,34 @@
         "firebase-debug.log",
         "firebase-debug.*.log",
         "*.local"
-      ]
+      ],
+      "runtime_options": {
+        "memory": "512MB",
+        "timeoutSeconds": 60
+      },
+      "function_overrides": {
+        "retrainModel": {
+          "memory": "1GB"
+        },
+        "addTimeStep": {
+          "memory": "1GB"
+        },
+        "getStateTimeseries": {
+          "memory": "1GB"
+        },
+        "getPeakHours": {
+          "memory": "1GB"
+        },
+        "getLat": {
+          "memory": "512MB"
+        },
+        "getLong": {
+          "memory": "512MB"
+        },
+        "getLastUsedTime": {
+          "memory": "512MB"
+        }
+      }
     }
   ]
 }

@@ -1,3 +1,5 @@
+import { ZOOM_LEVEL } from '@/utils/consts';
+
 export const HOME_STYLE = {
     control: (provided: any) => ({
       ...provided,
@@ -30,11 +32,9 @@ export const HOME_STYLE = {
     }),
 };
 
-export const ZOOM_LEVEL = 22
-
 /* 
-    dark mode taken from: 
-    https://developers.google.com/maps/documentation/javascript/examples/style-array#maps_style_array-typescript 
+  dark mode taken from: 
+  https://developers.google.com/maps/documentation/javascript/examples/style-array#maps_style_array-typescript 
 */
 export const DARK_MAP_THEME = {
     center: { lat: 40.674, lng: -73.945 },
@@ -50,8 +50,17 @@ export const DARK_MAP_THEME = {
       },
       {
         featureType: "poi",
-        elementType: "labels.text.fill",
-        stylers: [{ color: "#d59563" }],
+        elementType: "labels",
+        stylers: [{ visibility: "off" }],
+      },
+      {
+        featureType: "poi.business",
+        stylers: [{ visibility: "off" }],
+      },
+      {
+        featureType: "transit",
+        elementType: "labels.icon",
+        stylers: [{ visibility: "off" }],
       },
       {
         featureType: "poi.park",

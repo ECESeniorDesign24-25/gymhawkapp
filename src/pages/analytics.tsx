@@ -107,7 +107,6 @@ function Analytics() {
 
  // poll machine states every 1s and update dict
  useEffect(() => {
-  const controller = new AbortController();
   const oldStates: any = {};
   
   // do nothing if we havent selected a gym or no machines were found
@@ -135,8 +134,8 @@ function Analytics() {
             
             try {
               const [newState, newDeviceStatus] = await Promise.all([
-                fetchDeviceState(machine.machine, controller.signal, oldStates[machine.machine], "state"),
-                fetchDeviceState(machine.machine, controller.signal, oldStates[machine.machine], "device_status")
+                fetchDeviceState(machine.machine, oldStates[machine.machine], "state"),
+                fetchDeviceState(machine.machine, oldStates[machine.machine], "device_status")
               ]);
               
               // Only update if fetch was successful
