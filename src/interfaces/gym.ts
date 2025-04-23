@@ -13,9 +13,7 @@ export interface GymOption {
   value: string;
   label: string;
   id: string;
-  coords: {
-    lat: number;
-    lng: number;
-  };
+  floors: number;
+  coords: any;
   building: any[];
 }

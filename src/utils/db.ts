@@ -27,6 +27,7 @@ export async function fetchMachines(gymId: string) {
             const lng = await getLong(docSnapshot.id);
             const type = await fetchDeviceState(docSnapshot.id, 'Unknown', "type");
             const state = await fetchDeviceState(docSnapshot.id, 'Unknown', "state");
+            const device_status = await fetchDeviceState(docSnapshot.id, 'OFFLINE', "device_status");
 
             const thing_id_doc = await getDoc(doc(thing_ids, data.thingId));
             
@@ -42,14 +43,13 @@ export async function fetchMachines(gymId: string) {
                 last_used_time = "Never";
             }
 
-            console.log("last_used_time: ", last_used_time);
-
             return {
                 machine: docSnapshot.id,
                 lat,
                 lng,
                 thing_id: data.thingId,
                 state: state,
+                device_status: device_status,
                 machine_type: type,
                 floor: floor,
                 last_used_time: last_used_time

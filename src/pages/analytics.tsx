@@ -9,32 +9,14 @@ import { fetchGyms, fetchMachines, fetchDeviceState } from '@/utils/db';
 import { useAuth } from '@/lib/auth';
 import { EMAIL } from '@/utils/consts';
 import { RequireAuth } from '@/components/requireAuth';
+import { Machine } from '@/interfaces/machine';
+import { GymOption } from '@/interfaces/gym';
+import { formatLastUsedTime } from '@/utils/time_utils';
 
 // dynamically import Select 
 const DynamicSelect = dynamic(() => Promise.resolve(Select), { ssr: false });
-const DynamicMachineUsageChart = dynamic(() => import('@/components/usage-chart'), { ssr: false });
-const DynamicAdminUsageChart = dynamic(() => import('@/components/daily-usage-chart'), { ssr: false });
-
-// custom gym option type
-interface GymOption {
-  value: string;
-  label: string;
-  id: string;
-  floors: number;
-  coords: any;
-  building: any[];
-}
-
-// custom machine type
-interface Machine {
-  machine: string;
-  thing_id: string;
-  state: string | Promise<string>;
-  device_status: string;
-  lat: number;
-  lng: number;
-  usagePercentage?: number; 
-}
+const DynamicMachineUsageChart = dynamic(() => import('@/components/analytics_chart'), { ssr: false });
+const DynamicAdminUsageChart = dynamic(() => import('@/components/admin_analytics_chart'), { ssr: false });
 
 function Analytics() {
   const [selectedGym, setSelectedGym] = useState<GymOption | null>(null);
@@ -131,6 +113,7 @@ function Analytics() {
             // fetch state and device state
             let state = oldStates[machine.machine] || "loading";
             let deviceStatus = machine.device_status || "OFFLINE";
+            let lastUsedTime = machine.last_used_time || "Never";
             
             try {
               const [newState, newDeviceStatus] = await Promise.all([
@@ -141,6 +124,9 @@ function Analytics() {
               // Only update if fetch was successful
               state = newState;
               deviceStatus = newDeviceStatus;
+              
+              // We don't need to poll last_used_time frequently as it doesn't change often
+              // We'll just use the value we got from the initial machine fetch
             } catch (err) {
               console.error('Error fetching device state, using last known value:', err);
               // Keep using the last known values
@@ -151,7 +137,8 @@ function Analytics() {
               ...machine, 
               state, 
               device_status: deviceStatus,
-              oldState: oldStates[machine.machine] 
+              oldState: oldStates[machine.machine],
+              last_used_time: lastUsedTime
             };
 
             // store new state with old state
@@ -267,12 +254,16 @@ function Analytics() {
                       key={machine.machine}
                       className={styles.machineStatus}
                       style={{
-                        backgroundColor: machine.state === 'on' ? 'rgba(139, 0, 0, 0.75)' : 'rgba(0, 100, 0, 0.75)',
+                        backgroundColor: machine.device_status === "OFFLINE" || machine.device_status === "UNKNOWN" 
+                          ? 'rgba(128, 128, 128, 0.75)' // Gray for offline/unknown devices
+                          : machine.state === 'on' 
+                            ? 'rgba(139, 0, 0, 0.75)'  // Red for machines in use
+                            : 'rgba(0, 100, 0, 0.75)', // Green for available machines
                         cursor: 'pointer'
                       }}
                       onClick={() => setSelectedMachine(machine)}
                     >
-                      <h3>{machine.machine}</h3>
+                      <div><strong>{machine.machine_type || 'Unknown Type'}</strong></div>
                       {machine.device_status === "ONLINE" ? (
                         <div className="flex flex-row items-center space-x-4">
                           <div className="flex flex-row items-center space-x-2">
@@ -289,6 +280,15 @@ function Analytics() {
                           <span>Status: {machine.device_status || 'UNKNOWN'}</span>
                         </div>
                       )}
+                      <div className="mt-2">
+                        <span>Floor: {machine.floor}</span>
+                      </div>
+                      <div className="mt-2">
+                        <span>Last Used: {formatLastUsedTime(machine.last_used_time)}</span>
+                      </div>
+                      <div className="mt-2">
+                        <span>Device: {machine.machine}</span>
+                      </div>
                     </div>
                   ))}
                 </div>

@@ -28,3 +28,32 @@ export const isToday = (date: Date) => {
     date.getMonth() === today.getMonth() &&
     date.getFullYear() === today.getFullYear();
 };
+
+
+export const formatLastUsedTime = (timestamp: string | null | undefined): string => {
+  if (!timestamp || timestamp === "Never") {
+    return "Never";
+  }
+  
+  try {
+    const date = new Date(timestamp);
+    
+    if (isNaN(date.getTime())) {
+      return timestamp; 
+    }
+    
+    // conver to am/pm format
+    const datePart = date.toISOString().split('T')[0];
+    let hours = date.getHours();
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    const ampm = hours >= 12 ? 'pm' : 'am';
+    
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    
+    return `${datePart} ${hours}:${minutes}${ampm}`;
+  } catch (error) {
+    console.error('Error formatting timestamp:', error);
+    return timestamp; 
+  }
+};

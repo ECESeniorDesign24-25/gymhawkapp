@@ -7,4 +7,5 @@ export interface CustomMarker {
     machine_type: string;
     floor: string;
     last_used_time: string;
+    device_status?: string;
 }

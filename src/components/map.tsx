@@ -85,19 +85,22 @@ export default function Map({
         
         return hasValidCoords;
       })
-      .map(machineObj => (
-        <Marker
-          key={machineObj.machine}
-          lat={machineObj.lat}
-          lng={machineObj.lng}
-          state={machineObj.state ? machineObj.state : "na"}
-          machine={machineObj.machine}
-          thing_id={machineObj.thing_id}
-          machine_type={machineObj.machine_type}
-          floor={machineObj.floor}
-          last_used_time={machineObj.last_used_time}
-        />
-      ));
+      .map(machineObj => {
+        return (
+          <Marker
+            key={machineObj.machine}
+            lat={machineObj.lat}
+            lng={machineObj.lng}
+            state={machineObj.state ? machineObj.state : "na"}
+            machine={machineObj.machine}
+            thing_id={machineObj.thing_id}
+            machine_type={machineObj.machine_type}
+            floor={machineObj.floor}
+            last_used_time={machineObj.last_used_time}
+            device_status={machineObj.device_status}
+          />
+        );
+      });
   };
 
   return (
