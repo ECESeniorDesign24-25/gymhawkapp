@@ -40,12 +40,18 @@ export const getDatasetStyle = (machineName: string, selectedDate: Date, usageDa
     }
 }
 
-export const getBarChartOptions = (machineName: string) => {
+export const getBarChartOptions = (machineName: string, hourly: boolean) => {
     // basic chart style for machine 
     return {
         responsive: true,
         maintainAspectRatio: false,
         scales: {
+          x: {
+            title: {
+                display: true,
+                text: hourly ? 'Hour of the Day' : 'Day of the Week',
+            },
+          },
           y: {
             beginAtZero: true,
             max: 100,

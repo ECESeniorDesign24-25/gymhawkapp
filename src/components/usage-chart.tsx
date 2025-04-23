@@ -168,7 +168,8 @@ const MachineUsageChart: React.FC<MachineChart> = ({ machineId, machineName, adm
   const lineChartOptions = getLineChartOptions(machineName, chartStartTime, chartEndTime);
   const hourlyChartData = getHourlyChartData(hourlyUsage);
   const dailyChartData = getDailyChartData(dailyUsage);
-  const barChartOptions = getBarChartOptions(machineName);
+  const barChartOptionsHourly = getBarChartOptions(machineName, true);
+  const barChartOptionsDay = getBarChartOptions(machineName, false);
 
   return (
     <div className="space-y-8">
@@ -208,12 +209,12 @@ const MachineUsageChart: React.FC<MachineChart> = ({ machineId, machineName, adm
               <Line data={chartData} options={lineChartOptions} />
             </div>
             <div style={{ height: '300px' }}>
-              <CustomBarChart barChartData={hourlyChartData} barChartOptions={barChartOptions} machineName={machineName} />
+              <CustomBarChart barChartData={hourlyChartData} barChartOptions={barChartOptionsHourly} machineName={machineName} />
             </div>
           </>
       ) : (
           <div style={{ height: '300px' }}>
-            <CustomBarChart barChartData={dailyChartData} barChartOptions={barChartOptions} machineName={machineName} />
+            <CustomBarChart barChartData={dailyChartData} barChartOptions={barChartOptionsDay} machineName={machineName} />
           </div>
       )}
       <div style={{ marginBottom: '1rem' }}></div>
