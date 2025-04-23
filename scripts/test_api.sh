@@ -52,38 +52,6 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Special handling for getLastUsedTime which might return non-JSON data
-if [ "$FUNCTION" = "getLastUsedTime" ]; then
-    URL="$API_BASE_URL/$FUNCTION?thing_id=$THING_ID"
-    echo "Calling API: $URL"
-    
-    # Get raw response without HTTP status code
-    raw_response=$(curl -s "$URL")
-    
-    # Check if response is HTML (common error for non-deployed functions)
-    if [[ "$raw_response" == *"<!DOCTYPE html>"* ]]; then
-        echo "Error: Received HTML instead of data. Function may not be properly deployed."
-        exit 1
-    fi
-    
-    # Check for null or empty response
-    if [[ "$raw_response" == "null" || -z "$raw_response" ]]; then
-        echo "Last used time: \"Never\""
-        exit 0
-    fi
-    
-    # Try to parse as JSON, fallback to raw display if not JSON
-    if echo "$raw_response" | jq . >/dev/null 2>&1; then
-        echo "$raw_response" | jq .
-    else
-        # Display raw response if not JSON
-        echo "Last used time: \"$raw_response\""
-    fi
-    
-    exit 0
-fi
-
-# Regular API call handling for other functions
 # Validate required parameters based on function
 case "$FUNCTION" in
     getStateTimeseries|getStateTimeseriesDummy)
@@ -119,13 +87,14 @@ case "$FUNCTION" in
     getLong)
         URL="$API_BASE_URL/$FUNCTION?thing_id=$THING_ID"
         ;;
+    getLastUsedTime)
+        URL="$API_BASE_URL/$FUNCTION?thing_id=$THING_ID"
+        ;;
     *)
         echo "Unknown function: $FUNCTION"
         usage
         ;;
 esac
-
-echo "Calling API: $URL"
 
 # Make the API call and format the response
 response=$(curl -s -w "\n%{http_code}" "$URL")
@@ -133,7 +102,7 @@ status_code=$(echo "$response" | tail -n1)
 body=$(echo "$response" | sed '$d')
 
 if [ "$status_code" -eq 200 ]; then
-    echo "$body" | jq || echo "Error parsing JSON. Raw response: $body"
+    echo "$body" | jq
 else
     echo "Error: HTTP $status_code"
     echo "$body"
