@@ -2,7 +2,6 @@ from firebase_functions.params import StringParam
 import os
 from dotenv import load_dotenv
 
-
 # Load environment variables
 load_dotenv(".env.gymhawk-2ed7f")
 

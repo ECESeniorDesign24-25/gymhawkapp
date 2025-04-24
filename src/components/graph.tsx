@@ -138,7 +138,6 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
     setIsAggregateLoading(true);
     
     try {
-      console.log(`📊 Fetching aggregate data for machine ${machineId}`);
       
       // Get data for the past 30 days as a reasonable sample
       const dates = [];
@@ -192,9 +191,7 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
           }
         })
       );
-      
-      console.log(`📊 Collected ${allDataPoints.length} total data points for aggregation`);
-      
+            
       // Only process online data points for the aggregate view
       const onlinePoints = allDataPoints.filter(point => 
         point.device_status === STATUS_ONLINE
@@ -265,27 +262,11 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
       setUsageData([]);
       
       const startTime = get12amOnDate(selectedDate);
-      console.log(`📈 Fetching timeseries data for machine ${machineId}, date: ${startTime}`);
 
       try {
         // This API call filters data by machineId (thing_id)
         // SQL equivalent: WHERE thing_id = machineId
         const timeseries = await fetchMachineTimeseries(machineId, startTime, "state");
-        
-        console.log(`📈 Received timeseries data:`, {
-          machineId,
-          date: startTime,
-          dataPoints: timeseries?.length || 0,
-          hasData: Boolean(timeseries && timeseries.length > 0)
-        });
-        
-        if (!timeseries || timeseries.length === 0) {
-          console.log(`📈 No timeseries data found for ${machineId} on ${startTime}`);
-          setIsLoading(false);
-          return;   
-        }
-
-        
         const formattedData = timeseries.map((point: any) => {
           // Handle different possible API response structures
           const timestamp = point.timestamp || point.time || '';
@@ -313,20 +294,6 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
           };
         }).filter(Boolean); // Remove any null values
         
-        console.log(`📈 Processed timeseries data:`, {
-          machineId,
-          originalPoints: timeseries.length,
-          processedPoints: formattedData.length,
-          startTime: formattedData.length > 0 ? formattedData[0].time : null,
-          endTime: formattedData.length > 0 ? formattedData[formattedData.length - 1].time : null,
-          samplePoint: formattedData.length > 0 ? formattedData[0] : null,
-          statusCounts: formattedData.reduce((acc: any, point: any) => {
-            acc[point.device_status] = (acc[point.device_status] || 0) + 1;
-            return acc;
-          }, {}),
-          // Sample some raw points to see their structure
-          rawSamples: timeseries.slice(0, 3)
-        });
         
         setUsageData(formattedData);
       } catch (error) {
@@ -353,18 +320,20 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
     
     setIsLoadingUsageStats(true);
     try {
-      // For today's date in YYYY-MM-DD format
-      const today = new Date().toISOString().split('T')[0];
       const selectedDateStr = selectedDate.toISOString().split('T')[0];
       
       // Fetch daily usage for the selected date 
       const dailyHours = await fetchDailyUsage(machineId, selectedDateStr);
+      
+      // Calculate hours and minutes
       const wholeHours = Math.floor(dailyHours);
       const minutes = Math.round((dailyHours - wholeHours) * 60);
       setTodayUsage({ hours: wholeHours, minutes });
       
       // Fetch total usage for all time
       const totalHours = await fetchTotalUsage(machineId);
+      
+      // Calculate hours and minutes
       const wholeTotalHours = Math.floor(totalHours);
       const totalMinutes = Math.round((totalHours - wholeTotalHours) * 60);
       setTotalThirtyDayUsage({ hours: wholeTotalHours, minutes: totalMinutes });
@@ -650,17 +619,8 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
     }
   };
   
-  console.log(`📊 Chart data created:`, {
-    machineId,
-    datasetCount: datasets.length,
-    chartStartTime,
-    chartEndTime
-  });
 
   // format the data for the charts
-  const lineChartOptions = getLineChartOptions(machineName, chartStartTime, chartEndTime);
-  const hourlyChartData = getHourlyChartData(hourlyUsage);
-  const dailyChartData = getDailyChartData(dailyUsage);
   const barChartOptions = getBarChartOptions(machineName);
   
   // Create chart data for aggregated stats for admin view

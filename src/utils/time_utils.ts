@@ -21,13 +21,6 @@ export const get12amOnDate = (date: Date) => {
     // Return formatted date with time component as specified in the README
     const dateStr = `${year}-${month}-${day}T00:00:00Z`;
     
-    console.log('🕛 Date formatting for timeseries request:', {
-        inputDate: date.toString(),
-        targetDate: targetDate.toString(),
-        formattedDate: dateStr,
-        year, month, day
-    });
-    
     return dateStr;
 }
 

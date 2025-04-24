@@ -104,12 +104,6 @@ export async function fetchMachineTimeseries(machineId: string, startTime: strin
         
         const endpoint = `${API_ENDPOINT}/getStateTimeseries?${params.toString()}`;
         
-        console.log("📊 TIMESERIES REQUEST:", {
-            machineId, 
-            startTime,
-            variable,
-            endpoint
-        });
         
         const response = await fetch(endpoint, {
             method: 'GET',
@@ -127,22 +121,9 @@ export async function fetchMachineTimeseries(machineId: string, startTime: strin
             // Check if the response is valid JSON before parsing
             if (responseText && responseText.trim().startsWith('[')) {
                 data = JSON.parse(responseText);
-                console.log(`📊 TIMESERIES RESPONSE for ${machineId}:`, {
-                    status: response.status,
-                    dataLength: data?.length || 0,
-                    firstPoint: data?.length > 0 ? data[0] : null,
-                    lastPoint: data?.length > 0 ? data[data.length - 1] : null
-                });
-            } else {
-                console.error('❌ Invalid JSON response:', responseText);
-            }
+            } 
         } catch (parseError) {
             console.error('❌ Failed to parse response:', parseError);
-        }
-        
-        // Log an error if the response status is not OK
-        if (!response.ok) {
-            console.warn(`⚠️ API returned status ${response.status}, but we're still processing the data if available`);
         }
         
         return data || [];
@@ -274,13 +255,36 @@ export async function fetchMachineDetails(thingId: string) {
 export async function fetchTotalUsage(machineId: string): Promise<number> {
   try {
     const url = `${API_ENDPOINT}/getTotalUsage?thing_id=${machineId}`;
+    console.log(`Fetching total usage from: ${url}`);
     const response = await fetch(url);
+    
     if (!response.ok) {
       console.error('Error fetching total usage:', response.statusText);
       return 0;
     }
-    const data = await response.json();
-    return data as number;
+    
+    // Get response as text first
+    const textResponse = await response.text();
+    console.log(`Raw total usage response: "${textResponse}"`);
+    
+    // Try to parse as a number directly
+    const parsedNumber = parseFloat(textResponse);
+    if (!isNaN(parsedNumber)) {
+      console.log(`Parsed total usage as number: ${parsedNumber}`);
+      return parsedNumber;
+    }
+    
+    // If that fails, try JSON parsing
+    try {
+      const jsonData = JSON.parse(textResponse);
+      if (typeof jsonData === 'number') {
+        return jsonData;
+      }
+      return 0;
+    } catch (error) {
+      console.error('Error parsing total usage response:', error);
+      return 0;
+    }
   } catch (error) {
     console.error('Error fetching total usage:', error);
     return 0;
@@ -291,13 +295,36 @@ export async function fetchTotalUsage(machineId: string): Promise<number> {
 export async function fetchDailyUsage(machineId: string, date: string): Promise<number> {
   try {
     const url = `${API_ENDPOINT}/getDailyUsage?thing_id=${machineId}&date=${date}`;
+    console.log(`Fetching daily usage from: ${url}`);
     const response = await fetch(url);
+    
     if (!response.ok) {
       console.error('Error fetching daily usage:', response.statusText);
       return 0;
     }
-    const data = await response.json();
-    return data as number;
+    
+    // Get response as text first
+    const textResponse = await response.text();
+    console.log(`Raw daily usage response: "${textResponse}"`);
+    
+    // Try to parse as a number directly
+    const parsedNumber = parseFloat(textResponse);
+    if (!isNaN(parsedNumber)) {
+      console.log(`Parsed daily usage as number: ${parsedNumber}`);
+      return parsedNumber;
+    }
+    
+    // If that fails, try JSON parsing
+    try {
+      const jsonData = JSON.parse(textResponse);
+      if (typeof jsonData === 'number') {
+        return jsonData;
+      }
+      return 0;
+    } catch (error) {
+      console.error('Error parsing daily usage response:', error);
+      return 0;
+    }
   } catch (error) {
     console.error('Error fetching daily usage:', error);
     return 0;

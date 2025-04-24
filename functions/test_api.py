@@ -9,8 +9,11 @@ from main import (
     getLastLong,
     getLastUsedTimeHelper,
     addTimeStepUtil,
+    getTotalUsageUtil,
+    getDailyUsageUtil,
+    getDailyPercentagesUtil,
+    getHourlyPercentagesUtil,
 )
-import math
 
 
 def time_checker(timestamp1, timestamp2):
@@ -356,3 +359,153 @@ def test_add_time_step():
     except Exception as e:
         print(f"addTimeStepTest | Error: {e}")
         assert False, f"addTimeStepTest | Error: {e}"
+
+
+@pytest.mark.d1_green
+def test_d1_green_get_total_usage():
+    thing_id = "6ad4d9f7-8444-4595-bf0b-5fb62c36430c"
+    total_usage = getTotalUsageUtil(thing_id)
+    assert total_usage is not None, (
+        f"d1GreenTestGetTotalUsage | Response is None: {total_usage}"
+    )
+    assert total_usage > 0
+
+
+@pytest.mark.d1_green2
+def test_d1_green2_get_total_usage():
+    thing_id = "c7996422-9462-4fa7-8d02-bfe8c7aba7e4"
+    total_usage = getTotalUsageUtil(thing_id)
+    assert total_usage is not None, (
+        f"d2GreenTestGetTotalUsage | Response is None: {total_usage}"
+    )
+    assert total_usage > 0
+
+
+@pytest.mark.d1_blue
+def test_d1_blue_get_total_usage():
+    thing_id = "0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8"
+    total_usage = getTotalUsageUtil(thing_id)
+    assert total_usage is not None, (
+        f"d1BlueTestGetTotalUsage | Response is None: {total_usage}"
+    )
+    assert total_usage > 0, (
+        f"d1BlueTestGetTotalUsage | Response is not 0: {total_usage}"
+    )
+
+
+@pytest.mark.d1_green
+def test_d1_green_get_daily_usage():
+    thing_id = "6ad4d9f7-8444-4595-bf0b-5fb62c36430c"
+    date = "2025-04-22"
+    daily_usage = getDailyUsageUtil(thing_id, date)
+    assert daily_usage is not None, (
+        f"d1GreenTestGetDailyUsage | Response is None: {daily_usage}"
+    )
+
+
+@pytest.mark.d1_green2
+def test_d1_green2_get_daily_usage():
+    thing_id = "c7996422-9462-4fa7-8d02-bfe8c7aba7e4"
+    date = "2025-04-22"
+    daily_usage = getDailyUsageUtil(thing_id, date)
+    assert daily_usage is not None, (
+        f"d2GreenTestGetDailyUsage | Response is None: {daily_usage}"
+    )
+
+
+@pytest.mark.d1_blue
+def test_d1_blue_get_daily_usage():
+    thing_id = "0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8"
+    date = "2025-04-22"
+    daily_usage = getDailyUsageUtil(thing_id, date)
+    assert daily_usage is not None, (
+        f"d1BlueTestGetDailyUsage | Response is None: {daily_usage}"
+    )
+
+
+@pytest.mark.unknown
+def test_unknown_get_daily_usage():
+    thing_id = "unknown"
+    date = "2025-04-22"
+    daily_usage = getDailyUsageUtil(thing_id, date)
+    assert daily_usage == 0, (
+        f"UnknownTestGetDailyUsage | Response is not 0: {daily_usage}"
+    )
+
+
+@pytest.mark.d1_green
+def test_d1_green_get_daily_percentages():
+    thing_id = "6ad4d9f7-8444-4595-bf0b-5fb62c36430c"
+    daily_percentages = getDailyPercentagesUtil(thing_id)
+    assert daily_percentages is not None, (
+        f"d1GreenTestGetDailyPercentages | Response is None: {daily_percentages}"
+    )
+
+
+@pytest.mark.d1_green2
+def test_d1_green2_get_daily_percentages():
+    thing_id = "c7996422-9462-4fa7-8d02-bfe8c7aba7e4"
+    daily_percentages = getDailyPercentagesUtil(thing_id)
+    assert daily_percentages is not None, (
+        f"d2GreenTestGetDailyPercentages | Response is None: {daily_percentages}"
+    )
+    assert len(daily_percentages) <= 7, (
+        f"d2GreenTestGetDailyPercentages | Response is not 7: {daily_percentages}"
+    )
+
+
+@pytest.mark.d1_blue
+def test_d1_blue_get_daily_percentages():
+    thing_id = "0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8"
+    daily_percentages = getDailyPercentagesUtil(thing_id)
+    assert daily_percentages is not None, (
+        f"d1BlueTestGetDailyPercentages | Response is None: {daily_percentages}"
+    )
+    assert len(daily_percentages) <= 7, (
+        f"d1BlueTestGetDailyPercentages | Response is not 7: {daily_percentages}"
+    )
+
+
+@pytest.mark.d1_green
+def test_d1_green_get_hourly_percentages():
+    thing_id = "6ad4d9f7-8444-4595-bf0b-5fb62c36430c"
+    hourly_percentages = getHourlyPercentagesUtil(thing_id)
+    assert hourly_percentages is not None, (
+        f"d1GreenTestGetHourlyPercentages | Response is None: {hourly_percentages}"
+    )
+    assert len(hourly_percentages) <= 24, (
+        f"d1GreenTestGetHourlyPercentages | Response is not 24: {hourly_percentages}"
+    )
+
+
+@pytest.mark.d1_green2
+def test_d1_green2_get_hourly_percentages():
+    thing_id = "c7996422-9462-4fa7-8d02-bfe8c7aba7e4"
+    hourly_percentages = getHourlyPercentagesUtil(thing_id)
+    assert hourly_percentages is not None, (
+        f"d2GreenTestGetHourlyPercentages | Response is None: {hourly_percentages}"
+    )
+    assert len(hourly_percentages) <= 24, (
+        f"d2GreenTestGetHourlyPercentages | Response is not 24: {hourly_percentages}"
+    )
+
+
+@pytest.mark.d1_blue
+def test_d1_blue_get_hourly_percentages():
+    thing_id = "0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8"
+    hourly_percentages = getHourlyPercentagesUtil(thing_id)
+    assert hourly_percentages is not None, (
+        f"d1BlueTestGetHourlyPercentages | Response is None: {hourly_percentages}"
+    )
+    assert len(hourly_percentages) <= 24, (
+        f"d1BlueTestGetHourlyPercentages | Response is not 24: {hourly_percentages}"
+    )
+
+
+@pytest.mark.unknown
+def test_unknown_get_hourly_percentages():
+    thing_id = "unknown"
+    hourly_percentages = getHourlyPercentagesUtil(thing_id)
+    assert hourly_percentages == [], (
+        f"UnknownTestGetHourlyPercentages | Response is not empty: {hourly_percentages}"
+    )

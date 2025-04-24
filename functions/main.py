@@ -377,33 +377,6 @@ def peakHoursHelper(
         print(f"No valid data for {thing_id} on {date} from {start_time} to {end_time}")
         return []
 
-def retrieve(field, snapshot):
-    return next(iter(snapshot[field].values()))
-
-
-def send_email(to_addr: str, machine_name: str):
-    msg = EmailMessage()
-    msg["Subject"] = f"Your machine is now available!"
-    msg["From"]    = f"GymHawks <{EMAIL_ADDRESS}>"
-    msg["To"]      = to_addr
-    msg.set_content(
-        f"The machine you’ve been waiting for is free.\n\n"
-        "We can’t guarantee it will still be free when you arrive 🏋️‍♂️"
-    )
-    msg.add_alternative(
-        f"""
-        <p>The <strong>machine</strong> you’ve been waiting for is now
-        <span style="color:green">available</span>. See you there 🏋️‍♂️</p>
-        """,
-        subtype="html",
-    )
-
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-#         print(EMAIL_ADDRESS)
-#         print(EMAIL_PASS)
-        smtp.login(EMAIL_ADDRESS, EMAIL_PASS)
-        smtp.send_message(msg)
-
 
 def getLastLat(thing_id: str) -> float:
     try:
@@ -650,13 +623,13 @@ def addTimeStepUtil() -> None:
     except Exception as e:
         print(f"Error in addTimeStep: {str(e)}")
         raise
-    
+
 
 def getTotalUsageUtil(thing_id: str) -> int:
     try:
         engine = init_db_connection()
         query = """
-            SELECT COUNT(*)::float / 60 AS hours_used 
+            SELECT (COUNT(*)::float / 60)::float AS hours_used 
             FROM machine_states 
             WHERE thing_id = :thing_id 
             AND device_status = 'ONLINE' 
@@ -664,27 +637,35 @@ def getTotalUsageUtil(thing_id: str) -> int:
         """
         with engine.connect() as conn:
             result = conn.execute(text(query), {"thing_id": thing_id})
-            return result.scalar()
+            value = result.scalar()
+
+            # Ensure we have a clean float value without % character
+            if value is not None:
+                if isinstance(value, str) and "%" in value:
+                    value = float(value.replace("%", ""))
+            return value
     except Exception as e:
         print(f"Error in getTotalUsage: {str(e)}")
         return 0
-    
+
+
 def getDailyUsageUtil(thing_id: str, date: str) -> int:
     try:
         engine = init_db_connection()
-        
+
         # Parse the date and calculate end date in Python
         from datetime import datetime, timedelta
+
         start_date = date
-        
+
         # Convert to datetime, add 1 day, and convert back to string
         date_obj = datetime.strptime(date, "%Y-%m-%d")
         end_date_obj = date_obj + timedelta(days=1)
         end_date = end_date_obj.strftime("%Y-%m-%d")
-        
+
         # Use SQLAlchemy text() with named parameters
         query = """
-            SELECT COUNT(*)::float / 60 AS hours_used
+            SELECT (COUNT(*)::float / 60)::float AS hours_used
             FROM machine_states
             WHERE thing_id = :thing_id
             AND device_status = 'ONLINE'
@@ -692,16 +673,23 @@ def getDailyUsageUtil(thing_id: str, date: str) -> int:
             AND timestamp >= TO_TIMESTAMP(:start_date, 'YYYY-MM-DD')
             AND timestamp < TO_TIMESTAMP(:end_date, 'YYYY-MM-DD');
         """
-        
+
         with engine.connect() as conn:
             result = conn.execute(
-                text(query), 
-                {"thing_id": thing_id, "start_date": start_date, "end_date": end_date}
+                text(query),
+                {"thing_id": thing_id, "start_date": start_date, "end_date": end_date},
             )
-            return result.scalar()
+            value = result.scalar()
+
+            # Ensure we have a clean float value without % character
+            if value is not None:
+                if isinstance(value, str) and "%" in value:
+                    value = float(value.replace("%", ""))
+            return value
     except Exception as e:
         print(f"Error in getDailyUsage: {str(e)}")
         return 0
+
 
 def setSleepModeForThing(thing_id: str, sleep_value: bool):
     try:
@@ -727,27 +715,62 @@ def setSleepModeForThing(thing_id: str, sleep_value: bool):
         print(f"Error setting sleep mode for {thing_id}: {e}")
         raise
 
-def send_email(to_addr: str, machine_name: str):
-    msg = EmailMessage()
-    msg["Subject"] = f"{machine_name} is now available!"
-    msg["From"]    = f"GymHawks <{EMAIL_ADDRESS}>"
-    msg["To"]      = to_addr
-    msg.set_content(
-        f"The {machine_name} you’ve been waiting for is free.\n\n"
-        "We can’t guarantee it will still be free when you arrive 🏋️‍♂️"
-    )
-    msg.add_alternative(
-        f"""
-        <p>The <strong>{machine_name}</strong> you’ve been waiting for is now
-        <span style="color:green">available</span>. See you there 🏋️‍♂️</p>
-        """,
-        subtype="html",
-    )
 
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-        smtp.login(EMAIL_ADDRESS, EMAIL_PASS)
-        smtp.send_message(msg)
-        
+def getDailyPercentagesUtil(thing_id: str) -> list:
+    try:
+        engine = init_db_connection()
+        query = """
+            SELECT
+                thing_id,
+                EXTRACT(ISODOW FROM timestamp)::int AS day_number,
+                TO_CHAR(timestamp, 'FMDay') AS day_name,
+                (COUNT(*)::float / (60 * 24) * 100) AS percent_in_use
+            FROM machine_states
+            WHERE
+                thing_id = :thing_id
+                AND state = 'on'
+                AND device_status = 'ONLINE'
+            GROUP BY
+                thing_id,
+                day_number,
+                day_name
+            ORDER BY
+                day_number;
+        """
+        with engine.connect() as conn:
+            result = conn.execute(text(query), {"thing_id": thing_id})
+            return result.fetchall()
+    except Exception as e:
+        print(f"Error in getDailyPercentages: {str(e)}")
+        return []
+
+
+def getHourlyPercentagesUtil(thing_id: str) -> list:
+    try:
+        engine = init_db_connection()
+        query = """
+            SELECT
+                thing_id,
+                EXTRACT(HOUR FROM timestamp)::int AS hour_number,
+                (COUNT(*)::float / (60 * 60) * 100) AS percent_in_use
+            FROM machine_states
+            WHERE
+                thing_id = :thing_id
+                AND state = 'on'
+                AND device_status = 'ONLINE'
+            GROUP BY
+                thing_id,
+                hour_number
+            ORDER BY
+                hour_number;
+        """
+        with engine.connect() as conn:
+            result = conn.execute(text(query), {"thing_id": thing_id})
+            return result.fetchall()
+    except Exception as e:
+        print(f"Error in getHourlyPercentages: {str(e)}")
+        return []
+
 
 # =============================================================================
 # Cloud Functions
@@ -783,7 +806,7 @@ def getStateTimeseries(req: https_fn.Request) -> https_fn.Response:
     return https_fn.Response(
         getTimeseries(thing_id, start_time, variable),
         mimetype="application/json",
-        status=404,
+        status=200,
         headers=CORS_HEADERS,
     )
 
@@ -861,24 +884,60 @@ def getLastUsedTime(req: https_fn.Request) -> https_fn.Response:
             json.dumps(last_used_time), status=200, headers=CORS_HEADERS
         )
 
+
 @https_fn.on_request()
 def getTotalUsage(req: https_fn.Request) -> https_fn.Response:
     thing_id = req.args.get("thing_id")
     total_usage = getTotalUsageUtil(thing_id)
+    print(f"Raw total usage value: {total_usage}, type: {type(total_usage)}")
+
     if total_usage is None:
         return https_fn.Response(json.dumps([]), status=200, headers=CORS_HEADERS)
     else:
-        return https_fn.Response(json.dumps(total_usage), status=200, headers=CORS_HEADERS)
+        # Force to float and strip % if present
+        if isinstance(total_usage, str):
+            total_usage = total_usage.replace("%", "")
+
+        # Convert to float to ensure proper JSON serialization
+        try:
+            total_usage = float(total_usage)
+        except (ValueError, TypeError):
+            print(f"Failed to convert {total_usage} to float")
+
+        print(f"Formatted total usage value: {total_usage}")
+        return https_fn.Response(
+            str(total_usage),  # Just return the number directly
+            status=200,
+            headers=CORS_HEADERS,
+        )
+
 
 @https_fn.on_request()
 def getDailyUsage(req: https_fn.Request) -> https_fn.Response:
     thing_id = req.args.get("thing_id")
     date = req.args.get("date")
     daily_usage = getDailyUsageUtil(thing_id, date)
+    print(f"Raw daily usage value: {daily_usage}, type: {type(daily_usage)}")
+
     if daily_usage is None:
         return https_fn.Response(json.dumps([]), status=200, headers=CORS_HEADERS)
     else:
-        return https_fn.Response(json.dumps(daily_usage), status=200, headers=CORS_HEADERS)
+        # Force to float and strip % if present
+        if isinstance(daily_usage, str):
+            daily_usage = daily_usage.replace("%", "")
+
+        # Convert to float to ensure proper JSON serialization
+        try:
+            daily_usage = float(daily_usage)
+        except (ValueError, TypeError):
+            print(f"Failed to convert {daily_usage} to float")
+
+        print(f"Formatted daily usage value: {daily_usage}")
+        return https_fn.Response(
+            str(daily_usage),  # Just return the number directly
+            status=200,
+            headers=CORS_HEADERS,
+        )
 
 
 @scheduler_fn.on_schedule(schedule="0 19 * * *")
@@ -899,49 +958,29 @@ def wakeDevices():
         setSleepModeForThing(thing_id, False)
 
 
-if __name__ == "__main__":
-    addTimeStepUtil()
+@https_fn.on_request()
+def getDailyPercentages(req: https_fn.Request) -> https_fn.Response:
+    thing_id = req.args.get("thing_id")
+    daily_percentages = getDailyPercentagesUtil(thing_id)
+    if daily_percentages is None:
+        return https_fn.Response(json.dumps([]), status=200, headers=CORS_HEADERS)
+    else:
+        return https_fn.Response(
+            json.dumps(daily_percentages), status=200, headers=CORS_HEADERS
+        )
+
+
+@https_fn.on_request()
+def getHourlyPercentages(req: https_fn.Request) -> https_fn.Response:
+    thing_id = req.args.get("thing_id")
+    hourly_percentages = getHourlyPercentagesUtil(thing_id)
+    if hourly_percentages is None:
+        return https_fn.Response(json.dumps([]), status=200, headers=CORS_HEADERS)
+    else:
+        return https_fn.Response(
+            json.dumps(hourly_percentages), status=200, headers=CORS_HEADERS
+        )
+
 
 # if __name__ == "__main__":
-#     model = RandomForestModel(load_model=True)
-#     # start at 7 am end at 8 pm
-#     start_time = "2025-04-17 07:00:00"
-#     end_time = "2025-04-17 20:00:00"
-#     dummy_df = generate_prediction_data("0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8", start_time, end_time)
-
-    # start at 7 am end at 8 pm
-#     start_time = "2025-04-17 07:00:00"
-#     end_time = "2025-04-17 20:00:00"
-#
-#     print("Building dummy df")
-
-    # 0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8
-    # print("================================================")
-    # print("Thing id: ", "0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8")
-    # dummy_df = generate_prediction_data(
-    #     "0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8", start_time, end_time
-    # )
-
-    # peak_hours = peakHoursHelper(
-    #     "0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8",
-    #     "2025-04-17",
-    #     start_time,
-    #     end_time,
-    #     peak=True,
-    # )
-    # print("peak hours: ", peak_hours)
-
-    # least_likely_hours = peakHoursHelper(
-    #     "0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8",
-    #     "2025-04-17",
-    #     start_time,
-    #     end_time,
-    #     peak=False,
-    # )
-    # print("least likely hours: ", least_likely_hours)
-
-    thing_id = "6ad4d9f7-8444-4595-bf0b-5fb62c36430c"
-    start_time = "2025-04-22T01:35:02.007Z"
-    variable = "state"
-    timeseries = getTimeseries(thing_id, start_time, variable)
-    print(timeseries)
+#     pass
