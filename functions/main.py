@@ -813,7 +813,7 @@ def getStateTimeseries(req: https_fn.Request) -> https_fn.Response:
 
 # retrain model every 4 hours
 @scheduler_fn.on_schedule(schedule="0 */4 * * *")
-def retrainModel():
+def retrainModel(event):  # TODO: check if this event param is needed
     # train model with current data (note only online mode )
     df = get_machine_states_df()
     model = RandomForestModel(load_model=False)
@@ -941,7 +941,9 @@ def getDailyUsage(req: https_fn.Request) -> https_fn.Response:
 
 
 @scheduler_fn.on_schedule(schedule="0 19 * * *")
-def sleepDevices():
+def sleepDevices(event):  # TODO: this event parameter may need to be removed but from what I understand about the scheduled cloud functions,
+                          # the event parameter is automatically passed by the scheduler so it needs to be in the function def. This might be a source of the error
+                          # I cant be sure until deploying it and testing
     thing_ids = db.collection("thing_ids").list_documents()
     thing_ids = [thing_id.id for thing_id in thing_ids]
 
@@ -950,7 +952,7 @@ def sleepDevices():
 
 
 @scheduler_fn.on_schedule(schedule="0 5 * * *")
-def wakeDevices():
+def wakeDevices(event):
     thing_ids = db.collection("thing_ids").list_documents()
     thing_ids = [thing_id.id for thing_id in thing_ids]
 
