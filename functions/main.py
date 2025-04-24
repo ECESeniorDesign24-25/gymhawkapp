@@ -623,6 +623,31 @@ def addTimeStepUtil() -> None:
         raise
 
 
+def setSleepModeForThing(thing_id: str, sleep_value: bool):
+    try:
+        properties_api, devices = initIoTAPI()
+        properties = properties_api.properties_v2_list(id=thing_id)
+        sleep_property_id = None
+        for prop in properties:
+            if prop.name == "sleep":
+                sleep_property_id = prop.id
+                break
+        if sleep_property_id:
+            property_value = {"value": sleep_value}
+            print(
+                f"Setting sleep mode to {sleep_value} for {thing_id} to {sleep_value}"
+            )
+            properties_api.properties_v2_publish(
+                thing_id, sleep_property_id, property_value
+            )
+    except ApiException as e:
+        t.sleep(1)
+        setSleepModeForThing(thing_id, sleep_value)
+    except Exception as e:
+        print(f"Error setting sleep mode for {thing_id}: {e}")
+        raise
+
+
 # =============================================================================
 # Cloud Functions
 # =============================================================================
@@ -736,5 +761,24 @@ def getLastUsedTime(req: https_fn.Request) -> https_fn.Response:
         )
 
 
+@scheduler_fn.on_schedule(schedule="0 19 * * *")
+def sleepDevices():
+    thing_ids = db.collection("thing_ids").list_documents()
+    thing_ids = [thing_id.id for thing_id in thing_ids]
+
+    for thing_id in thing_ids:
+        setSleepModeForThing(thing_id, True)
+
+
+@scheduler_fn.on_schedule(schedule="0 5 * * *")
+def wakeDevices():
+    thing_ids = db.collection("thing_ids").list_documents()
+    thing_ids = [thing_id.id for thing_id in thing_ids]
+
+    for thing_id in thing_ids:
+        setSleepModeForThing(thing_id, False)
+
+
 if __name__ == "__main__":
-    addTimeStepUtil()
+    # setSleepMode(False)
+    pass
