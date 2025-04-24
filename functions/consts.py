@@ -15,6 +15,8 @@ DB_PASS = os.environ.get("DB_PASS") or StringParam("DB_PASS").value
 DB_INSTANCE_NAME = (
     os.environ.get("DB_INSTANCE_NAME") or StringParam("DB_INSTANCE_NAME").value
 )
+EMAIL_ADDRESS = os.environ.get("SMTP_USER") or StringParam("SMTP_USER")
+EMAIL_PASS = os.environ.get("SMTP_PASS") or StringParam("SMTP_PASS")
 
 CORS_HEADERS = {
     "Access-Control-Allow-Origin": "*",

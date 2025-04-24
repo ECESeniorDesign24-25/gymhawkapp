@@ -10,6 +10,10 @@ const firebaseConfig = {
   storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGE_SENDER_ID,
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
+  // smtp: {
+  //   username: process.env.SMTP_USER,
+  //   password: process.env.SMTP_PASS,
+  // },
 };
 
 if (!process.env.NEXT_PUBLIC_FIREBASE_API_KEY) {

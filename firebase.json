@@ -48,16 +48,20 @@
         "function": "getLastUsedTime"
       },
       {
-        "source": "**",
-        "destination": "/index.html"
-      },
-      {
         "source": "/api/getTotalUsage",
         "function": "getTotalUsage"
       },
       {
         "source": "/api/getDailyUsage",
         "function": "getDailyUsage"
+      },
+      {
+        "source": "/api/email_on_available",
+        "destination": "email_on_available"
+      },
+      {
+        "source": "**",
+        "destination": "/index.html"
       }
     ]
   },

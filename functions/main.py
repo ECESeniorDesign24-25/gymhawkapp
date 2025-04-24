@@ -4,6 +4,8 @@ import json
 import os
 from firebase_functions import https_fn, scheduler_fn
 from firebase_admin import initialize_app, firestore, credentials
+from firebase_admin import initialize_app, firestore
+from flask import jsonify
 import iot_api_client as iot
 from iot_api_client.rest import ApiException
 from iot_api_client.configuration import Configuration
@@ -19,6 +21,7 @@ import pandas as pd
 from model import RandomForestModel
 import smtplib
 from email.message import EmailMessage
+import requests
 
 # set up firebase app
 # cred_path = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
@@ -374,6 +377,33 @@ def peakHoursHelper(
         print(f"No valid data for {thing_id} on {date} from {start_time} to {end_time}")
         return []
 
+def retrieve(field, snapshot):
+    return next(iter(snapshot[field].values()))
+
+
+def send_email(to_addr: str, machine_name: str):
+    msg = EmailMessage()
+    msg["Subject"] = f"Your machine is now available!"
+    msg["From"]    = f"GymHawks <{EMAIL_ADDRESS}>"
+    msg["To"]      = to_addr
+    msg.set_content(
+        f"The machine you’ve been waiting for is free.\n\n"
+        "We can’t guarantee it will still be free when you arrive 🏋️‍♂️"
+    )
+    msg.add_alternative(
+        f"""
+        <p>The <strong>machine</strong> you’ve been waiting for is now
+        <span style="color:green">available</span>. See you there 🏋️‍♂️</p>
+        """,
+        subtype="html",
+    )
+
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+#         print(EMAIL_ADDRESS)
+#         print(EMAIL_PASS)
+        smtp.login(EMAIL_ADDRESS, EMAIL_PASS)
+        smtp.send_message(msg)
+
 
 def getLastLat(thing_id: str) -> float:
     try:
@@ -567,9 +597,7 @@ def addTimeStepUtil() -> None:
             values_to_write[thing_id]["machineName"] = (
                 db.collection("thing_ids").document(thing_id).get().to_dict()["name"]
             )
-            values_to_write[thing_id]["floor"] = (
-                db.collection("thing_ids").document(thing_id).get().to_dict()["floor"]
-            )
+
             device_status = getDeviceStatus(thing_id, devices)
             values_to_write[thing_id]["device_status"] = device_status
 
@@ -674,6 +702,52 @@ def getDailyUsageUtil(thing_id: str, date: str) -> int:
     except Exception as e:
         print(f"Error in getDailyUsage: {str(e)}")
         return 0
+
+def setSleepModeForThing(thing_id: str, sleep_value: bool):
+    try:
+        properties_api, devices = initIoTAPI()
+        properties = properties_api.properties_v2_list(id=thing_id)
+        sleep_property_id = None
+        for prop in properties:
+            if prop.name == "sleep":
+                sleep_property_id = prop.id
+                break
+        if sleep_property_id:
+            property_value = {"value": sleep_value}
+            print(
+                f"Setting sleep mode to {sleep_value} for {thing_id} to {sleep_value}"
+            )
+            properties_api.properties_v2_publish(
+                thing_id, sleep_property_id, property_value
+            )
+    except ApiException as e:
+        t.sleep(1)
+        setSleepModeForThing(thing_id, sleep_value)
+    except Exception as e:
+        print(f"Error setting sleep mode for {thing_id}: {e}")
+        raise
+
+def send_email(to_addr: str, machine_name: str):
+    msg = EmailMessage()
+    msg["Subject"] = f"{machine_name} is now available!"
+    msg["From"]    = f"GymHawks <{EMAIL_ADDRESS}>"
+    msg["To"]      = to_addr
+    msg.set_content(
+        f"The {machine_name} you’ve been waiting for is free.\n\n"
+        "We can’t guarantee it will still be free when you arrive 🏋️‍♂️"
+    )
+    msg.add_alternative(
+        f"""
+        <p>The <strong>{machine_name}</strong> you’ve been waiting for is now
+        <span style="color:green">available</span>. See you there 🏋️‍♂️</p>
+        """,
+        subtype="html",
+    )
+
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+        smtp.login(EMAIL_ADDRESS, EMAIL_PASS)
+        smtp.send_message(msg)
+        
 
 # =============================================================================
 # Cloud Functions
@@ -800,6 +874,68 @@ def getDailyUsage(req: https_fn.Request) -> https_fn.Response:
     daily_usage = getDailyUsageUtil(thing_id, date)
     return https_fn.Response(json.dumps(daily_usage), status=200, headers=CORS_HEADERS)
 
+
+@scheduler_fn.on_schedule(schedule="0 19 * * *")
+def sleepDevices():
+    thing_ids = db.collection("thing_ids").list_documents()
+    thing_ids = [thing_id.id for thing_id in thing_ids]
+
+    for thing_id in thing_ids:
+        setSleepModeForThing(thing_id, True)
+
+
+@scheduler_fn.on_schedule(schedule="0 5 * * *")
+def wakeDevices():
+    thing_ids = db.collection("thing_ids").list_documents()
+    thing_ids = [thing_id.id for thing_id in thing_ids]
+
+    for thing_id in thing_ids:
+        setSleepModeForThing(thing_id, False)
+
+
 if __name__ == "__main__":
-    print(getDailyUsageUtil("0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8", "2025-04-10"))
-    print(getTotalUsageUtil("0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8"))
+    addTimeStepUtil()
+
+# if __name__ == "__main__":
+#     model = RandomForestModel(load_model=True)
+#     # start at 7 am end at 8 pm
+#     start_time = "2025-04-17 07:00:00"
+#     end_time = "2025-04-17 20:00:00"
+#     dummy_df = generate_prediction_data("0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8", start_time, end_time)
+
+    # start at 7 am end at 8 pm
+#     start_time = "2025-04-17 07:00:00"
+#     end_time = "2025-04-17 20:00:00"
+#
+#     print("Building dummy df")
+
+    # 0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8
+    # print("================================================")
+    # print("Thing id: ", "0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8")
+    # dummy_df = generate_prediction_data(
+    #     "0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8", start_time, end_time
+    # )
+
+    # peak_hours = peakHoursHelper(
+    #     "0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8",
+    #     "2025-04-17",
+    #     start_time,
+    #     end_time,
+    #     peak=True,
+    # )
+    # print("peak hours: ", peak_hours)
+
+    # least_likely_hours = peakHoursHelper(
+    #     "0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8",
+    #     "2025-04-17",
+    #     start_time,
+    #     end_time,
+    #     peak=False,
+    # )
+    # print("least likely hours: ", least_likely_hours)
+
+    thing_id = "6ad4d9f7-8444-4595-bf0b-5fb62c36430c"
+    start_time = "2025-04-22T01:35:02.007Z"
+    variable = "state"
+    timeseries = getTimeseries(thing_id, start_time, variable)
+    print(timeseries)
