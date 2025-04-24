@@ -817,7 +817,7 @@ def email_on_available(req: https_fn.Request) -> https_fn.Response:
         return https_fn.Response("", status=204, headers=CORS_HEADERS)
 
     try:
-        data = req.get_json()
+        data = req.get_json(force=True)
         print("Request data:", data)
 
         machine_id   = data.get("machine_id")
