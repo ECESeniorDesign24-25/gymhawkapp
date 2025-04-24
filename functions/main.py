@@ -622,7 +622,58 @@ def addTimeStepUtil() -> None:
     except Exception as e:
         print(f"Error in addTimeStep: {str(e)}")
         raise
+    
 
+def getTotalUsageUtil(thing_id: str) -> int:
+    try:
+        engine = init_db_connection()
+        query = """
+            SELECT COUNT(*)::float / 60 AS hours_used 
+            FROM machine_states 
+            WHERE thing_id = :thing_id 
+            AND device_status = 'ONLINE' 
+            AND state = 'on'
+        """
+        with engine.connect() as conn:
+            result = conn.execute(text(query), {"thing_id": thing_id})
+            return result.scalar()
+    except Exception as e:
+        print(f"Error in getTotalUsage: {str(e)}")
+        return 0
+    
+def getDailyUsageUtil(thing_id: str, date: str) -> int:
+    try:
+        engine = init_db_connection()
+        
+        # Parse the date and calculate end date in Python
+        from datetime import datetime, timedelta
+        start_date = date
+        
+        # Convert to datetime, add 1 day, and convert back to string
+        date_obj = datetime.strptime(date, "%Y-%m-%d")
+        end_date_obj = date_obj + timedelta(days=1)
+        end_date = end_date_obj.strftime("%Y-%m-%d")
+        
+        # Use SQLAlchemy text() with named parameters
+        query = """
+            SELECT COUNT(*)::float / 60 AS hours_used
+            FROM machine_states
+            WHERE thing_id = :thing_id
+            AND device_status = 'ONLINE'
+            AND state = 'on'
+            AND timestamp >= TO_TIMESTAMP(:start_date, 'YYYY-MM-DD')
+            AND timestamp < TO_TIMESTAMP(:end_date, 'YYYY-MM-DD');
+        """
+        
+        with engine.connect() as conn:
+            result = conn.execute(
+                text(query), 
+                {"thing_id": thing_id, "start_date": start_date, "end_date": end_date}
+            )
+            return result.scalar()
+    except Exception as e:
+        print(f"Error in getDailyUsage: {str(e)}")
+        return 0
 
 # =============================================================================
 # Cloud Functions
@@ -736,6 +787,19 @@ def getLastUsedTime(req: https_fn.Request) -> https_fn.Response:
             json.dumps(last_used_time), status=200, headers=CORS_HEADERS
         )
 
+@https_fn.on_request()
+def getTotalUsage(req: https_fn.Request) -> https_fn.Response:
+    thing_id = req.args.get("thing_id")
+    total_usage = getTotalUsageUtil(thing_id)
+    return https_fn.Response(json.dumps(total_usage), status=200, headers=CORS_HEADERS)
+
+@https_fn.on_request()
+def getDailyUsage(req: https_fn.Request) -> https_fn.Response:
+    thing_id = req.args.get("thing_id")
+    date = req.args.get("date")
+    daily_usage = getDailyUsageUtil(thing_id, date)
+    return https_fn.Response(json.dumps(daily_usage), status=200, headers=CORS_HEADERS)
 
 if __name__ == "__main__":
-    addTimeStepUtil()
+    print(getDailyUsageUtil("0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8", "2025-04-10"))
+    print(getTotalUsageUtil("0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8"))

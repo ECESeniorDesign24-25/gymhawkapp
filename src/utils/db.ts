@@ -269,3 +269,37 @@ export async function fetchMachineDetails(thingId: string) {
         return null;
     }
 }
+
+// Fetch total usage hours for a machine
+export async function fetchTotalUsage(machineId: string): Promise<number> {
+  try {
+    const url = `${API_ENDPOINT}/getTotalUsage?thing_id=${machineId}`;
+    const response = await fetch(url);
+    if (!response.ok) {
+      console.error('Error fetching total usage:', response.statusText);
+      return 0;
+    }
+    const data = await response.json();
+    return data as number;
+  } catch (error) {
+    console.error('Error fetching total usage:', error);
+    return 0;
+  }
+}
+
+// Fetch daily usage hours for a machine
+export async function fetchDailyUsage(machineId: string, date: string): Promise<number> {
+  try {
+    const url = `${API_ENDPOINT}/getDailyUsage?thing_id=${machineId}&date=${date}`;
+    const response = await fetch(url);
+    if (!response.ok) {
+      console.error('Error fetching daily usage:', response.statusText);
+      return 0;
+    }
+    const data = await response.json();
+    return data as number;
+  } catch (error) {
+    console.error('Error fetching daily usage:', error);
+    return 0;
+  }
+}

@@ -14,7 +14,7 @@ import {
 } from "chart.js";
 import { Line } from "react-chartjs-2";
 import 'chartjs-adapter-date-fns';
-import { fetchMachineTimeseries } from "@/utils/db";
+import { fetchMachineTimeseries, fetchTotalUsage, fetchDailyUsage } from "@/utils/db";
 import zoomPlugin from 'chartjs-plugin-zoom';
 import dynamic from 'next/dynamic';
 import { convertTimeseriesToDate, get12amOnDate, isToday } from "../utils/time_utils";
@@ -67,6 +67,8 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
   const [hasError, setHasError] = useState<boolean>(false);
   const [isAggregateLoading, setIsAggregateLoading] = useState<boolean>(true);
   const [totalThirtyDayUsage, setTotalThirtyDayUsage] = useState<{ hours: number; minutes: number }>({ hours: 0, minutes: 0 });
+  const [todayUsage, setTodayUsage] = useState<{ hours: number; minutes: number }>({ hours: 0, minutes: 0 });
+  const [isLoadingUsageStats, setIsLoadingUsageStats] = useState<boolean>(false);
 
   //===================================================================================
   // client-side useEffect to calculate hourly and daily usage patterns from usageData
@@ -153,6 +155,8 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
         dates.map(async (date) => {
           const startTime = get12amOnDate(date);
           try {
+            // This API call filters data by machineId (thing_id)
+            // SQL equivalent: WHERE thing_id = machineId
             const timeseries = await fetchMachineTimeseries(machineId, startTime, "state");
             
             if (!timeseries || timeseries.length === 0) {
@@ -195,25 +199,6 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
       const onlinePoints = allDataPoints.filter(point => 
         point.device_status === STATUS_ONLINE
       );
-      
-      // Calculate total usage over 30 days
-      // IMPORTANT: Only count points where device is ONLINE and in use (state === 0)
-      const onlinePointsCount = onlinePoints.length;
-      const inUsePointsCount = allDataPoints.filter(point => point.state === 0).length;
-      const totalUsagePoints = onlinePoints.filter(point => point.state === 0).length;
-      
-      console.log('📊 30-day usage calculation:', {
-        totalDataPoints: allDataPoints.length,
-        onlinePoints: onlinePointsCount,
-        inUsePoints: inUsePointsCount,
-        actualUsagePoints: totalUsagePoints
-      });
-      
-      const totalMinutes = totalUsagePoints;
-      const totalHours = Math.floor(totalMinutes / 60);
-      const remainingMinutes = totalMinutes % 60;
-      // Store these values to display later
-      setTotalThirtyDayUsage({ hours: totalHours, minutes: remainingMinutes });
       
       // Aggregate by hour in local timezone
       const hourlyData: { [key: number]: { total: number; on: number } } = {};
@@ -283,6 +268,8 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
       console.log(`📈 Fetching timeseries data for machine ${machineId}, date: ${startTime}`);
 
       try {
+        // This API call filters data by machineId (thing_id)
+        // SQL equivalent: WHERE thing_id = machineId
         const timeseries = await fetchMachineTimeseries(machineId, startTime, "state");
         
         console.log(`📈 Received timeseries data:`, {
@@ -359,6 +346,42 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
       return () => clearInterval(intervalId);
     }
   }, [machineId, selectedDate, machineName, viewMode, isAggregateLoading]);
+
+  // Function to fetch usage statistics from the backend
+  const fetchUsageStatistics = async () => {
+    if (viewMode !== 'admin' || !machineId) return;
+    
+    setIsLoadingUsageStats(true);
+    try {
+      // For today's date in YYYY-MM-DD format
+      const today = new Date().toISOString().split('T')[0];
+      const selectedDateStr = selectedDate.toISOString().split('T')[0];
+      
+      // Fetch daily usage for the selected date 
+      const dailyHours = await fetchDailyUsage(machineId, selectedDateStr);
+      const wholeHours = Math.floor(dailyHours);
+      const minutes = Math.round((dailyHours - wholeHours) * 60);
+      setTodayUsage({ hours: wholeHours, minutes });
+      
+      // Fetch total usage for all time
+      const totalHours = await fetchTotalUsage(machineId);
+      const wholeTotalHours = Math.floor(totalHours);
+      const totalMinutes = Math.round((totalHours - wholeTotalHours) * 60);
+      setTotalThirtyDayUsage({ hours: wholeTotalHours, minutes: totalMinutes });
+      
+    } catch (error) {
+      console.error("Error fetching usage statistics:", error);
+    } finally {
+      setIsLoadingUsageStats(false);
+    }
+  };
+  
+  // Fetch usage statistics when the machine or date changes
+  useEffect(() => {
+    if (viewMode === 'admin' && machineId) {
+      fetchUsageStatistics();
+    }
+  }, [viewMode, machineId, selectedDate]);
 
   // Fetch aggregate data for admin view on component mount
   useEffect(() => {
@@ -511,44 +534,6 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
   const aggregatedHourlyChartData = getHourlyChartData(aggregatedHourlyUsage);
   const aggregatedDailyChartData = getDailyChartData(aggregatedDailyUsage);
 
-  // New function to calculate total usage hours
-  const calculateTotalUsageHours = (): { hours: number; minutes: number } => {
-    if (usageData.length === 0) return { hours: 0, minutes: 0 };
-    
-    // Count total data points
-    const totalPoints = usageData.length;
-    
-    // Count points by different status/state combinations for debugging
-    const onlinePoints = usageData.filter(point => 
-      point.device_status === STATUS_ONLINE
-    ).length;
-    
-    const inUsePoints = usageData.filter(point => 
-      point.state === 0
-    ).length;
-    
-    // Filter for ONLINE status and count points where state is 0 (in use)
-    // IMPORTANT: Only count points where device is ONLINE
-    const usagePoints = usageData.filter(point => 
-      point.device_status === STATUS_ONLINE && point.state === 0
-    ).length;
-    
-    console.log('📊 Usage calculation:', {
-      totalPoints,
-      onlinePoints,
-      inUsePoints,
-      actualUsagePoints: usagePoints,
-      date: selectedDate.toISOString().split('T')[0]
-    });
-    
-    // Each data point represents approximately 1 minute of usage
-    const totalMinutes = usagePoints;
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-    
-    return { hours, minutes };
-  };
-
   // Render different views based on viewMode
   if (viewMode === 'user') {
     return (
@@ -626,24 +611,31 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
               <h4 style={{ margin: '0 0 8px 0' }}>
                 {isToday(selectedDate) ? "Today's" : `${selectedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}'s`} Total Usage Time
               </h4>
-              {(() => {
-                const { hours, minutes } = calculateTotalUsageHours();
-                return (
-                  <div style={{ fontSize: '18px', fontWeight: 'bold' }}>
-                    {hours} hour{hours !== 1 ? 's' : ''} {minutes} minute{minutes !== 1 ? 's' : ''}
-                  </div>
-                );
-              })()}
+              {isLoadingUsageStats ? (
+                <div className="flex items-center justify-center" style={{ height: "30px" }}>
+                  <Spinner size="small" text="" />
+                </div>
+              ) : (
+                <div style={{ fontSize: '18px', fontWeight: 'bold' }}>
+                  {todayUsage.hours} hour{todayUsage.hours !== 1 ? 's' : ''} {todayUsage.minutes} minute{todayUsage.minutes !== 1 ? 's' : ''}
+                </div>
+              )}
             </div>
             
             {/* Add 30-day total usage display */}
             <div style={{ textAlign: 'center', margin: '10px 0', backgroundColor: 'rgba(240, 249, 255, 0.8)', padding: '10px', borderRadius: '5px', border: '1px solid #e0e0e0' }}>
               <h4 style={{ margin: '0 0 8px 0' }}>
-                Total Usage Time (Past 30 Days)
+                Total Usage Time (All Time)
               </h4>
-              <div style={{ fontSize: '18px', fontWeight: 'bold' }}>
-                {totalThirtyDayUsage.hours} hour{totalThirtyDayUsage.hours !== 1 ? 's' : ''} {totalThirtyDayUsage.minutes} minute{totalThirtyDayUsage.minutes !== 1 ? 's' : ''}
-              </div>
+              {isLoadingUsageStats ? (
+                <div className="flex items-center justify-center" style={{ height: "30px" }}>
+                  <Spinner size="small" text="" />
+                </div>
+              ) : (
+                <div style={{ fontSize: '18px', fontWeight: 'bold' }}>
+                  {totalThirtyDayUsage.hours} hour{totalThirtyDayUsage.hours !== 1 ? 's' : ''} {totalThirtyDayUsage.minutes} minute{totalThirtyDayUsage.minutes !== 1 ? 's' : ''}
+                </div>
+              )}
             </div>
             
             <div>

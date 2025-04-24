@@ -50,6 +50,14 @@
       {
         "source": "**",
         "destination": "/index.html"
+      },
+      {
+        "source": "/api/getTotalUsage",
+        "function": "getTotalUsage"
+      },
+      {
+        "source": "/api/getDailyUsage",
+        "function": "getDailyUsage"
       }
     ]
   },
