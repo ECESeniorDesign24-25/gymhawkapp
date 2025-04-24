@@ -865,14 +865,20 @@ def getLastUsedTime(req: https_fn.Request) -> https_fn.Response:
 def getTotalUsage(req: https_fn.Request) -> https_fn.Response:
     thing_id = req.args.get("thing_id")
     total_usage = getTotalUsageUtil(thing_id)
-    return https_fn.Response(json.dumps(total_usage), status=200, headers=CORS_HEADERS)
+    if total_usage is None:
+        return https_fn.Response(json.dumps([]), status=200, headers=CORS_HEADERS)
+    else:
+        return https_fn.Response(json.dumps(total_usage), status=200, headers=CORS_HEADERS)
 
 @https_fn.on_request()
 def getDailyUsage(req: https_fn.Request) -> https_fn.Response:
     thing_id = req.args.get("thing_id")
     date = req.args.get("date")
     daily_usage = getDailyUsageUtil(thing_id, date)
-    return https_fn.Response(json.dumps(daily_usage), status=200, headers=CORS_HEADERS)
+    if daily_usage is None:
+        return https_fn.Response(json.dumps([]), status=200, headers=CORS_HEADERS)
+    else:
+        return https_fn.Response(json.dumps(daily_usage), status=200, headers=CORS_HEADERS)
 
 
 @scheduler_fn.on_schedule(schedule="0 19 * * *")

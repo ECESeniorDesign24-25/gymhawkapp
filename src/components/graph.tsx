@@ -407,12 +407,12 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
       data: [
         { 
           x: chartStartTime, 
-          y: 0.5,
+          y: 1,
           device_status: 'NO_DATA' 
         },
         { 
           x: chartEndTime, 
-          y: 0.5,
+          y: 1,
           device_status: 'NO_DATA'
         }
       ],
@@ -420,101 +420,234 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
       borderColor: 'rgba(200, 200, 200, 0.8)',
       fill: {
         target: 'origin',
-        above: 'rgba(200, 200, 200, 0.3)',
         below: 'rgba(200, 200, 200, 0.3)'
       },
       tension: 0,
-      stepped: true,
+      stepped: 'before' as const,
       pointRadius: 0
     });
   } else {
-    // Simplified approach - use just two datasets
+    // Include all data points, not just online ones
+    const sortedData = [...usageData].sort((a, b) => a.time.getTime() - b.time.getTime());
     
-    // Dataset 1: Machine state (available - green)
-    const availableData = usageData.filter(point => 
-      point.device_status === STATUS_ONLINE && point.state === 1
-    );
+    // Create a combined dataset with proper transitions
+    const combinedDataPoints = [];
     
-    // Dataset 2: Machine state (in use - red)
-    const inUseData = usageData.filter(point => 
-      point.device_status === STATUS_ONLINE && point.state === 0
-    );
-    
-    // Dataset 3: Offline status (gray)
-    const offlineData = usageData.filter(point => 
-      point.device_status === STATUS_OFFLINE || point.device_status === STATUS_UNKNOWN
-    );
-    
-    // Add available dataset (green)
-    if (availableData.length > 0) {
-      datasets.push({
-        label: `${machineName} - Available`,
-        data: availableData.map((point) => ({ 
-          x: point.time, 
-          y: point.state,
-          device_status: point.device_status
-        })),
-        backgroundColor: 'rgba(0, 100, 0, 0.5)',
-        borderColor: 'rgba(0, 100, 0, 0.8)',
-        fill: {
-          target: 'origin',
-          above: 'rgba(0, 100, 0, 0.3)', // Green fill for "Available"
-          below: 'rgba(0, 0, 0, 0)'
-        },
-        tension: 0,
-        stepped: true,
-        pointRadius: 0
-      });
+    // Make sure we have a point at the start of the day
+    if (sortedData.length > 0) {
+      // Add start of day point if needed
+      if (sortedData[0].time.getTime() > chartStartTime.getTime()) {
+        // Add a default "available" state at midnight
+        combinedDataPoints.push({
+          time: chartStartTime,
+          state: 1, // Default to available
+          device_status: STATUS_ONLINE
+        });
+      }
+      
+      // Add all points with their state determining color
+      combinedDataPoints.push(...sortedData);
+      
+      // Add end of day point if needed
+      if (sortedData[sortedData.length - 1].time.getTime() < chartEndTime.getTime()) {
+        // Use the last known state
+        const lastState = sortedData[sortedData.length - 1].state;
+        const lastStatus = sortedData[sortedData.length - 1].device_status || STATUS_ONLINE;
+        combinedDataPoints.push({
+          time: chartEndTime,
+          state: lastState,
+          device_status: lastStatus
+        });
+      }
     }
     
-    // Add in-use dataset (red)
-    if (inUseData.length > 0) {
-      datasets.push({
-        label: `${machineName} - In Use`,
-        data: inUseData.map((point) => ({ 
-          x: point.time, 
-          y: point.state,
-          device_status: point.device_status
-        })),
-        backgroundColor: 'rgba(139, 0, 0, 0.5)',
-        borderColor: 'rgba(139, 0, 0, 0.8)',
-        fill: {
-          target: 'origin',
-          above: 'rgba(0, 0, 0, 0)',
-          below: 'rgba(139, 0, 0, 0.3)' // Red fill for "In Use"
-        },
-        tension: 0,
-        stepped: true,
-        pointRadius: 0
+    // Create datasets with segments colored based on state and device status
+    if (combinedDataPoints.length > 0) {
+      // First, ensure we have proper transition points by creating an ordered timeline
+      // with explicit transition points where the state changes
+      let processedPoints: {time: Date, state: number, device_status: string}[] = [];
+      
+      for (let i = 0; i < combinedDataPoints.length; i++) {
+        const currentPoint = combinedDataPoints[i];
+        processedPoints.push({
+          time: currentPoint.time,
+          state: currentPoint.state,
+          device_status: currentPoint.device_status || STATUS_ONLINE
+        });
+        
+        // Add transition points between state or status changes
+        if (i < combinedDataPoints.length - 1) {
+          const nextPoint = combinedDataPoints[i + 1];
+          
+          // If the state changes or device status changes, add transition points
+          if (currentPoint.state !== nextPoint.state || 
+              currentPoint.device_status !== nextPoint.device_status) {
+            // Create a point 1ms before the next point with the current state and status
+            const transitionTime = new Date(nextPoint.time.getTime() - 1);
+            processedPoints.push({
+              time: transitionTime,
+              state: currentPoint.state,
+              device_status: currentPoint.device_status || STATUS_ONLINE
+            });
+          }
+        }
+      }
+      
+      // Now create non-overlapping datasets based on both state and device status
+      let availableSegments: {start: Date, end: Date}[] = [];
+      let inUseSegments: {start: Date, end: Date}[] = [];
+      let offlineSegments: {start: Date, end: Date}[] = [];
+      
+      // Group into continuous segments
+      let currentSegmentStart = processedPoints[0].time;
+      let currentState = processedPoints[0].state;
+      let currentStatus = processedPoints[0].device_status;
+      
+      for (let i = 1; i < processedPoints.length; i++) {
+        const point = processedPoints[i];
+        
+        // If state or status changed, close the current segment and start a new one
+        if (point.state !== currentState || point.device_status !== currentStatus) {
+          // End the current segment at the previous point's time
+          const segmentEnd = processedPoints[i-1].time;
+          
+          // Determine which segment list to add to based on status and state
+          if (currentStatus === STATUS_ONLINE) {
+            if (currentState === 1) {
+              availableSegments.push({ start: currentSegmentStart, end: segmentEnd });
+            } else {
+              inUseSegments.push({ start: currentSegmentStart, end: segmentEnd });
+            }
+          } else {
+            // For OFFLINE or UNKNOWN status, add to offline segments
+            offlineSegments.push({ start: currentSegmentStart, end: segmentEnd });
+          }
+          
+          // Start a new segment
+          currentSegmentStart = point.time;
+          currentState = point.state;
+          currentStatus = point.device_status;
+        }
+      }
+      
+      // Add the final segment
+      const lastPoint = processedPoints[processedPoints.length - 1];
+      if (lastPoint.device_status === STATUS_ONLINE) {
+        if (lastPoint.state === 1) {
+          availableSegments.push({ start: currentSegmentStart, end: lastPoint.time });
+        } else {
+          inUseSegments.push({ start: currentSegmentStart, end: lastPoint.time });
+        }
+      } else {
+        offlineSegments.push({ start: currentSegmentStart, end: lastPoint.time });
+      }
+      
+      // Create dataset points from segments
+      const availablePoints: {x: Date, y: number}[] = [];
+      availableSegments.forEach(segment => {
+        availablePoints.push({ x: segment.start, y: 1 });
+        availablePoints.push({ x: segment.end, y: 1 });
+        // Add a null point to break the line
+        if (segment !== availableSegments[availableSegments.length - 1]) {
+          availablePoints.push({ x: segment.end, y: null as any });
+        }
       });
-    }
-    
-    // Add offline dataset (gray)
-    if (offlineData.length > 0) {
-      datasets.push({
-        label: `${machineName} - Offline/Unknown`,
-        data: offlineData.map((point) => ({ 
-          x: point.time, 
-          y: 0.5, // Fixed y value for offline points
-          device_status: point.device_status
-        })),
-        backgroundColor: 'rgba(128, 128, 128, 0.5)',
-        borderColor: 'rgba(128, 128, 128, 0.8)',
-        fill: {
-          target: 'origin',
-          above: 'rgba(128, 128, 128, 0.3)', // Gray fill for offline/unknown
-          below: 'rgba(128, 128, 128, 0.3)'
-        },
-        tension: 0,
-        stepped: true,
-        pointRadius: 0
+      
+      const inUsePoints: {x: Date, y: number}[] = [];
+      inUseSegments.forEach(segment => {
+        inUsePoints.push({ x: segment.start, y: 1 });
+        inUsePoints.push({ x: segment.end, y: 1 });
+        // Add a null point to break the line
+        if (segment !== inUseSegments[inUseSegments.length - 1]) {
+          inUsePoints.push({ x: segment.end, y: null as any });
+        }
       });
+      
+      const offlinePoints: {x: Date, y: number}[] = [];
+      offlineSegments.forEach(segment => {
+        offlinePoints.push({ x: segment.start, y: 1 });
+        offlinePoints.push({ x: segment.end, y: 1 });
+        // Add a null point to break the line
+        if (segment !== offlineSegments[offlineSegments.length - 1]) {
+          offlinePoints.push({ x: segment.end, y: null as any });
+        }
+      });
+      
+      // Add the datasets (only if they have points)
+      if (availablePoints.length > 0) {
+        datasets.push({
+          label: `${machineName} - Available`,
+          data: availablePoints,
+          backgroundColor: 'rgba(0, 100, 0, 0.5)',
+          borderColor: 'rgba(0, 100, 0, 0.8)',
+          fill: {
+            target: 'origin',
+            below: 'rgba(0, 100, 0, 0.3)'
+          },
+          tension: 0,
+          stepped: 'before' as const,
+          pointRadius: 0
+        });
+      }
+      
+      if (inUsePoints.length > 0) {
+        datasets.push({
+          label: `${machineName} - In Use`,
+          data: inUsePoints,
+          backgroundColor: 'rgba(139, 0, 0, 0.5)',
+          borderColor: 'rgba(139, 0, 0, 0.8)',
+          fill: {
+            target: 'origin',
+            below: 'rgba(139, 0, 0, 0.3)'
+          },
+          tension: 0,
+          stepped: 'before' as const,
+          pointRadius: 0
+        });
+      }
+      
+      if (offlinePoints.length > 0) {
+        datasets.push({
+          label: `${machineName} - Offline/Unknown`,
+          data: offlinePoints,
+          backgroundColor: 'rgba(128, 128, 128, 0.5)',
+          borderColor: 'rgba(128, 128, 128, 0.8)',
+          fill: {
+            target: 'origin',
+            below: 'rgba(128, 128, 128, 0.3)'
+          },
+          tension: 0,
+          stepped: 'before' as const,
+          pointRadius: 0
+        });
+      }
     }
   }
 
   // Set up data for chart
   const chartData = {
     datasets: datasets
+  };
+  
+  // Update lineChartOptions to format tooltip time correctly
+  const modifiedLineChartOptions = {
+    ...getLineChartOptions(machineName, chartStartTime, chartEndTime),
+    plugins: {
+      ...getLineChartOptions(machineName, chartStartTime, chartEndTime).plugins,
+      tooltip: {
+        callbacks: {
+          title: (context: any) => {
+            // Format time to match x-axis display
+            const date = new Date(context[0].parsed.x);
+            return date.toLocaleTimeString([], { 
+              hour: '2-digit', 
+              minute: '2-digit',
+              hour12: true
+            });
+          }
+        }
+      }
+    }
   };
   
   console.log(`📊 Chart data created:`, {
@@ -550,7 +683,12 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
             Previous Day
           </button>
           <button
-            onClick={() => setSelectedDate(new Date())}
+            onClick={() => {
+              const today = new Date();
+              // Normalize to midnight of the current day to avoid timezone issues
+              today.setHours(0, 0, 0, 0);
+              setSelectedDate(today);
+            }}
             disabled={isLoading}
           >
             Today
@@ -567,7 +705,7 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
               newDate.setDate(newDate.getDate() + 1);
               setSelectedDate(newDate);
             }}
-            disabled={isLoading}
+            disabled={isLoading || isToday(selectedDate)}
           >
             Next Day
           </button>
@@ -582,7 +720,7 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
               Error loading data. Please try again.
             </div>
           ) : (
-            <Line data={chartData} options={lineChartOptions} />
+            <Line data={chartData} options={modifiedLineChartOptions} />
           )}
         </div>
       </div>

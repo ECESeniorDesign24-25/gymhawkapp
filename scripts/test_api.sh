@@ -90,6 +90,12 @@ case "$FUNCTION" in
     getLastUsedTime)
         URL="$API_BASE_URL/$FUNCTION?thing_id=$THING_ID"
         ;;
+    getTotalUsage)
+        URL="$API_BASE_URL/$FUNCTION?thing_id=$THING_ID"
+        ;;
+    getDailyUsage)
+        URL="$API_BASE_URL/$FUNCTION?thing_id=$THING_ID&date=$DATE"
+        ;;
     *)
         echo "Unknown function: $FUNCTION"
         usage
