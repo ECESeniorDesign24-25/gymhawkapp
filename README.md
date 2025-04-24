@@ -183,6 +183,24 @@ Application deployment is handled by Firebase, and is automatically run once all
 ```
 
 
+#### Notify User Machine is Available
+**Endpoint:** `/email_on_available`  
+**Method:** POST  
+**Parameters:**
+- `machine_id`: The machine ID
+- `machine_name`: The name of the machine
+- `previous_state` The previous state of the machine. (Almost always 'on')
+  **Returns:** JSON object in the following form:
+```json
+    {"status": "ok", "previous": "on", "current": "off"}
+```
+
+**To test locally:**
+```bash
+./scripts/test_api.sh --function email_on_available --thing_id <thing_id> --variable <previous_state>
+```
+
+
 #### Note:
 Any API with an invalid request or internal failure should return a JSON object in the following form:
 ```json
