@@ -14,7 +14,13 @@ import {
 } from "chart.js";
 import { Line } from "react-chartjs-2";
 import 'chartjs-adapter-date-fns';
-import { fetchMachineTimeseries, fetchTotalUsage, fetchDailyUsage } from "@/utils/db";
+import { 
+  fetchMachineTimeseries, 
+  fetchTotalUsage, 
+  fetchDailyUsage,
+  fetchDailyPercentages,
+  fetchHourlyPercentages
+} from '@/utils/db';
 import zoomPlugin from 'chartjs-plugin-zoom';
 import dynamic from 'next/dynamic';
 import { convertTimeseriesToDate, get12amOnDate, isToday } from "../utils/time_utils";
@@ -138,107 +144,13 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
     setIsAggregateLoading(true);
     
     try {
+      // Fetch daily percentages directly from backend
+      const dailyPercentagesData = await fetchDailyPercentages(machineId);
+      setAggregatedDailyUsage(dailyPercentagesData);
       
-      // Get data for the past 30 days as a reasonable sample
-      const dates = [];
-      for (let i = 0; i < 30; i++) {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-        dates.push(date);
-      }
-      
-      // Fetch data for each day
-      const allDataPoints: DataPoint[] = [];
-      
-      await Promise.all(
-        dates.map(async (date) => {
-          const startTime = get12amOnDate(date);
-          try {
-            // This API call filters data by machineId (thing_id)
-            // SQL equivalent: WHERE thing_id = machineId
-            const timeseries = await fetchMachineTimeseries(machineId, startTime, "state");
-            
-            if (!timeseries || timeseries.length === 0) {
-              return;
-            }
-            
-            const formattedData = timeseries.map((point: any) => {
-              const timestamp = point.timestamp || point.time || '';
-              const rawState = point.state || point.value || 'off';
-              const deviceStatus = point.status || point.device_status || STATUS_ONLINE;
-              
-              if (!timestamp) {
-                return null;
-              }
-              
-              const date = convertTimeseriesToDate(point);
-              
-              // IMPORTANT: For gym equipment, "on" means the machine is in use (someone is using it)
-              // We convert this to: 0 = in use (on), 1 = not in use (off)
-              const isInUse = rawState === "on";
-              const normalizedState = isInUse ? 0 : 1;
-              
-              return {
-                time: date,
-                state: normalizedState,
-                device_status: deviceStatus
-              };
-            }).filter(Boolean);
-            
-            allDataPoints.push(...formattedData);
-          } catch (error) {
-            console.error(`Error fetching data for ${date.toISOString().split('T')[0]}:`, error);
-          }
-        })
-      );
-            
-      // Only process online data points for the aggregate view
-      const onlinePoints = allDataPoints.filter(point => 
-        point.device_status === STATUS_ONLINE
-      );
-      
-      // Aggregate by hour in local timezone
-      const hourlyData: { [key: number]: { total: number; on: number } } = {};
-      onlinePoints.forEach(point => {
-        const hour = new Date(point.time).getHours();
-        if (!hourlyData[hour]) {
-          hourlyData[hour] = { total: 0, on: 0 };
-        }
-        hourlyData[hour].total++;
-        // If state is 0, it means the machine is in use (on)
-        if (point.state === 0) { // 0 means in use
-          hourlyData[hour].on++;
-        }
-      });
-      
-      const hourlyUsageData = Object.entries(hourlyData).map(([hour, data]) => ({
-        hour: parseInt(hour),
-        percentage: (data.on / data.total) * 100
-      })).sort((a, b) => a.hour - b.hour);
-      
-      setAggregatedHourlyUsage(hourlyUsageData);
-      
-      // Aggregate by day of week
-      const dailyData: { [key: string]: { total: number; on: number } } = {};
-      onlinePoints.forEach(point => {
-        const day = point.time.toLocaleDateString('en-US', { weekday: 'long' });
-        if (!dailyData[day]) {
-          dailyData[day] = { total: 0, on: 0 };
-        }
-        dailyData[day].total++;
-        // If state is 0, it means the machine is in use (on)
-        if (point.state === 0) { // 0 means in use
-          dailyData[day].on++;
-        }
-      });
-      
-      const dayOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-      const dailyUsageData = dayOrder.map(day => ({
-        day,
-        percentage: dailyData[day] ? (dailyData[day].on / dailyData[day].total) * 100 : 0
-      }));
-      
-      setAggregatedDailyUsage(dailyUsageData);
+      // Fetch hourly percentages directly from backend
+      const hourlyPercentagesData = await fetchHourlyPercentages(machineId);
+      setAggregatedHourlyUsage(hourlyPercentagesData);
       
     } catch (error) {
       console.error(`Error fetching aggregate data: `, error);

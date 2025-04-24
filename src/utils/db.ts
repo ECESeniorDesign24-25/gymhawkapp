@@ -330,3 +330,79 @@ export async function fetchDailyUsage(machineId: string, date: string): Promise<
     return 0;
   }
 }
+
+// Fetch daily usage percentages by day of week
+export async function fetchDailyPercentages(machineId: string): Promise<{ day: string; percentage: number }[]> {
+  try {
+    const url = `${API_ENDPOINT}/getDailyPercentages?thing_id=${machineId}`;
+    console.log(`Fetching daily percentages from: ${url}`);
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      console.error('Error fetching daily percentages:', response.statusText);
+      return [];
+    }
+    
+    const data = await response.json();
+    console.log(`Daily percentages data:`, data);
+    
+    // Transform the data into the expected format
+    // Backend returns [thing_id, day_number, day_name, percent_in_use]
+    const dayOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    
+    // Create a map of day to percentage
+    const dayMap = new Map<string, number>();
+    data.forEach((item: any) => {
+      // item[2] is day_name, item[3] is percent_in_use
+      dayMap.set(item[2], item[3]);
+    });
+    
+    // Map to proper format ensuring all days are included
+    return dayOrder.map(day => ({
+      day,
+      percentage: dayMap.has(day) ? dayMap.get(day)! : 0
+    }));
+  } catch (error) {
+    console.error('Error fetching daily percentages:', error);
+    return [];
+  }
+}
+
+// Fetch hourly usage percentages
+export async function fetchHourlyPercentages(machineId: string): Promise<{ hour: number; percentage: number }[]> {
+  try {
+    const url = `${API_ENDPOINT}/getHourlyPercentages?thing_id=${machineId}`;
+    console.log(`Fetching hourly percentages from: ${url}`);
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      console.error('Error fetching hourly percentages:', response.statusText);
+      return [];
+    }
+    
+    const data = await response.json();
+    console.log(`Hourly percentages data:`, data);
+    
+    // Transform the data into the expected format
+    // Backend returns [thing_id, hour_number, percent_in_use]
+    const hourMap = new Map<number, number>();
+    data.forEach((item: any) => {
+      // item[1] is hour_number, item[2] is percent_in_use
+      hourMap.set(item[1], item[2]);
+    });
+    
+    // Create a complete set of hours (0-23)
+    const result: { hour: number; percentage: number }[] = [];
+    for (let hour = 0; hour < 24; hour++) {
+      result.push({
+        hour,
+        percentage: hourMap.has(hour) ? hourMap.get(hour)! : 0
+      });
+    }
+    
+    return result;
+  } catch (error) {
+    console.error('Error fetching hourly percentages:', error);
+    return [];
+  }
+}

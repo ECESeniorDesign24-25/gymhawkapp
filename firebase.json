@@ -60,6 +60,14 @@
         "destination": "email_on_available"
       },
       {
+        "source": "/api/getDailyPercentages",
+        "function": "getDailyPercentages"
+      },
+      {
+        "source": "/api/getHourlyPercentages",
+        "function": "getHourlyPercentages"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

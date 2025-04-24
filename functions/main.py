@@ -739,7 +739,7 @@ def getDailyPercentagesUtil(thing_id: str) -> list:
         """
         with engine.connect() as conn:
             result = conn.execute(text(query), {"thing_id": thing_id})
-            return result.fetchall()
+            return [list(row) for row in result.fetchall()]
     except Exception as e:
         print(f"Error in getDailyPercentages: {str(e)}")
         return []
@@ -766,7 +766,7 @@ def getHourlyPercentagesUtil(thing_id: str) -> list:
         """
         with engine.connect() as conn:
             result = conn.execute(text(query), {"thing_id": thing_id})
-            return result.fetchall()
+            return [list(row) for row in result.fetchall()]
     except Exception as e:
         print(f"Error in getHourlyPercentages: {str(e)}")
         return []
@@ -982,5 +982,5 @@ def getHourlyPercentages(req: https_fn.Request) -> https_fn.Response:
         )
 
 
-# if __name__ == "__main__":
-#     pass
+if __name__ == "__main__":
+    print(getDailyPercentagesUtil("0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8"))
