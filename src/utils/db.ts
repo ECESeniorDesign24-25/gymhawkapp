@@ -1,8 +1,7 @@
 import { getDocs, collection, query, getDoc, doc } from "firebase/firestore"; 
 import { db } from "@/lib/firebase"
 import { getCoords, getBuildingOutline, getLat, getLong } from "./map_utils";
-import { API_ENDPOINT } from "./consts";
-import { constants } from "buffer";
+import { API_ENDPOINT, OTHER_API_ENDPOINT } from "./consts";
 import { getThingId } from "./common";
 
 
@@ -254,7 +253,7 @@ export async function fetchMachineDetails(thingId: string) {
 // Fetch total usage hours for a machine
 export async function fetchTotalUsage(machineId: string): Promise<number> {
   try {
-    const url = `${API_ENDPOINT}/getTotalUsage?thing_id=${machineId}`;
+    const url = `${OTHER_API_ENDPOINT}/getTotalUsage?thing_id=${machineId}`;
     console.log(`Fetching total usage from: ${url}`);
     const response = await fetch(url);
     
@@ -294,7 +293,7 @@ export async function fetchTotalUsage(machineId: string): Promise<number> {
 // Fetch daily usage hours for a machine
 export async function fetchDailyUsage(machineId: string, date: string): Promise<number> {
   try {
-    const url = `${API_ENDPOINT}/getDailyUsage?thing_id=${machineId}&date=${date}`;
+    const url = `${OTHER_API_ENDPOINT}/getDailyUsage?thing_id=${machineId}&date=${date}`;
     console.log(`Fetching daily usage from: ${url}`);
     const response = await fetch(url);
     
@@ -334,7 +333,8 @@ export async function fetchDailyUsage(machineId: string, date: string): Promise<
 // Fetch daily usage percentages by day of week
 export async function fetchDailyPercentages(machineId: string): Promise<{ day: string; percentage: number }[]> {
   try {
-    const url = `${API_ENDPOINT}/getDailyPercentages?thing_id=${machineId}`;
+    const url = `${OTHER_API_ENDPOINT}/getDailyPercentages?thing_id=${machineId}`;
+
     console.log(`Fetching daily percentages from: ${url}`);
     const response = await fetch(url);
     
@@ -346,16 +346,24 @@ export async function fetchDailyPercentages(machineId: string): Promise<{ day: s
     const data = await response.json();
     console.log(`Daily percentages data:`, data);
     
-    // Transform the data into the expected format
-    // Backend returns [thing_id, day_number, day_name, percent_in_use]
+    // Backend returns an array of arrays: [thing_id, day_number, day_name, percent_in_use]
+    // Each row is [string, number, string, number]
     const dayOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
     
-    // Create a map of day to percentage
+    // Create a map of day to percentage from the nested array data
     const dayMap = new Map<string, number>();
-    data.forEach((item: any) => {
-      // item[2] is day_name, item[3] is percent_in_use
-      dayMap.set(item[2], item[3]);
-    });
+    if (Array.isArray(data)) {
+      data.forEach((item: any[]) => {
+        if (Array.isArray(item) && item.length >= 4) {
+          // item[2] is day_name, item[3] is percent_in_use
+          const dayName = item[2];
+          const percentage = item[3];
+          if (typeof dayName === 'string' && !isNaN(Number(percentage))) {
+            dayMap.set(dayName, Number(percentage));
+          }
+        }
+      });
+    }
     
     // Map to proper format ensuring all days are included
     return dayOrder.map(day => ({
@@ -371,7 +379,7 @@ export async function fetchDailyPercentages(machineId: string): Promise<{ day: s
 // Fetch hourly usage percentages
 export async function fetchHourlyPercentages(machineId: string): Promise<{ hour: number; percentage: number }[]> {
   try {
-    const url = `${API_ENDPOINT}/getHourlyPercentages?thing_id=${machineId}`;
+    const url = `${OTHER_API_ENDPOINT}/getHourlyPercentages?thing_id=${machineId}`;
     console.log(`Fetching hourly percentages from: ${url}`);
     const response = await fetch(url);
     
@@ -383,13 +391,21 @@ export async function fetchHourlyPercentages(machineId: string): Promise<{ hour:
     const data = await response.json();
     console.log(`Hourly percentages data:`, data);
     
-    // Transform the data into the expected format
-    // Backend returns [thing_id, hour_number, percent_in_use]
+    // Backend returns an array of arrays: [thing_id, hour_number, percent_in_use]
+    // Each row is [string, number, number]
     const hourMap = new Map<number, number>();
-    data.forEach((item: any) => {
-      // item[1] is hour_number, item[2] is percent_in_use
-      hourMap.set(item[1], item[2]);
-    });
+    if (Array.isArray(data)) {
+      data.forEach((item: any[]) => {
+        if (Array.isArray(item) && item.length >= 3) {
+          // item[1] is hour_number, item[2] is percent_in_use
+          const hourNumber = item[1];
+          const percentage = item[2];
+          if (!isNaN(Number(hourNumber)) && !isNaN(Number(percentage))) {
+            hourMap.set(Number(hourNumber), Number(percentage));
+          }
+        }
+      });
+    }
     
     // Create a complete set of hours (0-23)
     const result: { hour: number; percentage: number }[] = [];

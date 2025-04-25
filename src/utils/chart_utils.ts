@@ -40,7 +40,11 @@ export const getDatasetStyle = (machineName: string, selectedDate: Date, usageDa
     }
 }
 
-export const getBarChartOptions = (machineName: string) => {
+export const getBarChartOptions = (machineName: string, maxPercentage?: number) => {
+    // Calculate the y-axis max - default to 100 if no maxPercentage provided
+    // Otherwise, set it to twice the max value, but cap at 100
+    const yAxisMax = maxPercentage ? Math.min(Math.ceil(maxPercentage * 2), 100) : 100;
+    
     // basic chart style for machine 
     return {
         responsive: true,
@@ -48,7 +52,7 @@ export const getBarChartOptions = (machineName: string) => {
         scales: {
           y: {
             beginAtZero: true,
-            max: 100,
+            max: yAxisMax,
             title: {
               display: true,
               text: 'Usage Percentage (%)'

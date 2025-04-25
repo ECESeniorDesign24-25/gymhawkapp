@@ -985,4 +985,7 @@ def getHourlyPercentages(req: https_fn.Request) -> https_fn.Response:
 
 
 if __name__ == "__main__":
+    req = ManualRequest(args={"thing_id": "0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8"})
+    output = getDailyPercentages(req)
+    print("\nOUTPUT: ", output.data.decode('utf-8'))
     print(getDailyPercentagesUtil("0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8"))
