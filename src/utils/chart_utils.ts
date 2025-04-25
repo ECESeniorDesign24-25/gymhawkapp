@@ -2,6 +2,13 @@ import { STATUS_UNKNOWN, STATUS_ONLINE   } from "./consts";
 import { STATUS_OFFLINE } from "./consts";
 import { formatDate, formatTime } from "./time_utils"
 import { StateInt, StateString, StateColor } from "@/enums/state"
+import { Chart } from 'chart.js';
+import 'chartjs-adapter-date-fns';
+import { enUS } from 'date-fns/locale';
+
+// Set default timezone for Chart.js
+Chart.defaults.locale = 'en-US';
+
 const BLACK_FILL = 'rgba(0, 0, 0, 0)';
 const LIGHT_GRAY_FILL = 'rgba(200, 200, 200, 0.75)';
 
@@ -125,135 +132,143 @@ export const getDailyChartData = (dailyUsage: any[]) => {
 export const getLineChartOptions = (machineName: string, chartStartTime: Date, chartEndTime: Date) => {
     // basic line chart style
     return {
-        responsive: true,
-        maintainAspectRatio: false,
-        interaction: {
-          mode: 'nearest' as const,
-          axis: 'x' as const,
-          intersect: false
-        },
-        scales: {
-          x: {
-            type: 'time' as const,
-            time: {
-              displayFormats: { 
-                minute: 'h:mm a', 
-                hour: 'h:mm a',
-                second: 'h:mm:ss a'
-              },
-              unit: 'minute' as const,
-              stepSize: 15
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: {
+        mode: 'nearest' as const,
+        axis: 'x' as const,
+        intersect: false
+      },
+      scales: {
+        x: {
+          type: 'time' as const,
+          time: {
+            displayFormats: {
+              minute: 'h:mm a', 
+              hour: 'h:mm a',
+              second: 'h:mm:ss a'
             },
-            min: chartStartTime.getTime(),
-            max: chartEndTime.getTime(),
-            title: {
-              display: false,
-              text: 'Time of Day (Central Time)',
-            },
+            unit: 'minute' as const,
+            stepSize: 15,
+            // Add timezone for Central Time
+            timezone: 'America/Chicago' 
           },
-          y: {
-            type: 'linear' as const,
-            min: -0.1,
-            max: 1.1,
-            ticks: {
-              stepSize: 1,
-              callback: function(this: any, tickValue: number | string) {
-                if (Number(tickValue) === StateInt.IN_USE) return "In Use";
-                if (Number(tickValue) === StateInt.AVAILABLE) return "Available";
-                return "";
-              }
-            },
-            title: {
-              display: true,
-              text: 'Usage',
-            },
+          min: chartStartTime.getTime(),
+          max: chartEndTime.getTime(),
+          title: {
+            display: false,
+            text: 'Time of Day (Central Time)',
           },
         },
-        plugins: {
-          zoom: {
-            zoom: {
-              wheel: {
-                enabled: true,
-              },
-              pinch: {
-                enabled: true,
-              },
-              mode: 'x' as const,
-            },
-            pan: {
-              enabled: true,
-              mode: 'x' as const,
+        y: {
+          type: 'linear' as const,
+          min: -0.1,
+          max: 1.1,
+          ticks: {
+            stepSize: 1,
+            callback: function(this: any, tickValue: number | string) {
+              if (Number(tickValue) === StateInt.IN_USE) return "In Use";
+              if (Number(tickValue) === StateInt.AVAILABLE) return "Available";
+              return "";
             }
           },
           title: {
-            display: false,
-            text: machineName,
-          },
-          tooltip: {
-            enabled: true,
-            mode: 'index' as const,
-            intersect: false,
-            backgroundColor: function(context: any) {
-              // Get the raw data point if available
-              const dataPoint = context.tooltip.dataPoints[0].raw;
-              
-              if (dataPoint && dataPoint.device_status) {
-                if (dataPoint.device_status === STATUS_OFFLINE || dataPoint.device_status === STATUS_UNKNOWN) {
-                  return StateColor.OFFLINE;
-                }
-                if (dataPoint.device_status === 'NO_DATA') {
-                  return LIGHT_GRAY_FILL; 
-                }
-              }
-              
-              // Use original coloring based on state if the device is online
-              const value = context.tooltip.dataPoints[0].raw.y;
-              return value === StateInt.AVAILABLE ? StateColor.AVAILABLE : StateColor.IN_USE;
-            },
-            titleColor: 'white',
-            bodyColor: 'white', 
-            padding: 10,
-            callbacks: {
-              title: function(tooltipItems: any[]) {
-                if (tooltipItems.length > 0) {
-                  const date = new Date(tooltipItems[0].raw.x);
-                  return `${formatDate(date)} at ${formatTime(date)} CT`;
-                }
-                return '';
-              },
-              label: function(tooltipItem: any) {
-                if (tooltipItem.datasetIndex === 0 || tooltipItem.datasetIndex === 1) {
-                  const dataPoint = tooltipItem.raw;
-                  
-                  // Get device status if available in the raw data
-                  let deviceStatus = STATUS_ONLINE;
-                  if (dataPoint && dataPoint.device_status) {
-                    deviceStatus = dataPoint.device_status;
-                  }
-                  
-                  // For NO_DATA status, show a specific message
-                  if (deviceStatus === 'NO_DATA') {
-                    return 'No data available for this time';
-                  }
-                  
-                  const value = tooltipItem.raw.y;
-                  let stateText = value === 1 ? 'Available' : 'In Use';
-                  
-                  // If device is offline or unknown, override state display
-                  if (deviceStatus === STATUS_OFFLINE || deviceStatus === STATUS_UNKNOWN) {
-                    stateText = deviceStatus;
-                    return `Status: ${stateText}`;
-                  } else {
-                    return `Status: ${deviceStatus}, State: ${stateText}`;
-                  }
-                }
-                return '';
-              }
-            }
-          },
-          legend: {
-            display: false
+            display: true,
+            text: 'Usage',
           },
         },
-      };
+      },
+      plugins: {
+        zoom: {
+          zoom: {
+            wheel: {
+              enabled: true,
+            },
+            pinch: {
+              enabled: true,
+            },
+            mode: 'x' as const,
+          },
+          pan: {
+            enabled: true,
+            mode: 'x' as const,
+          }
+        },
+        title: {
+          display: false,
+          text: machineName,
+        },
+        tooltip: {
+          enabled: true,
+          mode: 'index' as const,
+          intersect: false,
+          backgroundColor: function(context: any) {
+            // Get the raw data point if available
+            const dataPoint = context.tooltip.dataPoints[0].raw;
+            
+            if (dataPoint && dataPoint.device_status) {
+              if (dataPoint.device_status === STATUS_OFFLINE || dataPoint.device_status === STATUS_UNKNOWN) {
+                return StateColor.OFFLINE;
+              }
+              if (dataPoint.device_status === 'NO_DATA') {
+                return LIGHT_GRAY_FILL; 
+              }
+            }
+            
+            // Use original coloring based on state if the device is online
+            const value = context.tooltip.dataPoints[0].raw.y;
+            return value === StateInt.AVAILABLE ? StateColor.AVAILABLE : StateColor.IN_USE;
+          },
+          titleColor: 'white',
+          bodyColor: 'white', 
+          padding: 10,
+          callbacks: {
+            title: function(tooltipItems: any[]) {
+              if (tooltipItems.length > 0) {
+                // Format using Central Time zone
+                const date = new Date(tooltipItems[0].raw.x);
+                return date.toLocaleTimeString('en-US', { 
+                  hour: '2-digit', 
+                  minute: '2-digit',
+                  hour12: true,
+                  timeZone: 'America/Chicago' // Central Time
+                });
+              }
+              return '';
+            },
+            label: function(tooltipItem: any) {
+              if (tooltipItem.datasetIndex === 0 || tooltipItem.datasetIndex === 1) {
+                const dataPoint = tooltipItem.raw;
+                
+                // Get device status if available in the raw data
+                let deviceStatus = STATUS_ONLINE;
+                if (dataPoint && dataPoint.device_status) {
+                  deviceStatus = dataPoint.device_status;
+                }
+                
+                // For NO_DATA status, show a specific message
+                if (deviceStatus === 'NO_DATA') {
+                  return 'No data available for this time';
+                }
+                
+                const value = tooltipItem.raw.y;
+                let stateText = value === 1 ? 'Available' : 'In Use';
+                
+                // If device is offline or unknown, override state display
+                if (deviceStatus === STATUS_OFFLINE || deviceStatus === STATUS_UNKNOWN) {
+                  stateText = deviceStatus;
+                  return `Status: ${stateText}`;
+                } else {
+                  return `Status: ${deviceStatus}, State: ${stateText}`;
+                }
+              }
+              return '';
+            }
+          }
+        },
+        legend: {
+          display: false
+        },
+      },
+    };
 }

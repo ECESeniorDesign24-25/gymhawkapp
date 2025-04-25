@@ -69,6 +69,7 @@ export async function getLat(machine: string) {
   const now = Date.now();
   
   if (coordCache[cacheKey] && (now - coordCache[cacheKey].timestamp) < CACHE_EXPIRY) {
+    console.log(`[CACHE] Using cached latitude for machine: ${machine}`);
     return coordCache[cacheKey].value;
   }
   
@@ -80,13 +81,17 @@ export async function getLat(machine: string) {
       return null;
     }
     
-    const response = await fetch(`${API_ENDPOINT}/getLat?thing_id=${thing_id}`);
+    const url = `${API_ENDPOINT}/getLat?thing_id=${thing_id}`;
+    console.log(`[API] Requesting latitude for machine: ${machine}, thing_id: ${thing_id}, URL: ${url}`);
+    
+    const response = await fetch(url);
     
     if (!response.ok) {
       throw new Error(`Error fetching latitude: ${response.statusText}`);
     }
     
     const data = await response.json();
+    console.log(`[API] Received latitude data for ${machine}:`, data);
     
     // Handle various response formats
     let latValue = null;
@@ -98,7 +103,7 @@ export async function getLat(machine: string) {
     }
     
     if (latValue !== null && !isNaN(latValue) && latValue !== 0) {
-
+      console.log(`[API] Parsed latitude for ${machine}: ${latValue}`);
       // cache
       coordCache[cacheKey] = { value: latValue, timestamp: now };
       return latValue;
@@ -119,6 +124,7 @@ export async function getLong(machine: string) {
   const now = Date.now();
   
   if (coordCache[cacheKey] && (now - coordCache[cacheKey].timestamp) < CACHE_EXPIRY) {
+    console.log(`[CACHE] Using cached longitude for machine: ${machine}`);
     return coordCache[cacheKey].value;
   }
   
@@ -130,13 +136,17 @@ export async function getLong(machine: string) {
       return null;
     }
     
-    const response = await fetch(`${API_ENDPOINT}/getLong?thing_id=${thing_id}`);
+    const url = `${API_ENDPOINT}/getLong?thing_id=${thing_id}`;
+    console.log(`[API] Requesting longitude for machine: ${machine}, thing_id: ${thing_id}, URL: ${url}`);
+    
+    const response = await fetch(url);
     
     if (!response.ok) {
       throw new Error(`Error fetching longitude: ${response.statusText}`);
     }
     
     const data = await response.json();
+    console.log(`[API] Received longitude data for ${machine}:`, data);
     
     // Handle various response formats
     let lngValue = null;
@@ -152,7 +162,7 @@ export async function getLong(machine: string) {
     }
     
     if (lngValue !== null && !isNaN(lngValue) && lngValue !== 0) {
-
+      console.log(`[API] Parsed longitude for ${machine}: ${lngValue}`);
       // cache
       coordCache[cacheKey] = { value: lngValue, timestamp: now };
       return lngValue;

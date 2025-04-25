@@ -24,9 +24,40 @@ export async function fetchMachines(gymId: string) {
           
           const lat = await getLat(docSnapshot.id);
           const lng = await getLong(docSnapshot.id);
-          const type = await fetchDeviceState(docSnapshot.id, 'Unknown', "type");
+          let type = await fetchDeviceState(docSnapshot.id, 'Unknown', "type");
           const state = await fetchDeviceState(docSnapshot.id, 'Unknown', "state");
           const device_status = await fetchDeviceState(docSnapshot.id, 'OFFLINE', "device_status");
+          
+          // If type is still unknown, try to use a predefined mapping or fetch from another source
+          if (!type || type === 'Unknown') {
+              console.log(`[MACHINE] Type unknown for ${docSnapshot.id}, attempting to find default type`);
+              // Try to get machine type from the thing_id document
+              try {
+                  const thing_id_doc = await getDoc(doc(thing_ids, data.thingId));
+                  if (thing_id_doc.exists() && thing_id_doc.data()?.machine_type) {
+                      type = thing_id_doc.data()?.machine_type;
+                      console.log(`[MACHINE] Found type in thing_ids: ${type}`);
+                  }
+              } catch (e) {
+                  console.error(`[MACHINE] Error fetching thing_id data for type: ${e}`);
+              }
+              
+              // If still unknown, use a machine name to type mapping as fallback
+              if (!type || type === 'Unknown') {
+                  // Extract machine name and map to common types
+                  const machineName = docSnapshot.id.toLowerCase();
+                  if (machineName.includes('treadmill')) type = 'Treadmill';
+                  else if (machineName.includes('bike')) type = 'Exercise Bike';
+                  else if (machineName.includes('elliptical')) type = 'Elliptical';
+                  else if (machineName.includes('row')) type = 'Rowing Machine';
+                  else if (machineName.includes('press')) type = 'Chest Press';
+                  else if (machineName.includes('curl')) type = 'Bicep Curl';
+                  else if (machineName.includes('bench')) type = 'Bench Press';
+                  else type = 'Fitness Equipment';
+                  
+                  console.log(`[MACHINE] Applied fallback type for ${docSnapshot.id}: ${type}`);
+              }
+          }
 
           const thing_id_doc = await getDoc(doc(thing_ids, data.thingId));
           

@@ -23,15 +23,16 @@ import {
 } from '@/utils/db';
 import zoomPlugin from 'chartjs-plugin-zoom';
 import dynamic from 'next/dynamic';
-import { convertTimeseriesToDate, get12amOnDate, isToday } from "../utils/time_utils";
+import { convertTimeseriesToDate, get12amOnDate, isToday, CENTRAL_TIMEZONE } from "../utils/time_utils";
 import { getBarChartOptions, getDailyChartData, getHourlyChartData, getLineChartOptions } from "../utils/chart_utils";
 import { CustomBarChart } from "./bar";
 import { MachineChart } from "@/interfaces/chart";
 import { Spinner } from "./spinner";
 import { DataPoint } from "@/interfaces/dataPoint";
-import { STATUS_ONLINE, STATUS_UNKNOWN, CACHE_DURATION, ONE_MINUTE } from "@/utils/consts";
-import { StateInt, StateString, StateColor } from "@/enums/state";
+import { CACHE_DURATION, ONE_MINUTE } from "@/utils/consts";
+import { StateInt, StateString, StateColor, Status} from "@/enums/state";
 import { getFromCache, saveToCache } from "@/utils/cache";
+import { buttonStyle, buttonHoverStyles, todaySelectedStyle } from "@/styles/buttonStyle";
 // set up chart js
 ChartJS.register(
   CategoryScale,
@@ -45,7 +46,7 @@ ChartJS.register(
   Filler,
   TimeScale,
   zoomPlugin
-);
+);  
 
 // machine usage chart
 const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }> = ({ 
@@ -85,7 +86,7 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
     usageData.forEach(point => {
 
       // only include ONLINE status
-      if (point.device_status !== STATUS_ONLINE) {
+      if (point.device_status !== Status.ONLINE) {
         return;
       } 
       
@@ -116,7 +117,7 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
     usageData.forEach(point => {
 
       // only include ONLINE status
-      if (point.device_status !== STATUS_ONLINE) {
+      if (point.device_status !== Status.ONLINE) {
         return;
       }
       
@@ -213,7 +214,7 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
         const formattedData = timeseries.map((point: any) => {
           const timestamp = point.timestamp || point.time || '';
           const rawState = point.state || point.value || 'off';
-          const deviceStatus = point.status || point.device_status || STATUS_UNKNOWN;
+          const deviceStatus = point.status || point.device_status || Status.UNKNOWN;
           
           if (!timestamp) {
             return null;
@@ -358,11 +359,11 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
           device_status: 'NO_DATA'
         }
       ],
-      backgroundColor: StateColor.AVAILABLE,
-      borderColor: StateColor.AVAILABLE,
+      backgroundColor: StateColor.OFFLINE,
+      borderColor: StateColor.OFFLINE,
       fill: {
         target: 'origin',
-        below: StateColor.AVAILABLE
+        below: StateColor.OFFLINE
       },
       tension: 0,
       stepped: 'before' as const,
@@ -379,7 +380,7 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
         combinedDataPoints.push({
           time: chartStartTime,
           state: StateInt.AVAILABLE,
-          device_status: STATUS_UNKNOWN
+          device_status: Status.UNKNOWN
         });
       }
       combinedDataPoints.push(...sortedData);
@@ -387,7 +388,7 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
       // add end of day point if needed
       if (sortedData[sortedData.length - 1].time.getTime() < chartEndTime.getTime()) {
         const lastState = sortedData[sortedData.length - 1].state;
-        const lastStatus = sortedData[sortedData.length - 1].device_status || STATUS_ONLINE;
+        const lastStatus = sortedData[sortedData.length - 1].device_status || Status.ONLINE;
         combinedDataPoints.push({
           time: chartEndTime,
           state: lastState,
@@ -405,7 +406,7 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
         processedPoints.push({
           time: currentPoint.time,
           state: currentPoint.state,
-          device_status: currentPoint.device_status || STATUS_UNKNOWN
+          device_status: currentPoint.device_status || Status.UNKNOWN
         });
         
         // add transition points between state or status changes
@@ -418,7 +419,7 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
             processedPoints.push({
               time: transitionTime,
               state: currentPoint.state,
-              device_status: currentPoint.device_status || STATUS_ONLINE
+              device_status: currentPoint.device_status || Status.ONLINE
             });
           }
         }
@@ -441,7 +442,7 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
           const segmentEnd = processedPoints[i-1].time;
           
           // determine which segment list to add to based on status and state
-          if (currentStatus === STATUS_ONLINE) {
+          if (currentStatus === Status.ONLINE) {
             if (currentState === StateInt.AVAILABLE) {
               availableSegments.push({ start: currentSegmentStart, end: segmentEnd });
             } else {
@@ -460,7 +461,7 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
       
       // add the final segment
       const lastPoint = processedPoints[processedPoints.length - 1];
-      if (lastPoint.device_status === STATUS_ONLINE) {
+      if (lastPoint.device_status === Status.ONLINE) {
         if (lastPoint.state === StateInt.AVAILABLE) {
           availableSegments.push({ start: currentSegmentStart, end: lastPoint.time });
         } else {
@@ -537,11 +538,11 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
         datasets.push({
           label: `${machineName} - Offline/Unknown`,
           data: offlinePoints,
-          backgroundColor: StateColor.AVAILABLE,
-          borderColor: StateColor.AVAILABLE,
+          backgroundColor: StateColor.OFFLINE,
+          borderColor: StateColor.OFFLINE,
           fill: {
             target: 'origin',
-            below: StateColor.AVAILABLE
+            below: StateColor.OFFLINE
           },
           tension: 0,
           stepped: 'before' as const,
@@ -555,25 +556,28 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
     datasets: datasets
   };
   
-  // tooltip time formatting
-  const modifiedLineChartOptions = {
-    ...getLineChartOptions(machineName, chartStartTime, chartEndTime),
-    plugins: {
-      ...getLineChartOptions(machineName, chartStartTime, chartEndTime).plugins,
-      tooltip: {
-        callbacks: {
-          title: (context: any) => {
-            const date = new Date(context[0].parsed.x);
-            return date.toLocaleTimeString([], { 
-              hour: '2-digit', 
-              minute: '2-digit',
-              hour12: true
-            });
-          }
-        }
+  // tooltip time formatting with Central Time
+  const modifiedLineChartOptions = getLineChartOptions(machineName, chartStartTime, chartEndTime);
+  
+  // Override only the tooltip title callback to ensure consistent timezone
+  if (modifiedLineChartOptions.plugins && modifiedLineChartOptions.plugins.tooltip) {
+    modifiedLineChartOptions.plugins.tooltip.callbacks = {
+      title: (context: any) => {
+        // Format time in Central timezone explicitly
+        const date = new Date(context[0].parsed.x);
+        return date.toLocaleTimeString('en-US', { 
+          hour: '2-digit', 
+          minute: '2-digit',
+          hour12: true,
+          timeZone: CENTRAL_TIMEZONE // Central Time
+        });
+      },
+      label: (tooltipItem: any) => {
+        // Preserve the existing label format
+        return tooltipItem.dataset.label || '';
       }
-    }
-  };
+    };
+  }
   
 
   // scale the data for the charts
@@ -607,32 +611,29 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
   if (viewMode === 'user') {
     return (
       <div className="space-y-8">
+        <style>{buttonHoverStyles}</style>
         <div style={{ marginBottom: '10px', display: 'flex', justifyContent: 'center', gap: '10px', alignItems: 'center' }}>
           <button 
+            className="date-button"
             onClick={() => {
               const newDate = new Date(selectedDate);
               newDate.setDate(newDate.getDate() - 1);
               setSelectedDate(newDate);
             }}
             disabled={isLoading}
-            style={{ padding: '5px 10px', borderRadius: '4px', border: '1px solid #ccc' }}
+            style={buttonStyle}
           >
             Previous Day
           </button>
           <button
+            className="date-button"
             onClick={() => {
               const today = new Date();
               today.setHours(0, 0, 0, 0);
               setSelectedDate(today);
             }}
             disabled={isLoading}
-            style={{ 
-              padding: '5px 10px', 
-              borderRadius: '4px', 
-              border: '1px solid #ccc',
-              backgroundColor: isCurrentlyToday(selectedDate) ? '#e6f7ff' : 'transparent',
-              fontWeight: isCurrentlyToday(selectedDate) ? 'bold' : 'normal'
-            }}
+            style={isCurrentlyToday(selectedDate) ? todaySelectedStyle : buttonStyle}
           >
             Today
           </button>
@@ -641,16 +642,17 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
             value={selectedDate.toISOString().split('T')[0]}
             onChange={(e) => setSelectedDate(new Date(e.target.value))}
             disabled={isLoading}
-            style={{ padding: '5px 10px', borderRadius: '4px', border: '1px solid #ccc' }}
+            style={{...buttonStyle, backgroundColor: '#6a6a6a'}}
           />
           <button 
+            className="date-button"
             onClick={() => {
               const newDate = new Date(selectedDate);
               newDate.setDate(newDate.getDate() + 1);
               setSelectedDate(newDate);
             }}
             disabled={isLoading || isToday(selectedDate)}
-            style={{ padding: '5px 10px', borderRadius: '4px', border: '1px solid #ccc' }}
+            style={buttonStyle}
           >
             Next Day
           </button>
@@ -674,22 +676,18 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
     // admin view
     return (
       <div className="space-y-8">
+        <style>{buttonHoverStyles}</style>
         <h3 style={{ textAlign: 'center', fontWeight: 'bold' }}>Aggregated Usage Patterns (Past 30 Days)</h3>
         <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', alignItems: 'center', marginBottom: '15px' }}>
           <button
+            className="date-button"
             onClick={() => {
               const today = new Date();
               today.setHours(0, 0, 0, 0);
               setSelectedDate(today);
             }}
             disabled={isAggregateLoading}
-            style={{ 
-              padding: '5px 10px', 
-              borderRadius: '4px', 
-              border: '1px solid #ccc',
-              backgroundColor: isCurrentlyToday(selectedDate) ? '#e6f7ff' : 'transparent',
-              fontWeight: isCurrentlyToday(selectedDate) ? 'bold' : 'normal'
-            }}
+            style={isCurrentlyToday(selectedDate) ? todaySelectedStyle : buttonStyle}
           >
             Today
           </button>
@@ -698,7 +696,7 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
             value={selectedDate.toISOString().split('T')[0]}
             onChange={(e) => setSelectedDate(new Date(e.target.value))}
             disabled={isAggregateLoading}
-            style={{ padding: '5px 10px', borderRadius: '4px', border: '1px solid #ccc' }}
+            style={{...buttonStyle, backgroundColor: '#6a6a6a'}}
           />
         </div>
         

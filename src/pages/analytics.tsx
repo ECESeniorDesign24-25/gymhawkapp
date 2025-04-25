@@ -491,27 +491,29 @@ function Analytics() {
                           position: 'relative' 
                         }}
                       >
-                        <button 
-                          className={styles.notificationBell} 
-                          aria-label="Enable notifications"
-                          title="Get notified when this machine is available"
-                          style={{
-                            position: 'absolute',
-                            top: '8px',
-                            right: '8px',
-                            zIndex: 5
-                          }}
-                          onClick={(e) => {
-                            e.preventDefault(); 
-                          }}
-                        >
-                          🔔
-                        </button>
+                        <div className="flex justify-between items-center">
+                          <strong>{machine.machine_type || 'Fitness Equipment'}</strong>
+                          <button 
+                            className={styles.notificationBell} 
+                            aria-label="Enable notifications"
+                            title="Get notified when this machine is available"
+                            style={{
+                              position: 'absolute',
+                              top: '8px',
+                              right: '8px',
+                              zIndex: 5
+                            }}
+                            onClick={(e) => {
+                              e.preventDefault(); // Prevent the event from bubbling
+                              // Notification logic will be implemented later
+                              console.log(`Notification clicked for ${machine.machine}`);
+                            }}
+                          >
+                            🔔
+                          </button>
+                        </div>
                         
                         <div className="mt-1">
-                          <strong>{machine.machine_type || 'Unknown Type'}</strong>
-                        </div>
-                        <div className="mt-2">
                           <div className="flex flex-row items-center space-x-2">
                             <div className={`${styles.statusIndicator} ${
                               machine.device_status === STATUS_OFFLINE || machine.device_status === STATUS_UNKNOWN 
@@ -602,7 +604,27 @@ function Analytics() {
                           onClick={() => handleAdminMachineSelect(machine)}
                         >
                           <div className={styles.machineCardHeader}>
-                            <strong>{machine.machine_type || 'Unknown Type'}</strong>
+                            <div className="flex justify-between items-center">
+                              <strong>{machine.machine_type || 'Fitness Equipment'}</strong>
+                              <button 
+                                className={styles.notificationBell} 
+                                aria-label="Enable notifications"
+                                title="Get notified when this machine is available"
+                                style={{
+                                  position: 'absolute',
+                                  top: '8px',
+                                  right: '8px',
+                                  zIndex: 5
+                                }}
+                                onClick={(e) => {
+                                  e.preventDefault(); // Prevent the event from bubbling
+                                  // Notification logic will be implemented later
+                                  console.log(`Notification clicked for ${machine.machine}`);
+                                }}
+                              >
+                                🔔
+                              </button>
+                            </div>
                           </div>
                           <div className={styles.machineCardStatus} style={{
                             backgroundColor: machine.device_status === STATUS_OFFLINE || machine.device_status === STATUS_UNKNOWN 
