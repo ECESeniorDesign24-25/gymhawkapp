@@ -6,61 +6,61 @@ import { getThingId } from "./common";
 
 
 export async function fetchMachines(gymId: string) {
-    try {
-        if (!gymId) {
-            console.error("No gymId provided to fetchMachines");
-            return [];
-        }
-        const machines = collection(db, "machines");
-        const thing_ids = collection(db, "thing_ids");
-        const querySnapshot = await getDocs(machines);
+  try {
+      if (!gymId) {
+          console.error("No gymId provided to fetchMachines");
+          return [];
+      }
+      const machines = collection(db, "machines");
+      const thing_ids = collection(db, "thing_ids");
+      const querySnapshot = await getDocs(machines);
 
-        // this is so we wait for each to load
-        const machinePromises = querySnapshot.docs.map(async (docSnapshot) => {
-            if (docSnapshot.data().gymId !== gymId) {
-                return null;
-            }
-            const data = docSnapshot.data();
-            
-            const lat = await getLat(docSnapshot.id);
-            const lng = await getLong(docSnapshot.id);
-            const type = await fetchDeviceState(docSnapshot.id, 'Unknown', "type");
-            const state = await fetchDeviceState(docSnapshot.id, 'Unknown', "state");
-            const device_status = await fetchDeviceState(docSnapshot.id, 'OFFLINE', "device_status");
+      // this is so we wait for each to load
+      const machinePromises = querySnapshot.docs.map(async (docSnapshot) => {
+          if (docSnapshot.data().gymId !== gymId) {
+              return null;
+          }
+          const data = docSnapshot.data();
+          
+          const lat = await getLat(docSnapshot.id);
+          const lng = await getLong(docSnapshot.id);
+          const type = await fetchDeviceState(docSnapshot.id, 'Unknown', "type");
+          const state = await fetchDeviceState(docSnapshot.id, 'Unknown', "state");
+          const device_status = await fetchDeviceState(docSnapshot.id, 'OFFLINE', "device_status");
 
-            const thing_id_doc = await getDoc(doc(thing_ids, data.thingId));
-            
-            let floor;
-            if (thing_id_doc.exists()) {
-                floor = thing_id_doc.data()?.floor;
-            } else {
-                floor = undefined;
-            }
-            
-            let last_used_time = await fetchLastUsedTime(docSnapshot.id);
-            if (last_used_time === null) {
-                last_used_time = "Never";
-            }
+          const thing_id_doc = await getDoc(doc(thing_ids, data.thingId));
+          
+          let floor;
+          if (thing_id_doc.exists()) {
+              floor = thing_id_doc.data()?.floor;
+          } else {
+              floor = undefined;
+          }
+          
+          let last_used_time = await fetchLastUsedTime(docSnapshot.id);
+          if (last_used_time === null) {
+              last_used_time = "Never";
+          }
 
-            return {
-                machine: docSnapshot.id,
-                lat,
-                lng,
-                thing_id: data.thingId,
-                state: state,
-                device_status: device_status,
-                machine_type: type,
-                floor: floor,
-                last_used_time: last_used_time
-            }
-        })
+          return {
+              machine: docSnapshot.id,
+              lat,
+              lng,
+              thing_id: data.thingId,
+              state: state,
+              device_status: device_status,
+              machine_type: type,
+              floor: floor,
+              last_used_time: last_used_time
+          }
+      })
 
-        const machineArray = await Promise.all(machinePromises);
-        return machineArray.filter(machine => machine !== null);
-    } catch (e) {
-        console.error('error fetching machines: ', e);
-        return [];
-    }
+      const machineArray = await Promise.all(machinePromises);
+      return machineArray.filter(machine => machine !== null);
+  } catch (e) {
+      console.error('error fetching machines: ', e);
+      return [];
+  }
 }
 
 export async function fetchGyms(){

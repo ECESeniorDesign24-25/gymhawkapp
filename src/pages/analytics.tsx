@@ -8,58 +8,19 @@ import styles from '@/styles/index.module.css';
 import { HOME_STYLE } from '@/styles/customStyles';
 import { fetchGyms, fetchMachines, fetchDeviceState, fetchLastUsedTime, fetchPeakHours } from '@/utils/db';
 import { useAuth } from '@/lib/auth';
-import { EMAIL } from '@/utils/consts';
+import { ONE_SECOND, EMAIL, STATUS_OFFLINE, STATUS_UNKNOWN, ONE_MINUTE } from '@/utils/consts';
 import { RequireAuth } from '@/components/requireAuth';
 import { Machine } from '@/interfaces/machine';
 import { GymOption } from '@/interfaces/gym';
 import { formatLastUsedTime } from '@/utils/time_utils';
 import { Spinner } from '@/components/spinner';
+import { getFromCache, saveToCache } from '@/utils/cache';
+import { StateColor, StateString } from '@/enums/state';
 
 // dynamically import Select 
 const DynamicSelect = dynamic(() => Promise.resolve(Select), { ssr: false });
 const DynamicMachineUsageChart = dynamic(() => import('@/components/graph'), { ssr: false });
 
-// Cache utility functions
-const CACHE_DURATION = 60 * 60 * 1000; // 1 hour in milliseconds
-
-// Function to get data from cache
-const getFromCache = (key: string) => {
-  if (typeof window === 'undefined') return null;
-  
-  try {
-    const cacheItem = localStorage.getItem(key);
-    if (!cacheItem) return null;
-    
-    const { timestamp, data } = JSON.parse(cacheItem);
-    
-    // Check if the cache is still valid (within CACHE_DURATION)
-    if (Date.now() - timestamp > CACHE_DURATION) {
-      // Cache expired
-      return null;
-    }
-    
-    return data;
-  } catch (error) {
-    console.error(`Error retrieving ${key} from cache:`, error);
-    return null;
-  }
-};
-
-// Function to save data to cache
-const saveToCache = (key: string, data: any) => {
-  if (typeof window === 'undefined') return;
-  
-  try {
-    const cacheItem = {
-      timestamp: Date.now(),
-      data
-    };
-    
-    localStorage.setItem(key, JSON.stringify(cacheItem));
-  } catch (error) {
-    console.error(`Error saving ${key} to cache:`, error);
-  }
-};
 
 function Analytics() {
   const router = useRouter();
@@ -80,22 +41,19 @@ function Analytics() {
   const [isLoadingPredictions, setIsLoadingPredictions] = useState<boolean>(false);
   const [lastPredictionFetch, setLastPredictionFetch] = useState<number>(0);
 
-  // Add effect to control chart loading indicators
+  // check if charts are loaded
   useEffect(() => {
-    // Function to check if charts are loaded
     const checkChartsLoaded = () => {
-      // Charts are considered loaded when canvas elements are present
       const chartCanvases = document.querySelectorAll('canvas');
       const chartLoadingContainers = document.querySelectorAll('.chart-loading-container');
       
+      // if loaded no spinner
       if (chartCanvases.length > 0) {
-        // Charts are loaded, hide spinners
         setChartsLoading(false);
         chartLoadingContainers.forEach(container => {
           (container as HTMLElement).style.visibility = 'hidden';
         });
       } else {
-        // Charts are loading, show spinners
         setChartsLoading(true);
         chartLoadingContainers.forEach(container => {
           (container as HTMLElement).style.visibility = 'visible';
@@ -103,10 +61,7 @@ function Analytics() {
       }
     };
     
-    // Check initially and then every second until charts are loaded
-    const intervalId = setInterval(checkChartsLoaded, 1000);
-    
-    // Cleanup interval on component unmount
+    const intervalId = setInterval(checkChartsLoaded, ONE_SECOND);
     return () => clearInterval(intervalId);
   }, [selectedGym, machines.length]);
 
@@ -141,70 +96,58 @@ function Analytics() {
       
       setIsLoadingMachines(true);
       
-      // Check if we have cached machines data
+      // check if we have cached machines data
       const cacheKey = `machines_${selectedGym.id}`;
       const cachedMachines = getFromCache(cacheKey);
+      let machinesData = cachedMachines;
       
       if (cachedMachines) {
-        // Use cached machines data
         setMachines(cachedMachines);
-        setIsLoadingMachines(false);
-        
-        // Check if we have a machine from the index page
-        const lastMachine = localStorage.getItem("lastMachine");
-        if (lastMachine) {
-          const machineData = JSON.parse(lastMachine);
-          const matchingMachine = cachedMachines.find((m: any) => m.thing_id === machineData.thing_id);
-          if (matchingMachine) {
-            setSelectedAdminMachine(matchingMachine);
-          }
-        } else if (cachedMachines.length > 0 && activeTab === 'admin') {
-          // Only auto-select the first machine in admin view
-          setSelectedAdminMachine(cachedMachines[0]);
-        }
       }
       
-      // Always fetch fresh data, even if we have cache
       try {
-        const machines = await fetchMachines(selectedGym.id);
+        // fetch fresh machines
+        const freshMachines = await fetchMachines(selectedGym.id);
         
-        // Always set machines to empty array if no machines found
-        if (!machines || machines.length === 0) {
+        if (freshMachines && freshMachines.length > 0) {
+          saveToCache(cacheKey, freshMachines);
+          // @ts-ignore
+          setMachines(freshMachines);
+          machinesData = freshMachines;
+
+        } else {
           setMachines([]);
           setSelectedAdminMachine(null);
+          setIsLoadingMachines(false);
           return;
-        }
-        
-        // Save to cache
-        saveToCache(cacheKey, machines);
-        
-        // ignore this (not sure why but couldnt get it to work when fixing type issues)
-        // @ts-ignore
-        setMachines(machines);
-  
-        // Check if we have a machine from the index page (only if we didn't use cache)
-        if (!cachedMachines) {
-          const lastMachine = localStorage.getItem("lastMachine");
-          if (lastMachine) {
-            const machineData = JSON.parse(lastMachine);
-            const matchingMachine = machines.find(m => m.thing_id === machineData.thing_id);
-            if (matchingMachine) {
-              // @ts-ignore
-              setSelectedAdminMachine(matchingMachine);
-            }
-          } else if (machines.length > 0 && activeTab === 'admin') {
-            // Only auto-select the first machine in admin view
-            // @ts-ignore
-            setSelectedAdminMachine(machines[0]);
-          }
         }
       } catch (error) {
         console.error('Error fetching machines:', error);
         if (!cachedMachines) {
-          setIsLoadingMachines(false);
+          setMachines([]);
+          setSelectedAdminMachine(null);
         }
       } finally {
         setIsLoadingMachines(false);
+      }
+      
+      // run only if we have valid machine data
+      if (machinesData && machinesData.length > 0) {
+        const lastMachine = localStorage.getItem("lastMachine");
+        
+        if (lastMachine) {
+          const machineData = JSON.parse(lastMachine);
+          const matchingMachine = machinesData.find((m: any) => m.thing_id === machineData.thing_id);
+          if (matchingMachine) {
+            setSelectedAdminMachine(matchingMachine);
+            return;
+          }
+        }
+        
+        // Auto-select first machine for admin view
+        if (activeTab === 'admin') {
+          setSelectedAdminMachine(machinesData[0]);
+        }
       }
     }
     loadMachines();
@@ -236,7 +179,7 @@ function Analytics() {
             }
             // fetch state and device state
             let state = oldStates[machine.machine] || "loading";
-            let deviceStatus = machine.device_status || "OFFLINE";
+            let deviceStatus = machine.device_status || STATUS_OFFLINE;
             let lastUsedTime = machine.last_used_time || "Never";
             
             try {
@@ -245,15 +188,14 @@ function Analytics() {
                 fetchDeviceState(machine.machine, oldStates[machine.machine], "device_status")
               ]);
               
-              // Only update if fetch was successful
+              // update if fetch was successful
               state = newState;
               deviceStatus = newDeviceStatus;
               
-              // Use the getLastUsedTime API for the last used time
+              // fetch last used time
               lastUsedTime = await fetchLastUsedTime(machine.machine);
             } catch (err) {
               console.error('Error fetching device state, using last known value:', err);
-              // Keep using the last known values
             }
 
             // return existing machine properties plus updated states
@@ -280,7 +222,7 @@ function Analytics() {
       // updates are async return old when processing
       return prevMachines;
     });
-  }, 1000);
+  }, ONE_SECOND);
 
   return () => clearInterval(intervalId);
 }, [selectedGym, machines.length]);
@@ -293,6 +235,7 @@ function Analytics() {
   };
 
 
+  // handle gym select
   const handleGymSelect = (selectedOption: unknown) => { 
     const gymOption = selectedOption as GymOption | null;
     
@@ -312,11 +255,11 @@ function Analytics() {
     }
   }
 
+  // handle admin machine select
   const handleAdminMachineSelect = (machine: Machine) => {
     setIsLoadingMachineDetails(true);
     setSelectedAdminMachine(machine);
-    // Reset loading after a brief delay to allow chart components to load
-    setTimeout(() => setIsLoadingMachineDetails(false), 500);
+    setTimeout(() => setIsLoadingMachineDetails(false), ONE_SECOND / 2);
   };
 
   const renderAdminMachineDetails = () => {
@@ -336,15 +279,15 @@ function Analytics() {
       );
     }
 
-    // Determine color scheme based on state and status
-    const isOffline = selectedAdminMachine.device_status === "OFFLINE" || selectedAdminMachine.device_status === "UNKNOWN";
-    const isInUse = selectedAdminMachine.state === 'on';
-    const statusColor = isOffline ? 'rgba(128, 128, 128, 0.75)' : // Gray for offline
-                        isInUse ? 'rgba(139, 0, 0, 0.75)' :       // Red for in use
-                        'rgba(0, 100, 0, 0.75)';                 // Green for available
-    const statusBorder = isOffline ? '5px solid rgba(128, 128, 128, 1)' :
-                        isInUse ? '5px solid rgba(139, 0, 0, 1)' :
-                        '5px solid rgba(0, 100, 0, 1)';
+    // determine color scheme based on state and status
+    const isOffline = selectedAdminMachine.device_status === STATUS_OFFLINE || selectedAdminMachine.device_status === STATUS_UNKNOWN;
+    const isInUse = selectedAdminMachine.state === StateString.IN_USE;
+    const statusColor = isOffline ? StateColor.OFFLINE : // gray for offline
+                        isInUse ? StateColor.IN_USE :       // red for in use
+                        StateColor.AVAILABLE;                 // green for available
+    const statusBorder = isOffline ? `5px solid ${StateColor.OFFLINE}` :
+                        isInUse ? `5px solid ${StateColor.IN_USE}` :
+                        `5px solid ${StateColor.AVAILABLE}`;
 
     return (
       <div className={styles.machineAnalyticsContent}>
@@ -363,14 +306,14 @@ function Analytics() {
             <strong>Floor:</strong> {selectedAdminMachine.floor}
           </div>
           <div className={styles.machineDetail}>
-            <strong>Status:</strong> <span style={{ color: isOffline ? 'gray' : 'inherit' }}>{selectedAdminMachine.device_status || 'UNKNOWN'}</span>
+            <strong>Status:</strong> <span style={{ color: isOffline ? StateColor.OFFLINE : 'inherit' }}>{selectedAdminMachine.device_status || STATUS_UNKNOWN}</span>
           </div>
           <div className={styles.machineDetail}>
             <strong>Current State:</strong> <span style={{ 
-              color: isOffline ? 'gray' : (isInUse ? 'darkred' : 'darkgreen'),
+              color: isOffline ? StateColor.OFFLINE : (isInUse ? StateColor.IN_USE : StateColor.AVAILABLE),
               fontWeight: 'bold'
             }}>
-              {isInUse ? 'In Use' : 'Available'}
+              {isInUse ? StateString.IN_USE : StateString.AVAILABLE}
             </span>
           </div>
           <div className={styles.machineDetail}>
@@ -396,36 +339,30 @@ function Analytics() {
     );
   };
 
-  // Function to fetch peak and ideal times for all machines
+  // fetch peak and ideal times for all machines
   const fetchAllMachinePredictions = async () => {
     if (!machines.length) return;
     
-    // Check if 15 minutes have passed since last prediction fetch
     const currentTime = Date.now();
-    const FIFTEEN_MINUTES = 15 * 60 * 1000; // 15 minutes in milliseconds
+    const FIFTEEN_MINUTES = 15 * ONE_MINUTE; 
     
     if (currentTime - lastPredictionFetch < FIFTEEN_MINUTES && Object.keys(machinePeakTimes).length > 0) {
-      // Skip fetching if less than 15 minutes and we already have predictions
       return;
     }
     
-    // Check for cached prediction data
+    // check for cached prediction data
     const peakTimesCacheKey = `peak_times_all_machines`;
     const idealTimesCacheKey = `ideal_times_all_machines`;
     
     const cachedPeakTimes = getFromCache(peakTimesCacheKey);
     const cachedIdealTimes = getFromCache(idealTimesCacheKey);
     
-    // If we have cached data and it's less than 1 hour old, use it
+    // if we have cached data and it's less than 1 hour old, use it
     if (cachedPeakTimes && cachedIdealTimes) {
       setMachinePeakTimes(cachedPeakTimes);
       setMachineIdealTimes(cachedIdealTimes);
-      // Still update the lastPredictionFetch time to avoid immediate re-fetches
       setLastPredictionFetch(currentTime);
-      
-      // Return early if we don't want to refresh in background
-      // Uncommenting this will make it use cache exclusively (not refreshing data)
-      // return;
+      return;
     }
     
     setIsLoadingPredictions(true);
@@ -452,7 +389,7 @@ function Analytics() {
         return acc;
       }, {} as {[key: string]: string[]});
       
-      // Save the data to cache
+      // save the data to cache
       saveToCache(peakTimesCacheKey, peakTimesMap);
       saveToCache(idealTimesCacheKey, idealTimesMap);
       
@@ -466,7 +403,7 @@ function Analytics() {
     }
   };
   
-  // Fetch peak and ideal hours when machines are loaded
+  // fetch peak and ideal hours when machines are loaded
   useEffect(() => {
     if (machines.length > 0) {
       fetchAllMachinePredictions();
@@ -505,7 +442,7 @@ function Analytics() {
 
         <div className={styles.mainContent}>
           <br />
-          {/* search bar */}
+
           <div className={styles.searchBarContainer} style={{ marginBottom: '20px' }}>
             {isLoadingGyms ? (
               <div className="flex items-center justify-center p-2">
@@ -522,7 +459,6 @@ function Analytics() {
             )}
           </div>
           
-          {/* user analytics */}
           {activeTab === 'user' && (
             <div className={styles.userAnalytics}>
               <h2>All Machines</h2>
@@ -546,16 +482,15 @@ function Analytics() {
                       <div
                         className={styles.machineStatus}
                         style={{
-                          backgroundColor: machine.device_status === "OFFLINE" || machine.device_status === "UNKNOWN" 
-                            ? 'rgba(128, 128, 128, 0.75)' // Gray for offline/unknown devices
-                            : machine.state === 'on' 
-                              ? 'rgba(139, 0, 0, 0.75)'  // Red for machines in use
-                              : 'rgba(0, 100, 0, 0.75)', // Green for available machines
-                          borderLeft: machine.state === 'on' ? '5px solid rgba(139, 0, 0, 1)' : machine.state === 'off' ? '5px solid rgba(0, 100, 0, 1)' : '5px solid rgba(128, 128, 128, 1)',
-                          position: 'relative' // Add position relative for absolute positioning of the bell
+                          backgroundColor: machine.device_status === STATUS_OFFLINE || machine.device_status === STATUS_UNKNOWN 
+                            ? StateColor.OFFLINE 
+                            : machine.state === StateString.IN_USE 
+                              ? StateColor.IN_USE 
+                              : StateColor.AVAILABLE,
+                          borderLeft: machine.state === StateString.IN_USE ? `5px solid ${StateColor.IN_USE}` : machine.state === StateString.AVAILABLE ? `5px solid ${StateColor.AVAILABLE}` : `5px solid ${StateColor.OFFLINE}`,
+                          position: 'relative' 
                         }}
                       >
-                        {/* Notification bell positioned in top right corner */}
                         <button 
                           className={styles.notificationBell} 
                           aria-label="Enable notifications"
@@ -567,9 +502,7 @@ function Analytics() {
                             zIndex: 5
                           }}
                           onClick={(e) => {
-                            e.preventDefault(); // Prevent the event from bubbling
-                            // Notification logic will be implemented later
-                            console.log(`Notification clicked for ${machine.machine}`);
+                            e.preventDefault(); 
                           }}
                         >
                           🔔
@@ -581,19 +514,19 @@ function Analytics() {
                         <div className="mt-2">
                           <div className="flex flex-row items-center space-x-2">
                             <div className={`${styles.statusIndicator} ${
-                              machine.device_status === "OFFLINE" || machine.device_status === "UNKNOWN" 
+                              machine.device_status === STATUS_OFFLINE || machine.device_status === STATUS_UNKNOWN 
                                 ? styles.statusOffline
                                 : styles.statusOnline
                             }`}></div>
-                            <span>Device: {machine.device_status || 'UNKNOWN'}</span>
+                            <span>Device: {machine.device_status || STATUS_UNKNOWN}</span>
                           </div>
                           <div className="flex flex-row items-center space-x-2">
                             <div className={`${styles.statusIndicator} ${
-                              machine.state === 'on' 
+                              machine.state === StateString.IN_USE 
                                 ? styles.statusInUse
                                 : styles.statusAvailable
                             }`}></div>
-                            <span>State: {machine.state === 'on' ? 'In Use' : 'Available'}</span>
+                            <span>State: {machine.state === StateString.IN_USE ? 'In Use' : 'Available'}</span>
                           </div>
                           {machine.last_used_time && (
                             <div className="mt-1">
@@ -601,17 +534,15 @@ function Analytics() {
                             </div>
                           )}
                           
-                          {/* Machine usage predictions */}
                           <div className="mt-2">
-                            {/* Always show predictions, never show loading text */}
-                            <div className="text-sm mt-1" style={{ color: '#d32f2f' }}>
+                            <div className="text-sm mt-1" style={{ color: StateColor.IN_USE }}>
                               <strong>Busiest Times:</strong> {
                                 machinePeakTimes[machine.thing_id]?.length > 0 
                                   ? machinePeakTimes[machine.thing_id].join(', ')
                                   : 'Not enough data'
                               }
                             </div>
-                            <div className="text-sm mt-1" style={{ color: '#388e3c' }}>
+                            <div className="text-sm mt-1" style={{ color: StateColor.AVAILABLE }}>
                               <strong>Best Times:</strong> {
                                 machineIdealTimes[machine.thing_id]?.length > 0 
                                   ? machineIdealTimes[machine.thing_id].join(', ')
@@ -624,7 +555,6 @@ function Analytics() {
                       
                       <div className={styles.machineChartContainer}>
                         <DynamicMachineUsageChart machineId={machine.thing_id} machineName={machine.machine} viewMode="user" />
-                        {/* Loading indicator for charts - displayed before the chart loads */}
                         <div className="chart-loading-container" style={{ 
                           position: 'absolute', 
                           top: 0, 
@@ -648,7 +578,6 @@ function Analytics() {
             </div>
           )}
           
-          {/* admin analytics */}
           {activeTab === 'admin' && isAdmin && (
             <div className={styles.adminAnalytics}>
               <div className={styles.adminPanels}>
@@ -676,18 +605,18 @@ function Analytics() {
                             <strong>{machine.machine_type || 'Unknown Type'}</strong>
                           </div>
                           <div className={styles.machineCardStatus} style={{
-                            backgroundColor: machine.device_status === "OFFLINE" || machine.device_status === "UNKNOWN" 
-                              ? 'rgba(128, 128, 128, 0.75)' // Gray for offline/unknown devices
-                              : machine.state === 'on' 
-                                ? 'rgba(139, 0, 0, 0.75)'  // Red for machines in use
-                                : 'rgba(0, 100, 0, 0.75)', // Green for available machines
-                            borderLeft: machine.state === 'on' ? '5px solid rgba(139, 0, 0, 1)' : machine.state === 'off' ? '5px solid rgba(0, 100, 0, 1)' : '5px solid rgba(128, 128, 128, 1)'
+                            backgroundColor: machine.device_status === STATUS_OFFLINE || machine.device_status === STATUS_UNKNOWN 
+                              ? StateColor.OFFLINE 
+                              : machine.state === StateString.IN_USE 
+                                ? StateColor.IN_USE 
+                                : StateColor.AVAILABLE,
+                            borderLeft: machine.state === StateString.IN_USE ? `5px solid ${StateColor.IN_USE}` : machine.state === StateString.AVAILABLE ? `5px solid ${StateColor.AVAILABLE}` : `5px solid ${StateColor.OFFLINE}`
                           }}>
-                            {machine.device_status === "OFFLINE" || machine.device_status === "UNKNOWN"
+                            {machine.device_status === STATUS_OFFLINE || machine.device_status === STATUS_UNKNOWN
                               ? 'Offline'
-                              : machine.state === 'on' 
-                                ? 'In Use' 
-                                : 'Available'}
+                              : machine.state === StateString.IN_USE 
+                              ? 'In Use' 
+                              : 'Available'}
                           </div>
                         </div>
                       ))}

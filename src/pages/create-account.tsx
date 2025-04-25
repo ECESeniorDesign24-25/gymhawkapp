@@ -17,7 +17,6 @@ export default function CreateAccount() {
     setError("");
     try {
       await createUserWithEmailAndPassword(auth, email, password);
-      // Here you might want to store the user's name in your database
       router.push("/");
     } catch (err: any) {
       setError(err.message);

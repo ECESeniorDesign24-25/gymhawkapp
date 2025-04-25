@@ -1,19 +1,21 @@
+import { STATUS_UNKNOWN, STATUS_ONLINE   } from "./consts";
+import { STATUS_OFFLINE } from "./consts";
 import { formatDate, formatTime } from "./time_utils"
-
-const GREEN_FILL = 'rgba(0, 100, 0, 0.3)';
+import { StateInt, StateString, StateColor } from "@/enums/state"
 const BLACK_FILL = 'rgba(0, 0, 0, 0)';
-const RED_FILL = 'rgba(139, 0, 0, 0.3)';
+const LIGHT_GRAY_FILL = 'rgba(200, 200, 200, 0.75)';
+
 
 export const getDatasetStyle = (machineName: string, selectedDate: Date, usageData: any[], type: string) => {
     // if the data is on, fill the area below the line with green
     // if the data is off, fill the area above the line with red
-    if (type === 'on') {
+    if (type === StateString.IN_USE) {
         return {
             label: machineName,
             data: usageData.map((point) => ({ x: point.time, y: point.state })),
             fill: {
                 target: 'origin',
-                above: GREEN_FILL,
+                above: StateColor.AVAILABLE,
                 below: BLACK_FILL
             },
             borderColor: 'black',
@@ -29,7 +31,7 @@ export const getDatasetStyle = (machineName: string, selectedDate: Date, usageDa
                     value: 1
                 },
                 above: BLACK_FILL,
-                below: RED_FILL
+                below: StateColor.IN_USE
             },
             borderWidth: 0,
             tension: 0.1,
@@ -41,8 +43,6 @@ export const getDatasetStyle = (machineName: string, selectedDate: Date, usageDa
 }
 
 export const getBarChartOptions = (machineName: string, maxPercentage?: number) => {
-    // Calculate the y-axis max - default to 100 if no maxPercentage provided
-    // Otherwise, set it to twice the max value, but cap at 100
     const yAxisMax = maxPercentage ? Math.min(Math.ceil(maxPercentage * 2), 100) : 100;
     
     // basic chart style for machine 
@@ -158,8 +158,8 @@ export const getLineChartOptions = (machineName: string, chartStartTime: Date, c
             ticks: {
               stepSize: 1,
               callback: function(this: any, tickValue: number | string) {
-                if (Number(tickValue) === 0) return "In Use";
-                if (Number(tickValue) === 1) return "Available";
+                if (Number(tickValue) === StateInt.IN_USE) return "In Use";
+                if (Number(tickValue) === StateInt.AVAILABLE) return "Available";
                 return "";
               }
             },
@@ -197,19 +197,18 @@ export const getLineChartOptions = (machineName: string, chartStartTime: Date, c
               // Get the raw data point if available
               const dataPoint = context.tooltip.dataPoints[0].raw;
               
-              // Check if this is a custom data point with device_status
               if (dataPoint && dataPoint.device_status) {
-                if (dataPoint.device_status === 'OFFLINE' || dataPoint.device_status === 'UNKNOWN') {
-                  return 'rgba(128, 128, 128, 0.75)'; // Gray for offline/unknown
+                if (dataPoint.device_status === STATUS_OFFLINE || dataPoint.device_status === STATUS_UNKNOWN) {
+                  return StateColor.OFFLINE;
                 }
                 if (dataPoint.device_status === 'NO_DATA') {
-                  return 'rgba(200, 200, 200, 0.75)'; // Light gray for no data
+                  return LIGHT_GRAY_FILL; 
                 }
               }
               
               // Use original coloring based on state if the device is online
               const value = context.tooltip.dataPoints[0].raw.y;
-              return value === 1 ? 'rgba(0, 100, 0, 0.75)' : 'rgba(139, 0, 0, 0.75)';
+              return value === StateInt.AVAILABLE ? StateColor.AVAILABLE : StateColor.IN_USE;
             },
             titleColor: 'white',
             bodyColor: 'white', 
@@ -227,7 +226,7 @@ export const getLineChartOptions = (machineName: string, chartStartTime: Date, c
                   const dataPoint = tooltipItem.raw;
                   
                   // Get device status if available in the raw data
-                  let deviceStatus = "ONLINE";
+                  let deviceStatus = STATUS_ONLINE;
                   if (dataPoint && dataPoint.device_status) {
                     deviceStatus = dataPoint.device_status;
                   }
@@ -241,7 +240,7 @@ export const getLineChartOptions = (machineName: string, chartStartTime: Date, c
                   let stateText = value === 1 ? 'Available' : 'In Use';
                   
                   // If device is offline or unknown, override state display
-                  if (deviceStatus === 'OFFLINE' || deviceStatus === 'UNKNOWN') {
+                  if (deviceStatus === STATUS_OFFLINE || deviceStatus === STATUS_UNKNOWN) {
                     stateText = deviceStatus;
                     return `Status: ${stateText}`;
                   } else {

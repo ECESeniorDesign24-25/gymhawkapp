@@ -8,6 +8,7 @@ import { fetchGyms, fetchMachines, fetchDeviceState } from '@/utils/db';
 import { RequireAuth } from '@/components/requireAuth';
 import { Gym, GymOption } from '@/interfaces/gym';
 import Map from '@/components/map';
+import { STATUS_OFFLINE, STATUS_UNKNOWN } from '@/utils/consts';
 
 export default function Home() {
 
@@ -62,7 +63,7 @@ export default function Home() {
       // Make sure the machines have a default device_status if not present
       const machinesWithDefaults = machines?.map(machine => ({
         ...machine,
-        device_status: machine.device_status || "OFFLINE" // Default to OFFLINE if missing
+        device_status: machine.device_status || STATUS_OFFLINE
       })) || [];
       
       setMachines(machinesWithDefaults);
@@ -137,8 +138,8 @@ export default function Home() {
           prevMachines.map(async (machine) => {
             try {
               // Store previous state to pass to fetchDeviceState
-              let state = oldStates[machine.machine] || "Unknown";
-              let deviceStatus = machine.device_status || "OFFLINE";
+              let state = oldStates[machine.machine] || STATUS_UNKNOWN;
+              let deviceStatus = machine.device_status || STATUS_OFFLINE;
               
               try {
                 // Fetch both state and device_status in parallel

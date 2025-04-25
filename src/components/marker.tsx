@@ -4,33 +4,34 @@ import { imageStyle } from '@/styles/markerStyles';
 import { formatState } from '@/utils/common';
 import { markerStyle, enhancedPopupStyle } from '@/styles/markerStyles';
 import { formatLastUsedTime } from '@/utils/time_utils';
+import { statusStrToEnum, Status, StateColor } from '@/enums/state';
 
 export const Marker = ({ lat, lng, state, machine, thing_id, machine_type, floor, last_used_time, device_status }: CustomMarker) => {
+
+  // convert lat and lng to numbers
   const numLat = typeof lat === 'string' ? parseFloat(lat) : lat;
   const numLng = typeof lng === 'string' ? parseFloat(lng) : lng;
   
+  // check if lat and lng are valid
   if (numLat === null || numLat === undefined || isNaN(numLat) || numLat === 0 || 
       numLng === null || numLng === undefined || isNaN(numLng) || numLng === 0) {
     return null;
   }
 
+  // convert device_status to enum
+  const status = statusStrToEnum(device_status);
+
   // set background color based on status
   let backgroundColor;
-  if (device_status === "OFFLINE" || device_status === "UNKNOWN") {
-    
-    // offline/unknown = gray
-    backgroundColor = 'rgba(128, 128, 128, 0.75)'; 
+  if (status === Status.OFFLINE || status === Status.UNKNOWN) {
+    backgroundColor = StateColor.OFFLINE; 
   } else if (state === "on") {
-   
-    // in use = red
-    backgroundColor = 'rgba(139, 0, 0, 0.75)';
+    backgroundColor = StateColor.IN_USE;
   } else {
-    
-    // available = green
-    backgroundColor = 'rgba(0, 100, 0, 0.75)'; 
+    backgroundColor = StateColor.AVAILABLE;
   }
 
-
+  // set custom marker style
   const customMarkerStyle = {
     ...markerStyle,
     backgroundColor: backgroundColor
