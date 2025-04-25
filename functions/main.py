@@ -941,9 +941,11 @@ def getDailyUsage(req: https_fn.Request) -> https_fn.Response:
 
 
 @scheduler_fn.on_schedule(schedule="0 19 * * *")
-def sleepDevices(event):  # TODO: this event parameter may need to be removed but from what I understand about the scheduled cloud functions,
-                          # the event parameter is automatically passed by the scheduler so it needs to be in the function def. This might be a source of the error
-                          # I cant be sure until deploying it and testing
+def sleepDevices(
+    event,
+):  # TODO: this event parameter may need to be removed but from what I understand about the scheduled cloud functions,
+    # the event parameter is automatically passed by the scheduler so it needs to be in the function def. This might be a source of the error
+    # I cant be sure until deploying it and testing
     thing_ids = db.collection("thing_ids").list_documents()
     thing_ids = [thing_id.id for thing_id in thing_ids]
 
@@ -987,5 +989,5 @@ def getHourlyPercentages(req: https_fn.Request) -> https_fn.Response:
 if __name__ == "__main__":
     req = ManualRequest(args={"thing_id": "0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8"})
     output = getDailyPercentages(req)
-    print("\nOUTPUT: ", output.data.decode('utf-8'))
+    print("\nOUTPUT: ", output.data.decode("utf-8"))
     print(getDailyPercentagesUtil("0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8"))

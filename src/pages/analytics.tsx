@@ -624,8 +624,8 @@ function Analytics() {
                               zIndex: 5
                             }}
                             onClick={(e) => {
-                              e.preventDefault(); // Prevent the event from bubbling
-                              // Notification logic will be implemented later
+                              e.preventDefault();
+                              // TODO: implement notification logic
                               console.log(`Notification clicked for ${machine.machine}`);
                             }}
                           >
@@ -726,24 +726,6 @@ function Analytics() {
                           <div className={styles.machineCardHeader}>
                             <div className="flex justify-between items-center">
                               <strong>{machine.machine_type || 'Fitness Equipment'}</strong>
-                              <button 
-                                className={styles.notificationBell} 
-                                aria-label="Enable notifications"
-                                title="Get notified when this machine is available"
-                                style={{
-                                  position: 'absolute',
-                                  top: '8px',
-                                  right: '8px',
-                                  zIndex: 5
-                                }}
-                                onClick={(e) => {
-                                  e.preventDefault(); // Prevent the event from bubbling
-                                  // Notification logic will be implemented later
-                                  console.log(`Notification clicked for ${machine.machine}`);
-                                }}
-                              >
-                                🔔
-                              </button>
                             </div>
                           </div>
                           <div className={styles.machineCardStatus} style={{
