@@ -106,7 +106,11 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
   viewMode = 'user' 
 }) => {
   const [usageData, setUsageData] = useState<DataPoint[]>([]);
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date>(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return today;
+  });
   const [hourlyUsage, setHourlyUsage] = useState<{ hour: number; percentage: number }[]>([]);
   const [dailyUsage, setDailyUsage] = useState<{ day: string; percentage: number }[]>([]);
   const [aggregatedHourlyUsage, setAggregatedHourlyUsage] = useState<{ hour: number; percentage: number }[]>([]);
@@ -374,6 +378,11 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
   useEffect(() => {
     if (viewMode === 'admin' && machineId) {
       fetchAggregateData();
+      
+      // When in admin view, also ensure we're looking at today's data initially
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      setSelectedDate(today);
     }
   }, [viewMode, machineId]);
 
@@ -673,6 +682,14 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
   const hourlyChartData = getHourlyChartData(hourlyUsage);
   const dailyChartData = getDailyChartData(dailyUsage);
 
+  // Helper function to check if a date is today
+  const isCurrentlyToday = (date: Date): boolean => {
+    const today = new Date();
+    return date.getDate() === today.getDate() && 
+           date.getMonth() === today.getMonth() && 
+           date.getFullYear() === today.getFullYear();
+  };
+
   // Render different views based on viewMode
   if (viewMode === 'user') {
     return (
@@ -685,6 +702,7 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
               setSelectedDate(newDate);
             }}
             disabled={isLoading}
+            style={{ padding: '5px 10px', borderRadius: '4px', border: '1px solid #ccc' }}
           >
             Previous Day
           </button>
@@ -696,6 +714,13 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
               setSelectedDate(today);
             }}
             disabled={isLoading}
+            style={{ 
+              padding: '5px 10px', 
+              borderRadius: '4px', 
+              border: '1px solid #ccc',
+              backgroundColor: isCurrentlyToday(selectedDate) ? '#e6f7ff' : 'transparent',
+              fontWeight: isCurrentlyToday(selectedDate) ? 'bold' : 'normal'
+            }}
           >
             Today
           </button>
@@ -704,6 +729,7 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
             value={selectedDate.toISOString().split('T')[0]}
             onChange={(e) => setSelectedDate(new Date(e.target.value))}
             disabled={isLoading}
+            style={{ padding: '5px 10px', borderRadius: '4px', border: '1px solid #ccc' }}
           />
           <button 
             onClick={() => {
@@ -712,6 +738,7 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
               setSelectedDate(newDate);
             }}
             disabled={isLoading || isToday(selectedDate)}
+            style={{ padding: '5px 10px', borderRadius: '4px', border: '1px solid #ccc' }}
           >
             Next Day
           </button>
@@ -736,6 +763,35 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
     return (
       <div className="space-y-8">
         <h3 style={{ textAlign: 'center', fontWeight: 'bold' }}>Aggregated Usage Patterns (Past 30 Days)</h3>
+        
+        {/* Add date selector for admin view too */}
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', alignItems: 'center', marginBottom: '15px' }}>
+          <button
+            onClick={() => {
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              setSelectedDate(today);
+            }}
+            disabled={isAggregateLoading}
+            style={{ 
+              padding: '5px 10px', 
+              borderRadius: '4px', 
+              border: '1px solid #ccc',
+              backgroundColor: isCurrentlyToday(selectedDate) ? '#e6f7ff' : 'transparent',
+              fontWeight: isCurrentlyToday(selectedDate) ? 'bold' : 'normal'
+            }}
+          >
+            Today
+          </button>
+          <input
+            type="date"
+            value={selectedDate.toISOString().split('T')[0]}
+            onChange={(e) => setSelectedDate(new Date(e.target.value))}
+            disabled={isAggregateLoading}
+            style={{ padding: '5px 10px', borderRadius: '4px', border: '1px solid #ccc' }}
+          />
+        </div>
+        
         {isAggregateLoading ? (
           <div className="flex items-center justify-center h-full" style={{ height: "200px" }}>
             <Spinner size="large" text="Aggregating data from past 30 days..." />
