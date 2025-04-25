@@ -56,6 +56,48 @@ interface DataPoint {
   device_status?: string;
 }
 
+// Cache utility functions
+const CACHE_DURATION = 60 * 60 * 1000; // 1 hour in milliseconds
+
+// Function to get data from cache
+const getFromCache = (key: string) => {
+  if (typeof window === 'undefined') return null;
+  
+  try {
+    const cacheItem = localStorage.getItem(key);
+    if (!cacheItem) return null;
+    
+    const { timestamp, data } = JSON.parse(cacheItem);
+    
+    // Check if the cache is still valid (within CACHE_DURATION)
+    if (Date.now() - timestamp > CACHE_DURATION) {
+      // Cache expired
+      return null;
+    }
+    
+    return data;
+  } catch (error) {
+    console.error(`Error retrieving ${key} from cache:`, error);
+    return null;
+  }
+};
+
+// Function to save data to cache
+const saveToCache = (key: string, data: any) => {
+  if (typeof window === 'undefined') return;
+  
+  try {
+    const cacheItem = {
+      timestamp: Date.now(),
+      data
+    };
+    
+    localStorage.setItem(key, JSON.stringify(cacheItem));
+  } catch (error) {
+    console.error(`Error saving ${key} to cache:`, error);
+  }
+};
+
 //===================================================================================
 // builds the usage chart
 const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }> = ({ 
@@ -75,6 +117,7 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
   const [totalThirtyDayUsage, setTotalThirtyDayUsage] = useState<{ hours: number; minutes: number }>({ hours: 0, minutes: 0 });
   const [todayUsage, setTodayUsage] = useState<{ hours: number; minutes: number }>({ hours: 0, minutes: 0 });
   const [isLoadingUsageStats, setIsLoadingUsageStats] = useState<boolean>(false);
+  const [dataRefreshing, setDataRefreshing] = useState<boolean>(false);
 
   //===================================================================================
   // client-side useEffect to calculate hourly and daily usage patterns from usageData
@@ -143,20 +186,49 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
     
     setIsAggregateLoading(true);
     
+    // Check cache for daily percentages
+    const cacheKeyDaily = `daily_percentages_${machineId}`;
+    const cachedDailyData = getFromCache(cacheKeyDaily);
+    
+    // Check cache for hourly percentages
+    const cacheKeyHourly = `hourly_percentages_${machineId}`;
+    const cachedHourlyData = getFromCache(cacheKeyHourly);
+    
+    // If we have cached data, use it immediately
+    if (cachedDailyData) {
+      setAggregatedDailyUsage(cachedDailyData);
+    }
+    
+    if (cachedHourlyData) {
+      setAggregatedHourlyUsage(cachedHourlyData);
+    }
+    
+    // If we have both types of cached data, don't show loading state
+    if (cachedDailyData && cachedHourlyData) {
+      setIsAggregateLoading(false);
+      // Refresh data in background
+      setDataRefreshing(true);
+    }
+    
     try {
-      // Fetch daily percentages directly from backend
+      // Always fetch fresh data, even if we have cache (for background refresh)
       const dailyPercentagesData = await fetchDailyPercentages(machineId);
       setAggregatedDailyUsage(dailyPercentagesData);
+      saveToCache(cacheKeyDaily, dailyPercentagesData);
       
-      // Fetch hourly percentages directly from backend
       const hourlyPercentagesData = await fetchHourlyPercentages(machineId);
       setAggregatedHourlyUsage(hourlyPercentagesData);
+      saveToCache(cacheKeyHourly, hourlyPercentagesData);
       
     } catch (error) {
       console.error(`Error fetching aggregate data: `, error);
-      setHasError(true);
+      // Only set error if we don't have cached data
+      if (!cachedDailyData || !cachedHourlyData) {
+        setHasError(true);
+      }
     } finally {
       setIsAggregateLoading(false);
+      setDataRefreshing(false);
     }
   };
 
@@ -231,11 +303,44 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
     if (viewMode !== 'admin' || !machineId) return;
     
     setIsLoadingUsageStats(true);
-    try {
-      const selectedDateStr = selectedDate.toISOString().split('T')[0];
+    
+    const selectedDateStr = selectedDate.toISOString().split('T')[0];
+    
+    // Check cache for usage statistics
+    const cacheKeyDaily = `daily_usage_${machineId}_${selectedDateStr}`;
+    const cachedDailyUsage = getFromCache(cacheKeyDaily);
+    
+    const cacheKeyTotal = `total_usage_${machineId}`;
+    const cachedTotalUsage = getFromCache(cacheKeyTotal);
+    
+    // If we have cached data, use it immediately
+    if (cachedDailyUsage) {
+      const wholeHours = Math.floor(cachedDailyUsage);
+      const minutes = Math.round((cachedDailyUsage - wholeHours) * 60);
+      setTodayUsage({ hours: wholeHours, minutes });
+    }
+    
+    if (cachedTotalUsage) {
+      const wholeTotalHours = Math.floor(cachedTotalUsage);
+      const totalMinutes = Math.round((cachedTotalUsage - wholeTotalHours) * 60);
+      setTotalThirtyDayUsage({ hours: wholeTotalHours, minutes: totalMinutes });
+    }
+    
+    // If we have both types of cached data, don't show loading state
+    if (cachedDailyUsage && cachedTotalUsage) {
+      setIsLoadingUsageStats(false);
+      // Still refresh data in background
+      const refreshInBackground = true;
       
+      if (!refreshInBackground) {
+        return;
+      }
+    }
+    
+    try {
       // Fetch daily usage for the selected date 
       const dailyHours = await fetchDailyUsage(machineId, selectedDateStr);
+      saveToCache(cacheKeyDaily, dailyHours);
       
       // Calculate hours and minutes
       const wholeHours = Math.floor(dailyHours);
@@ -244,6 +349,7 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
       
       // Fetch total usage for all time
       const totalHours = await fetchTotalUsage(machineId);
+      saveToCache(cacheKeyTotal, totalHours);
       
       // Calculate hours and minutes
       const wholeTotalHours = Math.floor(totalHours);

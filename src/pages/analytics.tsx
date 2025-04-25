@@ -19,6 +19,48 @@ import { Spinner } from '@/components/spinner';
 const DynamicSelect = dynamic(() => Promise.resolve(Select), { ssr: false });
 const DynamicMachineUsageChart = dynamic(() => import('@/components/graph'), { ssr: false });
 
+// Cache utility functions
+const CACHE_DURATION = 60 * 60 * 1000; // 1 hour in milliseconds
+
+// Function to get data from cache
+const getFromCache = (key: string) => {
+  if (typeof window === 'undefined') return null;
+  
+  try {
+    const cacheItem = localStorage.getItem(key);
+    if (!cacheItem) return null;
+    
+    const { timestamp, data } = JSON.parse(cacheItem);
+    
+    // Check if the cache is still valid (within CACHE_DURATION)
+    if (Date.now() - timestamp > CACHE_DURATION) {
+      // Cache expired
+      return null;
+    }
+    
+    return data;
+  } catch (error) {
+    console.error(`Error retrieving ${key} from cache:`, error);
+    return null;
+  }
+};
+
+// Function to save data to cache
+const saveToCache = (key: string, data: any) => {
+  if (typeof window === 'undefined') return;
+  
+  try {
+    const cacheItem = {
+      timestamp: Date.now(),
+      data
+    };
+    
+    localStorage.setItem(key, JSON.stringify(cacheItem));
+  } catch (error) {
+    console.error(`Error saving ${key} to cache:`, error);
+  }
+};
+
 function Analytics() {
   const router = useRouter();
   const [selectedGym, setSelectedGym] = useState<GymOption | null>(null);
@@ -98,33 +140,71 @@ function Analytics() {
       }
       
       setIsLoadingMachines(true);
-      const machines = await fetchMachines(selectedGym.id);
-      setIsLoadingMachines(false);
       
-      // Always set machines to empty array if no machines found
-      if (!machines || machines.length === 0) {
-        setMachines([]);
-        setSelectedAdminMachine(null);
-        return;
+      // Check if we have cached machines data
+      const cacheKey = `machines_${selectedGym.id}`;
+      const cachedMachines = getFromCache(cacheKey);
+      
+      if (cachedMachines) {
+        // Use cached machines data
+        setMachines(cachedMachines);
+        setIsLoadingMachines(false);
+        
+        // Check if we have a machine from the index page
+        const lastMachine = localStorage.getItem("lastMachine");
+        if (lastMachine) {
+          const machineData = JSON.parse(lastMachine);
+          const matchingMachine = cachedMachines.find((m: any) => m.thing_id === machineData.thing_id);
+          if (matchingMachine) {
+            setSelectedAdminMachine(matchingMachine);
+          }
+        } else if (cachedMachines.length > 0 && activeTab === 'admin') {
+          // Only auto-select the first machine in admin view
+          setSelectedAdminMachine(cachedMachines[0]);
+        }
       }
       
-      // ignore this (not sure why but couldnt get it to work when fixing type issues)
-      // @ts-ignore
-      setMachines(machines);
-
-      // Check if we have a machine from the index page
-      const lastMachine = localStorage.getItem("lastMachine");
-      if (lastMachine) {
-        const machineData = JSON.parse(lastMachine);
-        const matchingMachine = machines.find(m => m.thing_id === machineData.thing_id);
-        if (matchingMachine) {
-          // @ts-ignore
-          setSelectedAdminMachine(matchingMachine);
+      // Always fetch fresh data, even if we have cache
+      try {
+        const machines = await fetchMachines(selectedGym.id);
+        
+        // Always set machines to empty array if no machines found
+        if (!machines || machines.length === 0) {
+          setMachines([]);
+          setSelectedAdminMachine(null);
+          return;
         }
-      } else if (machines.length > 0 && activeTab === 'admin') {
-        // Only auto-select the first machine in admin view
+        
+        // Save to cache
+        saveToCache(cacheKey, machines);
+        
+        // ignore this (not sure why but couldnt get it to work when fixing type issues)
         // @ts-ignore
-        setSelectedAdminMachine(machines[0]);
+        setMachines(machines);
+  
+        // Check if we have a machine from the index page (only if we didn't use cache)
+        if (!cachedMachines) {
+          const lastMachine = localStorage.getItem("lastMachine");
+          if (lastMachine) {
+            const machineData = JSON.parse(lastMachine);
+            const matchingMachine = machines.find(m => m.thing_id === machineData.thing_id);
+            if (matchingMachine) {
+              // @ts-ignore
+              setSelectedAdminMachine(matchingMachine);
+            }
+          } else if (machines.length > 0 && activeTab === 'admin') {
+            // Only auto-select the first machine in admin view
+            // @ts-ignore
+            setSelectedAdminMachine(machines[0]);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching machines:', error);
+        if (!cachedMachines) {
+          setIsLoadingMachines(false);
+        }
+      } finally {
+        setIsLoadingMachines(false);
       }
     }
     loadMachines();
@@ -329,6 +409,25 @@ function Analytics() {
       return;
     }
     
+    // Check for cached prediction data
+    const peakTimesCacheKey = `peak_times_all_machines`;
+    const idealTimesCacheKey = `ideal_times_all_machines`;
+    
+    const cachedPeakTimes = getFromCache(peakTimesCacheKey);
+    const cachedIdealTimes = getFromCache(idealTimesCacheKey);
+    
+    // If we have cached data and it's less than 1 hour old, use it
+    if (cachedPeakTimes && cachedIdealTimes) {
+      setMachinePeakTimes(cachedPeakTimes);
+      setMachineIdealTimes(cachedIdealTimes);
+      // Still update the lastPredictionFetch time to avoid immediate re-fetches
+      setLastPredictionFetch(currentTime);
+      
+      // Return early if we don't want to refresh in background
+      // Uncommenting this will make it use cache exclusively (not refreshing data)
+      // return;
+    }
+    
     setIsLoadingPredictions(true);
     
     try {
@@ -352,6 +451,10 @@ function Analytics() {
         acc[machine.thing_id] = idealTimesResults[index];
         return acc;
       }, {} as {[key: string]: string[]});
+      
+      // Save the data to cache
+      saveToCache(peakTimesCacheKey, peakTimesMap);
+      saveToCache(idealTimesCacheKey, idealTimesMap);
       
       setMachinePeakTimes(peakTimesMap);
       setMachineIdealTimes(idealTimesMap);
@@ -535,7 +638,7 @@ function Analytics() {
                           zIndex: 10,
                           visibility: 'hidden'
                         }}>
-                          <Spinner size="small" text="Loading chart..." />
+                          <Spinner size="small" text="Loading data..." />
                         </div>
                       </div>
                     </div>
