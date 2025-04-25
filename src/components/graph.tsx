@@ -533,11 +533,39 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
   
 
   // format the data for the charts
-  const barChartOptions = getBarChartOptions(machineName);
+  // Calculate max values for scaling
+  const maxHourlyPercentage = aggregatedHourlyUsage.length > 0 
+    ? Math.max(...aggregatedHourlyUsage.map(item => item.percentage)) 
+    : 0;
+  
+  const maxDailyPercentage = aggregatedDailyUsage.length > 0 
+    ? Math.max(...aggregatedDailyUsage.map(item => item.percentage)) 
+    : 0;
+    
+  // For user view data
+  const maxUserHourlyPercentage = hourlyUsage.length > 0 
+    ? Math.max(...hourlyUsage.map(item => item.percentage)) 
+    : 0;
+  
+  const maxUserDailyPercentage = dailyUsage.length > 0 
+    ? Math.max(...dailyUsage.map(item => item.percentage)) 
+    : 0;
+  
+  // Pass max values to options
+  const hourlyBarChartOptions = getBarChartOptions(machineName, maxHourlyPercentage);
+  const dailyBarChartOptions = getBarChartOptions(machineName, maxDailyPercentage);
+  
+  // User view options
+  const userHourlyBarChartOptions = getBarChartOptions(machineName, maxUserHourlyPercentage);
+  const userDailyBarChartOptions = getBarChartOptions(machineName, maxUserDailyPercentage);
   
   // Create chart data for aggregated stats for admin view
   const aggregatedHourlyChartData = getHourlyChartData(aggregatedHourlyUsage);
   const aggregatedDailyChartData = getDailyChartData(aggregatedDailyUsage);
+  
+  // Create chart data for single day stats for user view
+  const hourlyChartData = getHourlyChartData(hourlyUsage);
+  const dailyChartData = getDailyChartData(dailyUsage);
 
   // Render different views based on viewMode
   if (viewMode === 'user') {
@@ -651,13 +679,13 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
             <div>
               <h4 style={{ textAlign: 'center', margin: '10px 0' }}>Hourly Usage Pattern</h4>
               <div className="h-64">
-                <CustomBarChart barChartData={aggregatedHourlyChartData} barChartOptions={barChartOptions} machineName={machineName} />
+                <CustomBarChart barChartData={aggregatedHourlyChartData} barChartOptions={hourlyBarChartOptions} machineName={machineName} />
               </div>
             </div>
             <div>
               <h4 style={{ textAlign: 'center', margin: '10px 0' }}>Daily Usage Pattern</h4>
               <div className="h-64">
-                <CustomBarChart barChartData={aggregatedDailyChartData} barChartOptions={barChartOptions} machineName={machineName} />
+                <CustomBarChart barChartData={aggregatedDailyChartData} barChartOptions={dailyBarChartOptions} machineName={machineName} />
               </div>
             </div>
           </>

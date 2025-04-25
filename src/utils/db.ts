@@ -422,3 +422,43 @@ export async function fetchHourlyPercentages(machineId: string): Promise<{ hour:
     return [];
   }
 }
+
+// Fetch peak hours or ideal hours for a machine
+export async function fetchPeakHours(
+  machineId: string, 
+  date: string = new Date().toISOString().split('T')[0], 
+  isPeak: boolean = true
+): Promise<string[]> {
+  try {
+    // Get current time
+    const currentTime = new Date();
+    // Format current time as ISO string and keep just the time part
+    const currentTimeStr = currentTime.toISOString().split('T')[1].substring(0, 8);
+    // Set startTime to current time on the specified date
+    const startTime = `${date}T${currentTimeStr}`;
+    // Keep endTime at 10pm (typical gym closing time)
+    const endTime = `${date}T22:00:00Z`;
+    
+    const url = `${API_ENDPOINT}/getPeakHours?thing_id=${machineId}&date=${date}&start_time=${startTime}&end_time=${endTime}&peak=${isPeak}`;
+    
+    console.log(`Fetching ${isPeak ? 'peak' : 'ideal'} hours from: ${url}`);
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      console.error(`Error fetching ${isPeak ? 'peak' : 'ideal'} hours:`, response.statusText);
+      return [];
+    }
+    
+    const data = await response.json();
+    console.log(`${isPeak ? 'Peak' : 'Ideal'} hours data:`, data);
+    
+    // Format the times to be more readable
+    return data.map((timestamp: string) => {
+      const date = new Date(timestamp);
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+    });
+  } catch (error) {
+    console.error(`Error fetching ${isPeak ? 'peak' : 'ideal'} hours:`, error);
+    return [];
+  }
+}

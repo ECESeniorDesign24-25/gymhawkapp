@@ -6,7 +6,7 @@ import Footer from '@/components/footer';
 import Banner from '@/components/banner';
 import styles from '@/styles/index.module.css';
 import { HOME_STYLE } from '@/styles/customStyles';
-import { fetchGyms, fetchMachines, fetchDeviceState, fetchLastUsedTime } from '@/utils/db';
+import { fetchGyms, fetchMachines, fetchDeviceState, fetchLastUsedTime, fetchPeakHours } from '@/utils/db';
 import { useAuth } from '@/lib/auth';
 import { EMAIL } from '@/utils/consts';
 import { RequireAuth } from '@/components/requireAuth';
@@ -33,6 +33,10 @@ function Analytics() {
   const [isLoadingMachines, setIsLoadingMachines] = useState<boolean>(false);
   const [chartsLoading, setChartsLoading] = useState<boolean>(true);
   const [isLoadingMachineDetails, setIsLoadingMachineDetails] = useState<boolean>(false);
+  const [machinePeakTimes, setMachinePeakTimes] = useState<{[key: string]: string[]}>({});
+  const [machineIdealTimes, setMachineIdealTimes] = useState<{[key: string]: string[]}>({});
+  const [isLoadingPredictions, setIsLoadingPredictions] = useState<boolean>(false);
+  const [lastPredictionFetch, setLastPredictionFetch] = useState<number>(0);
 
   // Add effect to control chart loading indicators
   useEffect(() => {
@@ -312,6 +316,60 @@ function Analytics() {
     );
   };
 
+  // Function to fetch peak and ideal times for all machines
+  const fetchAllMachinePredictions = async () => {
+    if (!machines.length) return;
+    
+    // Check if 15 minutes have passed since last prediction fetch
+    const currentTime = Date.now();
+    const FIFTEEN_MINUTES = 15 * 60 * 1000; // 15 minutes in milliseconds
+    
+    if (currentTime - lastPredictionFetch < FIFTEEN_MINUTES && Object.keys(machinePeakTimes).length > 0) {
+      // Skip fetching if less than 15 minutes and we already have predictions
+      return;
+    }
+    
+    setIsLoadingPredictions(true);
+    
+    try {
+      const peakTimesPromises = machines.map(machine => 
+        fetchPeakHours(machine.thing_id, undefined, true)
+      );
+      
+      const idealTimesPromises = machines.map(machine => 
+        fetchPeakHours(machine.thing_id, undefined, false)
+      );
+      
+      const peakTimesResults = await Promise.all(peakTimesPromises);
+      const idealTimesResults = await Promise.all(idealTimesPromises);
+      
+      const peakTimesMap = machines.reduce((acc, machine, index) => {
+        acc[machine.thing_id] = peakTimesResults[index];
+        return acc;
+      }, {} as {[key: string]: string[]});
+      
+      const idealTimesMap = machines.reduce((acc, machine, index) => {
+        acc[machine.thing_id] = idealTimesResults[index];
+        return acc;
+      }, {} as {[key: string]: string[]});
+      
+      setMachinePeakTimes(peakTimesMap);
+      setMachineIdealTimes(idealTimesMap);
+      setLastPredictionFetch(currentTime);
+    } catch (error) {
+      console.error('Error fetching machine predictions:', error);
+    } finally {
+      setIsLoadingPredictions(false);
+    }
+  };
+  
+  // Fetch peak and ideal hours when machines are loaded
+  useEffect(() => {
+    if (machines.length > 0) {
+      fetchAllMachinePredictions();
+    }
+  }, [machines]);
+
   // render page
   return (
     <RequireAuth>
@@ -390,10 +448,33 @@ function Analytics() {
                             : machine.state === 'on' 
                               ? 'rgba(139, 0, 0, 0.75)'  // Red for machines in use
                               : 'rgba(0, 100, 0, 0.75)', // Green for available machines
-                          borderLeft: machine.state === 'on' ? '5px solid rgba(139, 0, 0, 1)' : machine.state === 'off' ? '5px solid rgba(0, 100, 0, 1)' : '5px solid rgba(128, 128, 128, 1)'
+                          borderLeft: machine.state === 'on' ? '5px solid rgba(139, 0, 0, 1)' : machine.state === 'off' ? '5px solid rgba(0, 100, 0, 1)' : '5px solid rgba(128, 128, 128, 1)',
+                          position: 'relative' // Add position relative for absolute positioning of the bell
                         }}
                       >
-                        <div><strong>{machine.machine_type || 'Unknown Type'}</strong></div>
+                        {/* Notification bell positioned in top right corner */}
+                        <button 
+                          className={styles.notificationBell} 
+                          aria-label="Enable notifications"
+                          title="Get notified when this machine is available"
+                          style={{
+                            position: 'absolute',
+                            top: '8px',
+                            right: '8px',
+                            zIndex: 5
+                          }}
+                          onClick={(e) => {
+                            e.preventDefault(); // Prevent the event from bubbling
+                            // Notification logic will be implemented later
+                            console.log(`Notification clicked for ${machine.machine}`);
+                          }}
+                        >
+                          🔔
+                        </button>
+                        
+                        <div className="mt-1">
+                          <strong>{machine.machine_type || 'Unknown Type'}</strong>
+                        </div>
                         <div className="mt-2">
                           <div className="flex flex-row items-center space-x-2">
                             <div className={`${styles.statusIndicator} ${
@@ -403,30 +484,38 @@ function Analytics() {
                             }`}></div>
                             <span>Device: {machine.device_status || 'UNKNOWN'}</span>
                           </div>
-                        </div>
-                        <div className="mt-2">
                           <div className="flex flex-row items-center space-x-2">
                             <div className={`${styles.statusIndicator} ${
-                              machine.device_status === "OFFLINE" || machine.device_status === "UNKNOWN"
-                                ? styles.statusOffline
-                                : machine.state === 'on' 
-                                  ? styles.statusInUse
-                                  : styles.statusAvailable
+                              machine.state === 'on' 
+                                ? styles.statusInUse
+                                : styles.statusAvailable
                             }`}></div>
-                            <span>
-                              {machine.device_status === "OFFLINE" || machine.device_status === "UNKNOWN"
-                                ? 'Unavailable'
-                                : machine.state === 'on' 
-                                  ? 'In Use' 
-                                  : 'Available'}
-                            </span>
+                            <span>State: {machine.state === 'on' ? 'In Use' : 'Available'}</span>
                           </div>
-                        </div>
-                        <div className="mt-2">
-                          <span>Floor: {machine.floor}</span>
-                        </div>
-                        <div className="mt-2">
-                          <span>Last Used: {formatLastUsedTime(machine.last_used_time)}</span>
+                          {machine.last_used_time && (
+                            <div className="mt-1">
+                              <span>Last Used: {formatLastUsedTime(machine.last_used_time)}</span>
+                            </div>
+                          )}
+                          
+                          {/* Machine usage predictions */}
+                          <div className="mt-2">
+                            {/* Always show predictions, never show loading text */}
+                            <div className="text-sm mt-1" style={{ color: '#d32f2f' }}>
+                              <strong>Busiest Times:</strong> {
+                                machinePeakTimes[machine.thing_id]?.length > 0 
+                                  ? machinePeakTimes[machine.thing_id].join(', ')
+                                  : 'Not enough data'
+                              }
+                            </div>
+                            <div className="text-sm mt-1" style={{ color: '#388e3c' }}>
+                              <strong>Best Times:</strong> {
+                                machineIdealTimes[machine.thing_id]?.length > 0 
+                                  ? machineIdealTimes[machine.thing_id].join(', ')
+                                  : 'Not enough data'
+                              }
+                            </div>
+                          </div>
                         </div>
                       </div>
                       

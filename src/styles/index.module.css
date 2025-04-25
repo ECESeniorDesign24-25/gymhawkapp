@@ -626,7 +626,7 @@
   margin-right: 8px;
 }
 
-.statusAvailable {
+.statusOnline {
   background-color: rgba(0, 100, 0, 1);
 }
 
@@ -636,4 +636,28 @@
 
 .statusOffline {
   background-color: rgba(128, 128, 128, 1);
+}
+
+/* Notification bell button */
+.notificationBell {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 5px;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.notificationBell:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+  transform: scale(1.1);
+}
+
+.notificationBell:active {
+  transform: scale(0.95);
 }
