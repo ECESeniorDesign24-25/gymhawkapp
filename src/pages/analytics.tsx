@@ -40,6 +40,7 @@ function Analytics() {
   const [machineIdealTimes, setMachineIdealTimes] = useState<{[key: string]: string[]}>({});
   const [isLoadingPredictions, setIsLoadingPredictions] = useState<boolean>(false);
   const [lastPredictionFetch, setLastPredictionFetch] = useState<number>(0);
+  const [isRouterReady, setIsRouterReady] = useState(false);
 
   // check if charts are loaded
   useEffect(() => {
@@ -65,6 +66,17 @@ function Analytics() {
     return () => clearInterval(intervalId);
   }, [selectedGym, machines.length]);
 
+  // init state from URL parameters once router is ready
+  useEffect(() => {
+    if (!router.isReady) return;
+    setIsRouterReady(true);
+    
+    // set active tab from URL
+    if (router.query.tab && (router.query.tab === 'user' || (router.query.tab === 'admin' && isAdmin))) {
+      setActiveTab(router.query.tab as string);
+    }
+  }, [router.isReady, isAdmin, router.query.tab]);
+
   // fetch gyms from database on first render
   useEffect(() => {
     async function loadGyms() {
@@ -73,19 +85,47 @@ function Analytics() {
       setGyms(gyms || []);
       setIsLoadingGyms(false);
 
-      // check if we have a past gym saved in the browser and set it as the selected gym
-      const lastGym = localStorage.getItem("lastGym");
-      if (lastGym) {
-        const gymData = JSON.parse(lastGym);
-        setSelectedGym(gymData);
-        setSelectPlaceholder(gymData.label);
+      if (router.isReady && router.query.gymId) {
+        const gymId = router.query.gymId as string;
+        const matchingGym = gyms?.find(gym => gym.id === gymId);
+        
+        if (matchingGym) {
+          setSelectedGym({
+            value: matchingGym.id,
+            label: matchingGym.label,
+            id: matchingGym.id,
+            floors: matchingGym.floors,
+            coords: matchingGym.coords,
+            building: matchingGym.building
+          });
+          setSelectPlaceholder(matchingGym.label);
+        }
+      }
+      // if no gym in URL, check localStorage as fallback
+      else if (!router.query.gymId) {
+        const lastGym = localStorage.getItem("lastGym");
+        if (lastGym) {
+          const gymData = JSON.parse(lastGym);
+          setSelectedGym(gymData);
+          setSelectPlaceholder(gymData.label);
+          
+          // update URL with the gym from localStorage
+          if (router.isReady) {
+            const query = { ...router.query, gymId: gymData.id };
+            router.push({
+              pathname: router.pathname,
+              query
+            }, undefined, { shallow: true });
+          }
+        }
       }
     }
+    
     loadGyms();
-  }, []);
+  }, [router.isReady]);
 
   
-  // fetch machines on first render also 
+  // fetch machines on first render or when gym changes
   useEffect(() => {
     async function loadMachines() {
       if (!selectedGym) {
@@ -131,8 +171,18 @@ function Analytics() {
         setIsLoadingMachines(false);
       }
       
-      // run only if we have valid machine data
-      if (machinesData && machinesData.length > 0) {
+      // Try to select machine from URL if available
+      if (router.isReady && router.query.machineId && machinesData && machinesData.length > 0) {
+        const machineId = router.query.machineId as string;
+        const matchingMachine = machinesData.find((m: any) => m.thing_id === machineId);
+        
+        if (matchingMachine) {
+          setSelectedAdminMachine(matchingMachine);
+          return;
+        }
+      }
+      // If no machine in URL, check localStorage as fallback
+      else if (machinesData && machinesData.length > 0) {
         const lastMachine = localStorage.getItem("lastMachine");
         
         if (lastMachine) {
@@ -140,18 +190,36 @@ function Analytics() {
           const matchingMachine = machinesData.find((m: any) => m.thing_id === machineData.thing_id);
           if (matchingMachine) {
             setSelectedAdminMachine(matchingMachine);
+            
+            // Update URL with the machine from localStorage
+            if (router.isReady && activeTab === 'admin') {
+              const query = { ...router.query, machineId: matchingMachine.thing_id };
+              router.push({
+                pathname: router.pathname,
+                query
+              }, undefined, { shallow: true });
+            }
             return;
           }
         }
         
-        // Auto-select first machine for admin view
+        // Auto-select first machine for admin view if no machine is selected
         if (activeTab === 'admin') {
           setSelectedAdminMachine(machinesData[0]);
+          
+          // Update URL with the first machine
+          if (router.isReady) {
+            const query = { ...router.query, machineId: machinesData[0].thing_id };
+            router.push({
+              pathname: router.pathname,
+              query
+            }, undefined, { shallow: true });
+          }
         }
       }
     }
     loadMachines();
-  }, [selectedGym, activeTab]);
+  }, [selectedGym, activeTab, router.isReady, router.query.machineId]);
 
 
  // poll machine states every 1s and update dict
@@ -235,7 +303,7 @@ function Analytics() {
   };
 
 
-  // handle gym select
+  // handle gym select - update URL with selected gym
   const handleGymSelect = (selectedOption: unknown) => { 
     const gymOption = selectedOption as GymOption | null;
     
@@ -247,7 +315,26 @@ function Analytics() {
     setSelectedGym(gymOption);
     setSelectPlaceholder(gymOption?.label || "Select a gym");
     
-    // save
+    // Update URL with the selected gym
+    if (router.isReady && gymOption) {
+      // Keep existing tab parameter
+      const query: any = { gymId: gymOption.id };
+      if (router.query.tab) {
+        query.tab = router.query.tab;
+      }
+      
+      // Clear machineId if switching gyms
+      if (router.query.machineId) {
+        delete query.machineId;
+      }
+      
+      router.push({
+        pathname: router.pathname,
+        query
+      }, undefined, { shallow: true });
+    }
+    
+    // save to localStorage as backup
     if (gymOption) {
       localStorage.setItem("lastGym", JSON.stringify(gymOption));
     } else {
@@ -255,11 +342,43 @@ function Analytics() {
     }
   }
 
-  // handle admin machine select
+  // handle admin machine select - update URL with selected machine
   const handleAdminMachineSelect = (machine: Machine) => {
     setIsLoadingMachineDetails(true);
     setSelectedAdminMachine(machine);
+    
+    // Update URL with the selected machine and current tab
+    if (router.isReady) {
+      const query = { 
+        ...router.query, 
+        machineId: machine.thing_id 
+      };
+      
+      router.push({
+        pathname: router.pathname,
+        query
+      }, undefined, { shallow: true });
+    }
+    
+    // Save machine to localStorage as backup
+    localStorage.setItem("lastMachine", JSON.stringify(machine));
+    
     setTimeout(() => setIsLoadingMachineDetails(false), ONE_SECOND / 2);
+  };
+
+  // handle tab change - update URL with selected tab
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    
+    // Update URL with the selected tab
+    if (router.isReady) {
+      const query = { ...router.query, tab };
+      
+      router.push({
+        pathname: router.pathname,
+        query
+      }, undefined, { shallow: true });
+    }
   };
 
   const renderAdminMachineDetails = () => {
@@ -419,14 +538,14 @@ function Analytics() {
         <div className={styles.tabsContainer}>
           <button 
             className={`${styles.tabButton} ${activeTab === 'user' ? styles.activeTab : ''}`}
-            onClick={() => setActiveTab('user')}
+            onClick={() => handleTabChange('user')}
           >
             User Analytics
           </button>
           {isAdmin ? (
             <button 
               className={`${styles.tabButton} ${activeTab === 'admin' ? styles.activeTab : ''}`}
-              onClick={() => setActiveTab('admin')}
+              onClick={() => handleTabChange('admin')}
             >
               Admin Analytics
             </button>
@@ -455,6 +574,7 @@ function Analytics() {
                 placeholder={selectPlaceholder}
                 styles={HOME_STYLE}
                 onChange={handleGymSelect}
+                value={selectedGym}
               />
             )}
           </div>

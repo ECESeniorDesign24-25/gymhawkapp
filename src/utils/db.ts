@@ -28,35 +28,8 @@ export async function fetchMachines(gymId: string) {
           const state = await fetchDeviceState(docSnapshot.id, 'Unknown', "state");
           const device_status = await fetchDeviceState(docSnapshot.id, 'OFFLINE', "device_status");
           
-          // If type is still unknown, try to use a predefined mapping or fetch from another source
           if (!type || type === 'Unknown') {
-              console.log(`[MACHINE] Type unknown for ${docSnapshot.id}, attempting to find default type`);
-              // Try to get machine type from the thing_id document
-              try {
-                  const thing_id_doc = await getDoc(doc(thing_ids, data.thingId));
-                  if (thing_id_doc.exists() && thing_id_doc.data()?.machine_type) {
-                      type = thing_id_doc.data()?.machine_type;
-                      console.log(`[MACHINE] Found type in thing_ids: ${type}`);
-                  }
-              } catch (e) {
-                  console.error(`[MACHINE] Error fetching thing_id data for type: ${e}`);
-              }
-              
-              // If still unknown, use a machine name to type mapping as fallback
-              if (!type || type === 'Unknown') {
-                  // Extract machine name and map to common types
-                  const machineName = docSnapshot.id.toLowerCase();
-                  if (machineName.includes('treadmill')) type = 'Treadmill';
-                  else if (machineName.includes('bike')) type = 'Exercise Bike';
-                  else if (machineName.includes('elliptical')) type = 'Elliptical';
-                  else if (machineName.includes('row')) type = 'Rowing Machine';
-                  else if (machineName.includes('press')) type = 'Chest Press';
-                  else if (machineName.includes('curl')) type = 'Bicep Curl';
-                  else if (machineName.includes('bench')) type = 'Bench Press';
-                  else type = 'Fitness Equipment';
-                  
-                  console.log(`[MACHINE] Applied fallback type for ${docSnapshot.id}: ${type}`);
-              }
+              type = 'Fitness Equipment';
           }
 
           const thing_id_doc = await getDoc(doc(thing_ids, data.thingId));
@@ -125,7 +98,6 @@ export async function fetchMachineTimeseries(machineId: string, startTime: strin
             return [];
         }
 
-        // Format query parameters according to the API requirements
         const params = new URLSearchParams({
             thing_id: machineId,
             start_time: startTime,
@@ -143,7 +115,6 @@ export async function fetchMachineTimeseries(machineId: string, startTime: strin
             }
         });
         
-        // Attempt to parse the response body regardless of HTTP status
         let data = [];
         try {
             const responseText = await response.text();
@@ -153,13 +124,12 @@ export async function fetchMachineTimeseries(machineId: string, startTime: strin
                 data = JSON.parse(responseText);
             } 
         } catch (parseError) {
-            console.error('❌ Failed to parse response:', parseError);
+          console.error("error parsing response: ", parseError);
         }
         
         return data || [];
         
     } catch (e) {
-        console.error('❌ Error in fetchMachineTimeseries:', e);
         return [];
     }
 }
@@ -293,18 +263,17 @@ export async function fetchTotalUsage(machineId: string): Promise<number> {
       return 0;
     }
     
-    // Get response as text first
     const textResponse = await response.text();
     console.log(`Raw total usage response: "${textResponse}"`);
     
-    // Try to parse as a number directly
+    // parse as a number directly
     const parsedNumber = parseFloat(textResponse);
     if (!isNaN(parsedNumber)) {
       console.log(`Parsed total usage as number: ${parsedNumber}`);
       return parsedNumber;
     }
     
-    // If that fails, try JSON parsing
+    // try json
     try {
       const jsonData = JSON.parse(textResponse);
       if (typeof jsonData === 'number') {
@@ -321,7 +290,6 @@ export async function fetchTotalUsage(machineId: string): Promise<number> {
   }
 }
 
-// Fetch daily usage hours for a machine
 export async function fetchDailyUsage(machineId: string, date: string): Promise<number> {
   try {
     const url = `${OTHER_API_ENDPOINT}/getDailyUsage?thing_id=${machineId}&date=${date}`;
@@ -333,18 +301,17 @@ export async function fetchDailyUsage(machineId: string, date: string): Promise<
       return 0;
     }
     
-    // Get response as text first
     const textResponse = await response.text();
     console.log(`Raw daily usage response: "${textResponse}"`);
     
-    // Try to parse as a number directly
+    // parse as a number directly
     const parsedNumber = parseFloat(textResponse);
     if (!isNaN(parsedNumber)) {
       console.log(`Parsed daily usage as number: ${parsedNumber}`);
       return parsedNumber;
     }
     
-    // If that fails, try JSON parsing
+    // try json
     try {
       const jsonData = JSON.parse(textResponse);
       if (typeof jsonData === 'number') {
@@ -361,7 +328,6 @@ export async function fetchDailyUsage(machineId: string, date: string): Promise<
   }
 }
 
-// Fetch daily usage percentages by day of week
 export async function fetchDailyPercentages(machineId: string): Promise<{ day: string; percentage: number }[]> {
   try {
     const url = `${OTHER_API_ENDPOINT}/getDailyPercentages?thing_id=${machineId}`;
@@ -463,11 +429,8 @@ export async function fetchPeakHours(
   try {
     // Get current time
     const currentTime = new Date();
-    // Format current time as ISO string and keep just the time part
     const currentTimeStr = currentTime.toISOString().split('T')[1].substring(0, 8);
-    // Set startTime to current time on the specified date
     const startTime = `${date}T${currentTimeStr}`;
-    // Keep endTime at 10pm (typical gym closing time)
     const endTime = `${date}T22:00:00Z`;
     
     const url = `${API_ENDPOINT}/getPeakHours?thing_id=${machineId}&date=${date}&start_time=${startTime}&end_time=${endTime}&peak=${isPeak}`;
