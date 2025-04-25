@@ -8,6 +8,7 @@ import { fetchGyms, fetchMachines, fetchDeviceState } from '@/utils/db';
 import { RequireAuth } from '@/components/requireAuth';
 import { Gym, GymOption } from '@/interfaces/gym';
 import Map from '@/components/map';
+import { STATUS_OFFLINE, STATUS_UNKNOWN } from '@/utils/consts';
 
 export default function Home() {
 
@@ -58,8 +59,14 @@ export default function Home() {
         return;
       }
       const machines = await fetchMachines(selectedOption.id);
-      setMachines(machines || []);
       
+      // Make sure the machines have a default device_status if not present
+      const machinesWithDefaults = machines?.map(machine => ({
+        ...machine,
+        device_status: machine.device_status || STATUS_OFFLINE
+      })) || [];
+      
+      setMachines(machinesWithDefaults);
     }
     loadMachines();
   }, [selectedOption]);
@@ -117,17 +124,46 @@ export default function Home() {
 
   // poll machine states every 1s and update dict
   useEffect(() => {
+    // Initialize an object to store previous states for comparison
+    const oldStates: any = {};
+
     const intervalId = setInterval(() => {
       setMachines(prevMachines => {
         // return empty if no machines
         if (prevMachines.length === 0) {
           return prevMachines;
         }
+        
         Promise.all(
           prevMachines.map(async (machine) => {
             try {
-              const state = await fetchDeviceState(machine.machine, "Unknown", "state");
-              return { ...machine, state };
+              // Store previous state to pass to fetchDeviceState
+              let state = oldStates[machine.machine] || STATUS_UNKNOWN;
+              let deviceStatus = machine.device_status || STATUS_OFFLINE;
+              
+              try {
+                // Fetch both state and device_status in parallel
+                const [newState, newDeviceStatus] = await Promise.all([
+                  fetchDeviceState(machine.machine, state, "state"),
+                  fetchDeviceState(machine.machine, deviceStatus, "device_status")
+                ]);
+                
+                // Update states if fetch was successful
+                state = newState;
+                deviceStatus = newDeviceStatus;
+              } catch (err) {
+                console.error('Error fetching device state, using last known value:', err);
+                // Keep using the last known values
+              }
+              
+              // Store updated state for next comparison
+              oldStates[machine.machine] = state;
+              
+              return { 
+                ...machine, 
+                state,
+                device_status: deviceStatus
+              };
             } catch (err) {
               console.error('Error fetching device state for', machine.machine, err);
               return machine;

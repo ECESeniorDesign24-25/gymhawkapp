@@ -48,6 +48,26 @@
         "function": "getLastUsedTime"
       },
       {
+        "source": "/api/getTotalUsage",
+        "function": "getTotalUsage"
+      },
+      {
+        "source": "/api/getDailyUsage",
+        "function": "getDailyUsage"
+      },
+      {
+        "source": "/api/email_on_available",
+        "destination": "email_on_available"
+      },
+      {
+        "source": "/api/getDailyPercentages",
+        "function": "getDailyPercentages"
+      },
+      {
+        "source": "/api/getHourlyPercentages",
+        "function": "getHourlyPercentages"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
@@ -95,6 +115,12 @@
           "memory": "512MB"
         },
         "getLastUsedTime": {
+          "memory": "512MB"
+        },
+        "getTotalUsage": {
+          "memory": "512MB"
+        },
+        "getDailyUsage": {
           "memory": "512MB"
         }
       }

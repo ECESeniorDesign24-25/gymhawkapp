@@ -4,6 +4,8 @@ import json
 import os
 from firebase_functions import https_fn, scheduler_fn
 from firebase_admin import initialize_app, firestore, credentials
+from firebase_admin import initialize_app, firestore
+from flask import jsonify
 import iot_api_client as iot
 from iot_api_client.rest import ApiException
 from iot_api_client.configuration import Configuration
@@ -19,6 +21,7 @@ import pandas as pd
 from model import RandomForestModel
 import smtplib
 from email.message import EmailMessage
+import requests
 
 # set up firebase app
 # cred_path = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
@@ -161,7 +164,7 @@ def fetch_timeseries_from_db(
     try:
         engine = init_db_connection()
         query = f"""
-        SELECT {variable}, timestamp 
+        SELECT {variable}, timestamp, device_status
         FROM {table_name} 
         WHERE thing_id = :machine AND timestamp >= :startTime
         ORDER BY timestamp
@@ -174,7 +177,8 @@ def fetch_timeseries_from_db(
 
             # Serialize into a list of dictionaries
             return [
-                {variable: row[0], "timestamp": row[1].isoformat()} for row in result
+                {variable: row[0], "timestamp": row[1].isoformat(), "status": row[2]}
+                for row in result
             ]
     except Exception as e:
         print(f"Error fetching from db: {e}")
@@ -566,9 +570,7 @@ def addTimeStepUtil() -> None:
             values_to_write[thing_id]["machineName"] = (
                 db.collection("thing_ids").document(thing_id).get().to_dict()["name"]
             )
-            values_to_write[thing_id]["floor"] = (
-                db.collection("thing_ids").document(thing_id).get().to_dict()["floor"]
-            )
+
             device_status = getDeviceStatus(thing_id, devices)
             values_to_write[thing_id]["device_status"] = device_status
 
@@ -623,6 +625,72 @@ def addTimeStepUtil() -> None:
         raise
 
 
+def getTotalUsageUtil(thing_id: str) -> int:
+    try:
+        engine = init_db_connection()
+        query = """
+            SELECT (COUNT(*)::float / 60)::float AS hours_used 
+            FROM machine_states 
+            WHERE thing_id = :thing_id 
+            AND device_status = 'ONLINE' 
+            AND state = 'on'
+        """
+        with engine.connect() as conn:
+            result = conn.execute(text(query), {"thing_id": thing_id})
+            value = result.scalar()
+
+            # Ensure we have a clean float value without % character
+            if value is not None:
+                if isinstance(value, str) and "%" in value:
+                    value = float(value.replace("%", ""))
+            return value
+    except Exception as e:
+        print(f"Error in getTotalUsage: {str(e)}")
+        return 0
+
+
+def getDailyUsageUtil(thing_id: str, date: str) -> int:
+    try:
+        engine = init_db_connection()
+
+        # Parse the date and calculate end date in Python
+        from datetime import datetime, timedelta
+
+        start_date = date
+
+        # Convert to datetime, add 1 day, and convert back to string
+        date_obj = datetime.strptime(date, "%Y-%m-%d")
+        end_date_obj = date_obj + timedelta(days=1)
+        end_date = end_date_obj.strftime("%Y-%m-%d")
+
+        # Use SQLAlchemy text() with named parameters
+        query = """
+            SELECT (COUNT(*)::float / 60)::float AS hours_used
+            FROM machine_states
+            WHERE thing_id = :thing_id
+            AND device_status = 'ONLINE'
+            AND state = 'on'
+            AND timestamp >= TO_TIMESTAMP(:start_date, 'YYYY-MM-DD')
+            AND timestamp < TO_TIMESTAMP(:end_date, 'YYYY-MM-DD');
+        """
+
+        with engine.connect() as conn:
+            result = conn.execute(
+                text(query),
+                {"thing_id": thing_id, "start_date": start_date, "end_date": end_date},
+            )
+            value = result.scalar()
+
+            # Ensure we have a clean float value without % character
+            if value is not None:
+                if isinstance(value, str) and "%" in value:
+                    value = float(value.replace("%", ""))
+            return value
+    except Exception as e:
+        print(f"Error in getDailyUsage: {str(e)}")
+        return 0
+
+
 def setSleepModeForThing(thing_id: str, sleep_value: bool):
     try:
         properties_api, devices = initIoTAPI()
@@ -646,6 +714,62 @@ def setSleepModeForThing(thing_id: str, sleep_value: bool):
     except Exception as e:
         print(f"Error setting sleep mode for {thing_id}: {e}")
         raise
+
+
+def getDailyPercentagesUtil(thing_id: str) -> list:
+    try:
+        engine = init_db_connection()
+        query = """
+            SELECT
+                thing_id,
+                EXTRACT(ISODOW FROM timestamp)::int AS day_number,
+                TO_CHAR(timestamp, 'FMDay') AS day_name,
+                (COUNT(*)::float / (60 * 24) * 100) AS percent_in_use
+            FROM machine_states
+            WHERE
+                thing_id = :thing_id
+                AND state = 'on'
+                AND device_status = 'ONLINE'
+            GROUP BY
+                thing_id,
+                day_number,
+                day_name
+            ORDER BY
+                day_number;
+        """
+        with engine.connect() as conn:
+            result = conn.execute(text(query), {"thing_id": thing_id})
+            return [list(row) for row in result.fetchall()]
+    except Exception as e:
+        print(f"Error in getDailyPercentages: {str(e)}")
+        return []
+
+
+def getHourlyPercentagesUtil(thing_id: str) -> list:
+    try:
+        engine = init_db_connection()
+        query = """
+            SELECT
+                thing_id,
+                EXTRACT(HOUR FROM timestamp)::int AS hour_number,
+                (COUNT(*)::float / (60 * 60) * 100) AS percent_in_use
+            FROM machine_states
+            WHERE
+                thing_id = :thing_id
+                AND state = 'on'
+                AND device_status = 'ONLINE'
+            GROUP BY
+                thing_id,
+                hour_number
+            ORDER BY
+                hour_number;
+        """
+        with engine.connect() as conn:
+            result = conn.execute(text(query), {"thing_id": thing_id})
+            return [list(row) for row in result.fetchall()]
+    except Exception as e:
+        print(f"Error in getHourlyPercentages: {str(e)}")
+        return []
 
 
 # =============================================================================
@@ -682,14 +806,14 @@ def getStateTimeseries(req: https_fn.Request) -> https_fn.Response:
     return https_fn.Response(
         getTimeseries(thing_id, start_time, variable),
         mimetype="application/json",
-        status=404,
+        status=200,
         headers=CORS_HEADERS,
     )
 
 
 # retrain model every 4 hours
 @scheduler_fn.on_schedule(schedule="0 */4 * * *")
-def retrainModel():
+def retrainModel(event):  # TODO: check if this event param is needed
     # train model with current data (note only online mode )
     df = get_machine_states_df()
     model = RandomForestModel(load_model=False)
@@ -761,8 +885,67 @@ def getLastUsedTime(req: https_fn.Request) -> https_fn.Response:
         )
 
 
+@https_fn.on_request()
+def getTotalUsage(req: https_fn.Request) -> https_fn.Response:
+    thing_id = req.args.get("thing_id")
+    total_usage = getTotalUsageUtil(thing_id)
+    print(f"Raw total usage value: {total_usage}, type: {type(total_usage)}")
+
+    if total_usage is None:
+        return https_fn.Response(json.dumps([]), status=200, headers=CORS_HEADERS)
+    else:
+        # Force to float and strip % if present
+        if isinstance(total_usage, str):
+            total_usage = total_usage.replace("%", "")
+
+        # Convert to float to ensure proper JSON serialization
+        try:
+            total_usage = float(total_usage)
+        except (ValueError, TypeError):
+            print(f"Failed to convert {total_usage} to float")
+
+        print(f"Formatted total usage value: {total_usage}")
+        return https_fn.Response(
+            str(total_usage),  # Just return the number directly
+            status=200,
+            headers=CORS_HEADERS,
+        )
+
+
+@https_fn.on_request()
+def getDailyUsage(req: https_fn.Request) -> https_fn.Response:
+    thing_id = req.args.get("thing_id")
+    date = req.args.get("date")
+    daily_usage = getDailyUsageUtil(thing_id, date)
+    print(f"Raw daily usage value: {daily_usage}, type: {type(daily_usage)}")
+
+    if daily_usage is None:
+        return https_fn.Response(json.dumps([]), status=200, headers=CORS_HEADERS)
+    else:
+        # Force to float and strip % if present
+        if isinstance(daily_usage, str):
+            daily_usage = daily_usage.replace("%", "")
+
+        # Convert to float to ensure proper JSON serialization
+        try:
+            daily_usage = float(daily_usage)
+        except (ValueError, TypeError):
+            print(f"Failed to convert {daily_usage} to float")
+
+        print(f"Formatted daily usage value: {daily_usage}")
+        return https_fn.Response(
+            str(daily_usage),  # Just return the number directly
+            status=200,
+            headers=CORS_HEADERS,
+        )
+
+
 @scheduler_fn.on_schedule(schedule="0 19 * * *")
-def sleepDevices():
+def sleepDevices(
+    event,
+):  # TODO: this event parameter may need to be removed but from what I understand about the scheduled cloud functions,
+    # the event parameter is automatically passed by the scheduler so it needs to be in the function def. This might be a source of the error
+    # I cant be sure until deploying it and testing
     thing_ids = db.collection("thing_ids").list_documents()
     thing_ids = [thing_id.id for thing_id in thing_ids]
 
@@ -771,7 +954,7 @@ def sleepDevices():
 
 
 @scheduler_fn.on_schedule(schedule="0 5 * * *")
-def wakeDevices():
+def wakeDevices(event):
     thing_ids = db.collection("thing_ids").list_documents()
     thing_ids = [thing_id.id for thing_id in thing_ids]
 
@@ -779,6 +962,32 @@ def wakeDevices():
         setSleepModeForThing(thing_id, False)
 
 
+@https_fn.on_request()
+def getDailyPercentages(req: https_fn.Request) -> https_fn.Response:
+    thing_id = req.args.get("thing_id")
+    daily_percentages = getDailyPercentagesUtil(thing_id)
+    if daily_percentages is None:
+        return https_fn.Response(json.dumps([]), status=200, headers=CORS_HEADERS)
+    else:
+        return https_fn.Response(
+            json.dumps(daily_percentages), status=200, headers=CORS_HEADERS
+        )
+
+
+@https_fn.on_request()
+def getHourlyPercentages(req: https_fn.Request) -> https_fn.Response:
+    thing_id = req.args.get("thing_id")
+    hourly_percentages = getHourlyPercentagesUtil(thing_id)
+    if hourly_percentages is None:
+        return https_fn.Response(json.dumps([]), status=200, headers=CORS_HEADERS)
+    else:
+        return https_fn.Response(
+            json.dumps(hourly_percentages), status=200, headers=CORS_HEADERS
+        )
+
+
 if __name__ == "__main__":
-    # setSleepMode(False)
-    pass
+    req = ManualRequest(args={"thing_id": "0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8"})
+    output = getDailyPercentages(req)
+    print("\nOUTPUT: ", output.data.decode("utf-8"))
+    print(getDailyPercentagesUtil("0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8"))
