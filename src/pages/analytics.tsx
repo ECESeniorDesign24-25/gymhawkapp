@@ -16,36 +16,12 @@ import { formatLastUsedTime } from '@/utils/time_utils';
 import { Spinner } from '@/components/spinner';
 import { getFromCache, saveToCache, clearCache } from '@/utils/cache';
 import { StateColor, StateString } from '@/enums/state';
-import { subscribeToMachine } from "@/utils/notify";
+import { subscribeToMachine, triggerEmailNotification } from "@/utils/notify";
 
 // dynamically import Select 
 const DynamicSelect = dynamic(() => Promise.resolve(Select), { ssr: false });
 const DynamicMachineUsageChart = dynamic(() => import('@/components/graph'), { ssr: false });
 
-
-async function triggerEmailNotification(machine: Machine) {
-  try {
-    const response = await fetch("https://us-central1-gymhawk-2ed7f.cloudfunctions.net/email_on_available", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        machine_id: machine.thing_id,
-        machine_name: machine.machine,
-        previous_state: "on"
-      })
-    });
-
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.error || "Unknown error");
-    }
-    console.log("Email function triggered:", data);
-  } catch (err) {
-    console.error("Failed to trigger email function:", err);
-  }
-}
 
 
 function Analytics() {
@@ -297,7 +273,7 @@ function Analytics() {
                 state === "off"
             ) {
               console.log(`[${machine.machine}] transitioned from ON to OFF. Triggering notify.`);
-              triggerEmailNotification(machine);
+              await triggerEmailNotification(machine);
             }
 
 
