@@ -9,6 +9,7 @@ usage() {
     echo "  getLastUsedTime --thing_id <id>"
     echo "  getLat --thing_id <id>"
     echo "  getLong --thing_id <id>"
+    echo "  email_on_available --thing_id <id> --variable <on/off>"
     exit 1
 }
 
@@ -96,6 +97,13 @@ case "$FUNCTION" in
     getDailyUsage)
         URL="$API_BASE_URL/$FUNCTION?thing_id=$THING_ID&date=$DATE"
         ;;
+    email_on_available)
+        if [ -z "$THING_ID" ] || [ -z "$VARIABLE" ]; then
+            echo "Missing required parameters for $FUNCTION"
+            usage
+        fi
+        URL="$API_BASE_URL/$FUNCTION"
+        ;;
     *)
         echo "Unknown function: $FUNCTION"
         usage
@@ -103,7 +111,19 @@ case "$FUNCTION" in
 esac
 
 # Make the API call and format the response
-response=$(curl -s -w "\n%{http_code}" "$URL")
+if [ "$FUNCTION" = "email_on_available" ]; then
+    response=$(curl -s -w "\n%{http_code}" -X POST "$URL" -H "Content-Type: application/json" -d @- <<EOF
+{
+    "machine_id": "$THING_ID",
+    "machine_name": "Test Machine",
+    "previous_state": "on"
+}
+EOF
+    )
+else
+    response=$(curl -s -w "\n%{http_code}" "$URL")
+fi
+
 status_code=$(echo "$response" | tail -n1)
 body=$(echo "$response" | sed '$d')
 
