@@ -5,12 +5,11 @@ import { StateInt, StateString, StateColor } from "@/enums/state"
 import { Chart } from 'chart.js';
 import 'chartjs-adapter-date-fns';
 import { enUS } from 'date-fns/locale';
+import { BLACK_FILL, LIGHT_GRAY_FILL } from "./consts";
 
 // Set default timezone for Chart.js
 Chart.defaults.locale = 'en-US';
 
-const BLACK_FILL = 'rgba(0, 0, 0, 0)';
-const LIGHT_GRAY_FILL = 'rgba(200, 200, 200, 0.75)';
 
 
 export const getDatasetStyle = (machineName: string, selectedDate: Date, usageData: any[], type: string) => {

@@ -185,6 +185,8 @@ class RandomForestModel:
         start_time: str,
         end_time: str,
         peak: bool = True,
+        gym_open_time: str = "06:00:00",
+        gym_close_time: str = "19:00:00",
     ) -> list:
         date_obj = pd.to_datetime(date)
         min_time = pd.to_datetime(start_time).time()
@@ -197,6 +199,14 @@ class RandomForestModel:
             (predicted_states["timestamp"].dt.date == date_obj.date())
             & (predicted_states["timestamp"].dt.time >= min_time)
             & (predicted_states["timestamp"].dt.time <= max_time)
+            & (
+                predicted_states["timestamp"].dt.time
+                >= pd.to_datetime(gym_open_time).time()
+            )
+            & (
+                predicted_states["timestamp"].dt.time
+                <= pd.to_datetime(gym_close_time).time()
+            )
         )
         filtered_states = predicted_states[time_mask]
 

@@ -23,16 +23,17 @@ import {
 } from '@/utils/db';
 import zoomPlugin from 'chartjs-plugin-zoom';
 import dynamic from 'next/dynamic';
-import { convertTimeseriesToDate, get12amOnDate, isToday, CENTRAL_TIMEZONE } from "../utils/time_utils";
+import { convertTimeseriesToDate, get12amOnDate, isToday } from "../utils/time_utils";
 import { getBarChartOptions, getDailyChartData, getHourlyChartData, getLineChartOptions } from "../utils/chart_utils";
 import { CustomBarChart } from "./bar";
 import { MachineChart } from "@/interfaces/chart";
 import { Spinner } from "./spinner";
 import { DataPoint } from "@/interfaces/dataPoint";
-import { CACHE_DURATION, ONE_MINUTE } from "@/utils/consts";
+import { ONE_MINUTE, CENTRAL_TIMEZONE } from "@/utils/consts";
 import { StateInt, StateString, StateColor, Status} from "@/enums/state";
 import { getFromCache, saveToCache } from "@/utils/cache";
 import { buttonStyle, buttonHoverStyles, todaySelectedStyle } from "@/styles/buttonStyle";
+
 // set up chart js
 ChartJS.register(
   CategoryScale,

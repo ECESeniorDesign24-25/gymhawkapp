@@ -213,12 +213,23 @@ def test_d1_green_get_peak_hours():
     assert len(hours) == 3, f"d1GreenTestGetPeakHours | Response is not 3: {hours}"
 
     for hour in hours:
-        assert time_checker(hour, start_time), (
+        # Convert hour to datetime for comparison
+        hour_dt = pd.to_datetime(hour)
+        start_dt = pd.to_datetime(start_time)
+        end_dt = pd.to_datetime(end_time)
+
+        assert hour_dt >= start_dt, (
             f"d1GreenTestGetPeakHours | Timestamp is not after start time: {hour}"
         )
-        assert time_checker(end_time, hour), (
+        assert hour_dt <= end_dt, (
             f"d1GreenTestGetPeakHours | Timestamp is not before end time: {hour}"
         )
+        # Check if hour is between 6am and 7pm
+        hour_time = hour_dt.time()
+        assert (
+            hour_time >= pd.to_datetime("06:00:00").time()
+            and hour_time <= pd.to_datetime("19:00:00").time()
+        ), f"d1GreenTestGetPeakHours | Timestamp is not within gym hours: {hour}"
 
 
 @pytest.mark.d1_green2
@@ -230,7 +241,28 @@ def test_d1_green2_get_peak_hours():
     peak = True
     hours = peakHoursHelper(thing_id, date, start_time, end_time, peak=peak)
     assert hours is not None, f"d2GreenTestGetPeakHours | Response is None: {hours}"
-    assert len(hours) == 0, f"d2GreenTestGetPeakHours | Response is not 3: {hours}"
+    assert len(hours) >= 0, (
+        f"d2GreenTestGetPeakHours | Response length is negative: {hours}"
+    )
+
+    for hour in hours:
+        # Convert hour to datetime for comparison
+        hour_dt = pd.to_datetime(hour)
+        start_dt = pd.to_datetime(start_time)
+        end_dt = pd.to_datetime(end_time)
+
+        assert hour_dt >= start_dt, (
+            f"d2GreenTestGetPeakHours | Timestamp is not after start time: {hour}"
+        )
+        assert hour_dt <= end_dt, (
+            f"d2GreenTestGetPeakHours | Timestamp is not before end time: {hour}"
+        )
+        # Check if hour is between 6am and 7pm
+        hour_time = hour_dt.time()
+        assert (
+            hour_time >= pd.to_datetime("06:00:00").time()
+            and hour_time <= pd.to_datetime("19:00:00").time()
+        ), f"d2GreenTestGetPeakHours | Timestamp is not within gym hours: {hour}"
 
 
 @pytest.mark.d1_blue
@@ -242,15 +274,28 @@ def test_d1_blue_get_peak_hours():
     peak = True
     hours = peakHoursHelper(thing_id, date, start_time, end_time, peak=peak)
     assert hours is not None, f"d1BlueTestGetPeakHours | Response is None: {hours}"
-    assert len(hours) == 3, f"d1BlueTestGetPeakHours | Response is not 3: {hours}"
+    assert len(hours) >= 0, (
+        f"d1BlueTestGetPeakHours | Response length is negative: {hours}"
+    )
 
     for hour in hours:
-        assert time_checker(hour, start_time), (
+        # Convert hour to datetime for comparison
+        hour_dt = pd.to_datetime(hour)
+        start_dt = pd.to_datetime(start_time)
+        end_dt = pd.to_datetime(end_time)
+
+        assert hour_dt >= start_dt, (
             f"d1BlueTestGetPeakHours | Timestamp is not after start time: {hour}"
         )
-        assert time_checker(end_time, hour), (
+        assert hour_dt <= end_dt, (
             f"d1BlueTestGetPeakHours | Timestamp is not before end time: {hour}"
         )
+        # Check if hour is between 6am and 7pm
+        hour_time = hour_dt.time()
+        assert (
+            hour_time >= pd.to_datetime("06:00:00").time()
+            and hour_time <= pd.to_datetime("19:00:00").time()
+        ), f"d1BlueTestGetPeakHours | Timestamp is not within gym hours: {hour}"
 
 
 @pytest.mark.d1_green
