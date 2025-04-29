@@ -3,7 +3,7 @@ import { db } from "@/lib/firebase"
 import { getCoords, getBuildingOutline, getLat, getLong } from "./map_utils";
 import { API_ENDPOINT, OTHER_API_ENDPOINT } from "./consts";
 import { getThingId } from "./common";
-
+import { getCurrentTime } from "./time_utils";
 
 export async function fetchMachines(gymId: string) {
   try {
@@ -255,7 +255,6 @@ export async function fetchMachineDetails(thingId: string) {
 export async function fetchTotalUsage(machineId: string): Promise<number> {
   try {
     const url = `${OTHER_API_ENDPOINT}/getTotalUsage?thing_id=${machineId}`;
-    console.log(`Fetching total usage from: ${url}`);
     const response = await fetch(url);
     
     if (!response.ok) {
@@ -264,12 +263,10 @@ export async function fetchTotalUsage(machineId: string): Promise<number> {
     }
     
     const textResponse = await response.text();
-    console.log(`Raw total usage response: "${textResponse}"`);
     
     // parse as a number directly
     const parsedNumber = parseFloat(textResponse);
     if (!isNaN(parsedNumber)) {
-      console.log(`Parsed total usage as number: ${parsedNumber}`);
       return parsedNumber;
     }
     
@@ -293,7 +290,6 @@ export async function fetchTotalUsage(machineId: string): Promise<number> {
 export async function fetchDailyUsage(machineId: string, date: string): Promise<number> {
   try {
     const url = `${OTHER_API_ENDPOINT}/getDailyUsage?thing_id=${machineId}&date=${date}`;
-    console.log(`Fetching daily usage from: ${url}`);
     const response = await fetch(url);
     
     if (!response.ok) {
@@ -302,12 +298,10 @@ export async function fetchDailyUsage(machineId: string, date: string): Promise<
     }
     
     const textResponse = await response.text();
-    console.log(`Raw daily usage response: "${textResponse}"`);
     
     // parse as a number directly
     const parsedNumber = parseFloat(textResponse);
     if (!isNaN(parsedNumber)) {
-      console.log(`Parsed daily usage as number: ${parsedNumber}`);
       return parsedNumber;
     }
     
@@ -331,8 +325,6 @@ export async function fetchDailyUsage(machineId: string, date: string): Promise<
 export async function fetchDailyPercentages(machineId: string): Promise<{ day: string; percentage: number }[]> {
   try {
     const url = `${OTHER_API_ENDPOINT}/getDailyPercentages?thing_id=${machineId}`;
-
-    console.log(`Fetching daily percentages from: ${url}`);
     const response = await fetch(url);
     
     if (!response.ok) {
@@ -341,7 +333,6 @@ export async function fetchDailyPercentages(machineId: string): Promise<{ day: s
     }
     
     const data = await response.json();
-    console.log(`Daily percentages data:`, data);
     
     // Backend returns an array of arrays: [thing_id, day_number, day_name, percent_in_use]
     // Each row is [string, number, string, number]
@@ -377,7 +368,6 @@ export async function fetchDailyPercentages(machineId: string): Promise<{ day: s
 export async function fetchHourlyPercentages(machineId: string): Promise<{ hour: number; percentage: number }[]> {
   try {
     const url = `${OTHER_API_ENDPOINT}/getHourlyPercentages?thing_id=${machineId}`;
-    console.log(`Fetching hourly percentages from: ${url}`);
     const response = await fetch(url);
     
     if (!response.ok) {
@@ -386,7 +376,6 @@ export async function fetchHourlyPercentages(machineId: string): Promise<{ hour:
     }
     
     const data = await response.json();
-    console.log(`Hourly percentages data:`, data);
     
     // Backend returns an array of arrays: [thing_id, hour_number, percent_in_use]
     // Each row is [string, number, number]
@@ -420,39 +409,35 @@ export async function fetchHourlyPercentages(machineId: string): Promise<{ hour:
   }
 }
 
-// Fetch peak hours or ideal hours for a machine
+// get peak hours prediction
 export async function fetchPeakHours(
   machineId: string, 
   date: string = new Date().toISOString().split('T')[0], 
   isPeak: boolean = true
 ): Promise<string[]> {
   try {
-    // Get current time
-    const currentTime = new Date();
-    const currentTimeStr = currentTime.toISOString().split('T')[1].substring(0, 8);
-    const startTime = `${date}T${currentTimeStr}`;
-    const endTime = `${date}T22:00:00Z`;
+    const startTime = `${date}T06:00:00.000Z`;
+    const endTime = `${date}T19:00:00.000Z`;
     
     const url = `${API_ENDPOINT}/getPeakHours?thing_id=${machineId}&date=${date}&start_time=${startTime}&end_time=${endTime}&peak=${isPeak}`;
-    
-    console.log(`Fetching ${isPeak ? 'peak' : 'ideal'} hours from: ${url}`);
     const response = await fetch(url);
     
     if (!response.ok) {
-      console.error(`Error fetching ${isPeak ? 'peak' : 'ideal'} hours:`, response.statusText);
+      console.error(`[API] Error fetching ${isPeak ? 'peak' : 'ideal'} hours:`, response.statusText);
       return [];
     }
     
     const data = await response.json();
-    console.log(`${isPeak ? 'Peak' : 'Ideal'} hours data:`, data);
     
-    // Format the times to be more readable
-    return data.map((timestamp: string) => {
+    // format the times to be more readable
+    const formattedTimes = data.map((timestamp: string) => {
       const date = new Date(timestamp);
       return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
     });
+    
+    return formattedTimes;
   } catch (error) {
-    console.error(`Error fetching ${isPeak ? 'peak' : 'ideal'} hours:`, error);
+    console.error(`[API] Error fetching ${isPeak ? 'peak' : 'ideal'} hours for machine ${machineId}:`, error);
     return [];
   }
 }

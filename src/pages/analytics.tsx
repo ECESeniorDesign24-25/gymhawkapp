@@ -8,13 +8,13 @@ import styles from '@/styles/index.module.css';
 import { HOME_STYLE } from '@/styles/customStyles';
 import { fetchGyms, fetchMachines, fetchDeviceState, fetchLastUsedTime, fetchPeakHours } from '@/utils/db';
 import { useAuth } from '@/lib/auth';
-import { ONE_SECOND, EMAIL, STATUS_OFFLINE, STATUS_UNKNOWN, ONE_MINUTE } from '@/utils/consts';
+import { ONE_SECOND, EMAIL, STATUS_OFFLINE, STATUS_UNKNOWN, ONE_DAY } from '@/utils/consts';
 import { RequireAuth } from '@/components/requireAuth';
 import { Machine } from '@/interfaces/machine';
 import { GymOption } from '@/interfaces/gym';
 import { formatLastUsedTime } from '@/utils/time_utils';
 import { Spinner } from '@/components/spinner';
-import { getFromCache, saveToCache } from '@/utils/cache';
+import { getFromCache, saveToCache, clearCache } from '@/utils/cache';
 import { StateColor, StateString } from '@/enums/state';
 
 // dynamically import Select 
@@ -138,11 +138,12 @@ function Analytics() {
       
       // check if we have cached machines data
       const cacheKey = `machines_${selectedGym.id}`;
-      const cachedMachines = getFromCache(cacheKey);
-      let machinesData = cachedMachines;
+      const cachedMachines = getFromCache<Machine[]>(cacheKey);
+      let machinesData: Machine[] = [];
       
       if (cachedMachines) {
         setMachines(cachedMachines);
+        machinesData = cachedMachines;
       }
       
       try {
@@ -151,10 +152,8 @@ function Analytics() {
         
         if (freshMachines && freshMachines.length > 0) {
           saveToCache(cacheKey, freshMachines);
-          // @ts-ignore
           setMachines(freshMachines);
           machinesData = freshMachines;
-
         } else {
           setMachines([]);
           setSelectedAdminMachine(null);
@@ -171,23 +170,23 @@ function Analytics() {
         setIsLoadingMachines(false);
       }
       
-      // Try to select machine from URL if available
-      if (router.isReady && router.query.machineId && machinesData && machinesData.length > 0) {
+      // try selecting machines
+      if (router.isReady && router.query.machineId && machinesData.length > 0) {
         const machineId = router.query.machineId as string;
-        const matchingMachine = machinesData.find((m: any) => m.thing_id === machineId);
+        const matchingMachine = machinesData.find(m => m.thing_id === machineId);
         
         if (matchingMachine) {
           setSelectedAdminMachine(matchingMachine);
           return;
         }
       }
-      // If no machine in URL, check localStorage as fallback
-      else if (machinesData && machinesData.length > 0) {
+      // if no machine in URL, check localStorage as fallback
+      else if (machinesData.length > 0) {
         const lastMachine = localStorage.getItem("lastMachine");
         
         if (lastMachine) {
           const machineData = JSON.parse(lastMachine);
-          const matchingMachine = machinesData.find((m: any) => m.thing_id === machineData.thing_id);
+          const matchingMachine = machinesData.find(m => m.thing_id === machineData.thing_id);
           if (matchingMachine) {
             setSelectedAdminMachine(matchingMachine);
             
@@ -203,7 +202,7 @@ function Analytics() {
           }
         }
         
-        // Auto-select first machine for admin view if no machine is selected
+        // auto-select first machine for admin view if no machine is selected
         if (activeTab === 'admin') {
           setSelectedAdminMachine(machinesData[0]);
           
@@ -314,16 +313,16 @@ function Analytics() {
     // set selected gym and placeholder
     setSelectedGym(gymOption);
     setSelectPlaceholder(gymOption?.label || "Select a gym");
-    
-    // Update URL with the selected gym
+
+    // update URL with selected gym
     if (router.isReady && gymOption) {
-      // Keep existing tab parameter
+      // keep existing tab parameter
       const query: any = { gymId: gymOption.id };
       if (router.query.tab) {
         query.tab = router.query.tab;
       }
       
-      // Clear machineId if switching gyms
+      // clear machineId if switching gyms
       if (router.query.machineId) {
         delete query.machineId;
       }
@@ -401,9 +400,9 @@ function Analytics() {
     // determine color scheme based on state and status
     const isOffline = selectedAdminMachine.device_status === STATUS_OFFLINE || selectedAdminMachine.device_status === STATUS_UNKNOWN;
     const isInUse = selectedAdminMachine.state === StateString.IN_USE;
-    const statusColor = isOffline ? StateColor.OFFLINE : // gray for offline
-                        isInUse ? StateColor.IN_USE :       // red for in use
-                        StateColor.AVAILABLE;                 // green for available
+    const statusColor = isOffline ? StateColor.OFFLINE :
+                        isInUse ? StateColor.IN_USE :
+                        StateColor.AVAILABLE; 
     const statusBorder = isOffline ? `5px solid ${StateColor.OFFLINE}` :
                         isInUse ? `5px solid ${StateColor.IN_USE}` :
                         `5px solid ${StateColor.AVAILABLE}`;
@@ -462,61 +461,72 @@ function Analytics() {
   const fetchAllMachinePredictions = async () => {
     if (!machines.length) return;
     
-    const currentTime = Date.now();
-    const FIFTEEN_MINUTES = 15 * ONE_MINUTE; 
+    // check cache first
+    const today = new Date().toISOString().split('T')[0];
+    const peakTimesCacheKey = `peak_times_${selectedGym?.id}_${today}`;
+    const idealTimesCacheKey = `ideal_times_${selectedGym?.id}_${today}`;
     
-    if (currentTime - lastPredictionFetch < FIFTEEN_MINUTES && Object.keys(machinePeakTimes).length > 0) {
-      return;
-    }
-    
-    // check for cached prediction data
-    const peakTimesCacheKey = `peak_times_all_machines`;
-    const idealTimesCacheKey = `ideal_times_all_machines`;
-    
-    const cachedPeakTimes = getFromCache(peakTimesCacheKey);
-    const cachedIdealTimes = getFromCache(idealTimesCacheKey);
-    
-    // if we have cached data and it's less than 1 hour old, use it
-    if (cachedPeakTimes && cachedIdealTimes) {
-      setMachinePeakTimes(cachedPeakTimes);
-      setMachineIdealTimes(cachedIdealTimes);
-      setLastPredictionFetch(currentTime);
-      return;
-    }
+    const cachedPeakTimes = getFromCache<{[key: string]: string[]}>(peakTimesCacheKey, ONE_DAY) || {};
+    const cachedIdealTimes = getFromCache<{[key: string]: string[]}>(idealTimesCacheKey, ONE_DAY) || {};
     
     setIsLoadingPredictions(true);
     
     try {
-      const peakTimesPromises = machines.map(machine => 
-        fetchPeakHours(machine.thing_id, undefined, true)
+      // Handle peak times
+      const peakTimesMap = { ...cachedPeakTimes };
+      const machinesNeedingPeakTimes = machines.filter(machine => 
+        !peakTimesMap[machine.thing_id] || peakTimesMap[machine.thing_id].length === 0
       );
       
-      const idealTimesPromises = machines.map(machine => 
-        fetchPeakHours(machine.thing_id, undefined, false)
+      // fetch peak times for machines that need them
+      if (machinesNeedingPeakTimes.length > 0) {
+        const peakTimesPromises = machinesNeedingPeakTimes.map(machine => {
+          return fetchPeakHours(machine.thing_id, undefined, true);
+        });
+        
+        const peakTimesResults = await Promise.all(peakTimesPromises);
+        
+        machinesNeedingPeakTimes.forEach((machine, index) => {
+          const result = peakTimesResults[index];
+          if (result && result.length > 0) {
+            peakTimesMap[machine.thing_id] = result;
+            // update cache incrementally for each machine
+            saveToCache(peakTimesCacheKey, peakTimesMap);
+          }
+        });
+      }
+      
+      // fetch ideal times for machines that need them
+      const idealTimesMap = { ...cachedIdealTimes };
+      const machinesNeedingIdealTimes = machines.filter(machine => 
+        !idealTimesMap[machine.thing_id] || idealTimesMap[machine.thing_id].length === 0
       );
       
-      const peakTimesResults = await Promise.all(peakTimesPromises);
-      const idealTimesResults = await Promise.all(idealTimesPromises);
-      
-      const peakTimesMap = machines.reduce((acc, machine, index) => {
-        acc[machine.thing_id] = peakTimesResults[index];
-        return acc;
-      }, {} as {[key: string]: string[]});
-      
-      const idealTimesMap = machines.reduce((acc, machine, index) => {
-        acc[machine.thing_id] = idealTimesResults[index];
-        return acc;
-      }, {} as {[key: string]: string[]});
-      
-      // save the data to cache
-      saveToCache(peakTimesCacheKey, peakTimesMap);
-      saveToCache(idealTimesCacheKey, idealTimesMap);
-      
+      // fetch ideal times for machines that need them
+      if (machinesNeedingIdealTimes.length > 0) {
+        const idealTimesPromises = machinesNeedingIdealTimes.map(machine => {
+          return fetchPeakHours(machine.thing_id, undefined, false);
+        });
+        
+        const idealTimesResults = await Promise.all(idealTimesPromises);
+        
+        machinesNeedingIdealTimes.forEach((machine, index) => {
+          const result = idealTimesResults[index];
+          if (result && result.length > 0) {
+            idealTimesMap[machine.thing_id] = result;
+            // update cache incrementally
+            saveToCache(idealTimesCacheKey, idealTimesMap);
+          }
+        });
+      }
+
+      // update machine peak and ideal times
       setMachinePeakTimes(peakTimesMap);
       setMachineIdealTimes(idealTimesMap);
-      setLastPredictionFetch(currentTime);
+      setLastPredictionFetch(Date.now());
+      
     } catch (error) {
-      console.error('Error fetching machine predictions:', error);
+      console.error('Error fetching peak and ideal times:', error);
     } finally {
       setIsLoadingPredictions(false);
     }

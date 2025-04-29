@@ -5,12 +5,11 @@ import { StateInt, StateString, StateColor } from "@/enums/state"
 import { Chart } from 'chart.js';
 import 'chartjs-adapter-date-fns';
 import { enUS } from 'date-fns/locale';
+import { BLACK_FILL, LIGHT_GRAY_FILL } from "./consts";
 
 // Set default timezone for Chart.js
 Chart.defaults.locale = 'en-US';
 
-const BLACK_FILL = 'rgba(0, 0, 0, 0)';
-const LIGHT_GRAY_FILL = 'rgba(200, 200, 200, 0.75)';
 
 
 export const getDatasetStyle = (machineName: string, selectedDate: Date, usageData: any[], type: string) => {
@@ -202,68 +201,19 @@ export const getLineChartOptions = (machineName: string, chartStartTime: Date, c
           enabled: true,
           mode: 'index' as const,
           intersect: false,
-          backgroundColor: function(context: any) {
-            // Get the raw data point if available
-            const dataPoint = context.tooltip.dataPoints[0].raw;
-            
-            if (dataPoint && dataPoint.device_status) {
-              if (dataPoint.device_status === STATUS_OFFLINE || dataPoint.device_status === STATUS_UNKNOWN) {
-                return StateColor.OFFLINE;
-              }
-              if (dataPoint.device_status === 'NO_DATA') {
-                return LIGHT_GRAY_FILL; 
-              }
-            }
-            
-            // Use original coloring based on state if the device is online
-            const value = context.tooltip.dataPoints[0].raw.y;
-            return value === StateInt.AVAILABLE ? StateColor.AVAILABLE : StateColor.IN_USE;
+          backgroundColor: (context: any) => {
+            const dataset = context.tooltipItems[0]?.dataset;
+            return dataset ? dataset.borderColor : 'rgba(0, 0, 0, 0.8)';
           },
-          titleColor: 'white',
-          bodyColor: 'white', 
+          titleColor: '#fff',
+          bodyColor: '#fff',
           padding: 10,
           callbacks: {
-            title: function(tooltipItems: any[]) {
-              if (tooltipItems.length > 0) {
-                // Format using Central Time zone
-                const date = new Date(tooltipItems[0].raw.x);
-                return date.toLocaleTimeString('en-US', { 
-                  hour: '2-digit', 
-                  minute: '2-digit',
-                  hour12: true,
-                  timeZone: 'America/Chicago' // Central Time
-                });
-              }
-              return '';
+            title: (context: any) => {
+              const date = new Date(context[0].parsed.x);
+              return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'America/Chicago' });
             },
-            label: function(tooltipItem: any) {
-              if (tooltipItem.datasetIndex === 0 || tooltipItem.datasetIndex === 1) {
-                const dataPoint = tooltipItem.raw;
-                
-                // Get device status if available in the raw data
-                let deviceStatus = STATUS_ONLINE;
-                if (dataPoint && dataPoint.device_status) {
-                  deviceStatus = dataPoint.device_status;
-                }
-                
-                // For NO_DATA status, show a specific message
-                if (deviceStatus === 'NO_DATA') {
-                  return 'No data available for this time';
-                }
-                
-                const value = tooltipItem.raw.y;
-                let stateText = value === 1 ? 'Available' : 'In Use';
-                
-                // If device is offline or unknown, override state display
-                if (deviceStatus === STATUS_OFFLINE || deviceStatus === STATUS_UNKNOWN) {
-                  stateText = deviceStatus;
-                  return `Status: ${stateText}`;
-                } else {
-                  return `Status: ${deviceStatus}, State: ${stateText}`;
-                }
-              }
-              return '';
-            }
+            label: (tooltipItem: any) => tooltipItem.dataset.label || ''
           }
         },
         legend: {

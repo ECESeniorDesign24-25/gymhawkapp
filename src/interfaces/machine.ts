@@ -3,8 +3,8 @@ export interface Machine {
     thing_id: string;
     state: string | Promise<string>;
     device_status: string;
-    lat: number;
-    lng: number;
+    lat: number | null;
+    lng: number | null;
     usagePercentage?: number; 
     last_used_time?: string;
     machine_type?: string;
