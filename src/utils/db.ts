@@ -71,7 +71,8 @@ export async function fetchMachines(gymId: string) {
               device_status: device_status,
               machine_type: type,
               floor: floor,
-              last_used_time: last_used_time
+              last_used_time: last_used_time,
+              subscribed: false
           }
       })
 
