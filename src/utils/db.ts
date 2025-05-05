@@ -22,8 +22,24 @@ export async function fetchMachines(gymId: string) {
           }
           const data = docSnapshot.data();
           
-          const lat = await getLat(docSnapshot.id);
-          const lng = await getLong(docSnapshot.id);
+          let lat = null;
+          let lng = null;
+          let retryCount = 0;
+          const maxRetries = 3;
+          
+          while ((lat === null || lng === null) && retryCount < maxRetries) {
+              if (retryCount > 0) {
+                  await new Promise(resolve => setTimeout(resolve, 1000));
+              }
+              lat = await getLat(docSnapshot.id);
+              lng = await getLong(docSnapshot.id);
+              retryCount++;
+          }
+          
+          if (lat === null || lng === null) {
+              console.warn(`Failed to get valid coordinates for ${docSnapshot.id} after ${maxRetries} attempts`);
+          }
+          
           let type = await fetchDeviceState(docSnapshot.id, 'Unknown', "type");
           const state = await fetchDeviceState(docSnapshot.id, 'Unknown', "state");
           const device_status = await fetchDeviceState(docSnapshot.id, 'OFFLINE', "device_status");

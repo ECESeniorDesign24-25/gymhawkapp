@@ -4,10 +4,6 @@ import { getThingId } from './common';
 import { API_ENDPOINT } from './consts';
 import { GeocodeResponse } from '../interfaces/geocode'; 
 
-// cache coordinates to only poll every 15 min
-const coordCache: Record<string, {value: number|null, timestamp: number}> = {};
-const CACHE_EXPIRY = 15 * 60 * 1000;
-
 export const getCoords = async (id: string) => {
     try {
         if (!process.env.NEXT_PUBLIC_MAPS_API_KEY) {
@@ -62,16 +58,7 @@ export const getBuildingOutline = async (id: string) => {
     }
 };
 
-
 export async function getLat(machine: string) {
-  // check cache first
-  const cacheKey = `lat_${machine}`;
-  const now = Date.now();
-  
-  if (coordCache[cacheKey] && (now - coordCache[cacheKey].timestamp) < CACHE_EXPIRY) {
-    return coordCache[cacheKey].value;
-  }
-  
   try {
     const thing_id = await getThingId(machine);
     
@@ -100,8 +87,6 @@ export async function getLat(machine: string) {
     }
     
     if (latValue !== null && !isNaN(latValue) && latValue !== 0) {
-      // cache
-      coordCache[cacheKey] = { value: latValue, timestamp: now };
       return latValue;
     } else {
       console.warn(`Invalid latitude for ${machine}: ${latValue}`);
@@ -113,16 +98,7 @@ export async function getLat(machine: string) {
   }
 }
 
-
 export async function getLong(machine: string) {
-  // check cache first
-  const cacheKey = `lng_${machine}`;
-  const now = Date.now();
-  
-  if (coordCache[cacheKey] && (now - coordCache[cacheKey].timestamp) < CACHE_EXPIRY) {
-    return coordCache[cacheKey].value;
-  }
-  
   try {
     const thing_id = await getThingId(machine);
     
@@ -154,8 +130,6 @@ export async function getLong(machine: string) {
     }
     
     if (lngValue !== null && !isNaN(lngValue) && lngValue !== 0) {
-      // cache
-      coordCache[cacheKey] = { value: lngValue, timestamp: now };
       return lngValue;
     } else {
       console.warn(`Invalid longitude for ${machine}: ${lngValue}`);
