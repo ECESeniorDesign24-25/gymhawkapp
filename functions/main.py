@@ -1087,4 +1087,31 @@ def getHourlyPercentages(req: https_fn.Request) -> https_fn.Response:
 
 
 if __name__ == "__main__":
-    pass
+    # test predict_hours
+    model = RandomForestModel(load_model=True)
+    date = "2025-05-05"
+    start_time = pd.to_datetime("2025-05-05 00:00:00")
+    end_time = pd.to_datetime("2025-05-05 23:59:59")
+    peak = True
+
+    # Test first machine
+    thing_id = "0a73bf83-27de-4d93-b2a0-f23cbe2ba2a8"
+    df = generate_prediction_data(thing_id, start_time, end_time)
+    predictions = model.predict_hours(df, date, start_time, end_time, peak)
+    predictions2 = model.predict_hours(df, date, start_time, end_time, not peak)
+    print(f"\nPredictions for {thing_id}: {predictions}")
+    print(f"Predictions for {thing_id} v2: {predictions2}")
+    # Test second machine
+    thing_id = "6ad4d9f7-8444-4595-bf0b-5fb62c36430c"
+    df = generate_prediction_data(thing_id, start_time, end_time)
+    predictions = model.predict_hours(df, date, start_time, end_time, peak)
+    predictions2 = model.predict_hours(df, date, start_time, end_time, not peak)
+    print(f"\nPredictions for {thing_id}: {predictions}")
+    print(f"Predictions for {thing_id} v2: {predictions2}")
+    # Test third machine
+    thing_id = "c7996422-9462-4fa7-8d02-bfe8c7aba7e4"
+    df = generate_prediction_data(thing_id, start_time, end_time)
+    predictions = model.predict_hours(df, date, start_time, end_time, peak)
+    predictions2 = model.predict_hours(df, date, start_time, end_time, not peak)
+    print(f"\nPredictions for {thing_id}: {predictions}")
+    print(f"Predictions for {thing_id} v2: {predictions2}")

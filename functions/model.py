@@ -126,8 +126,6 @@ class RandomForestModel:
 
     # train the model
     def train(self, df: pd.DataFrame) -> float:
-        print("Starting training")
-
         # prepare data for training
         X_train, X_test, y_train, y_test = self._prepare_data(df)
 
@@ -143,8 +141,6 @@ class RandomForestModel:
         # evaluate the model
 
         acc = self.evaluate(df)
-        print(f"Training finished: {acc}")
-
         return acc
 
     # predict the state of a machine at a given time
@@ -188,6 +184,7 @@ class RandomForestModel:
         gym_open_time: str = "06:00:00",
         gym_close_time: str = "19:00:00",
     ) -> list:
+        
         date_obj = pd.to_datetime(date)
         min_time = pd.to_datetime(start_time).time()
         max_time = pd.to_datetime(end_time).time()
@@ -211,9 +208,14 @@ class RandomForestModel:
         filtered_states = predicted_states[time_mask]
 
         # sort by time first, then probability
-        sorted_states = filtered_states.sort_values(
-            ["timestamp", "probability_on"], ascending=[False, not peak]
-        )
+        if peak:
+            sorted_states = filtered_states.sort_values(
+                "probability_on", ascending=False
+            )
+        else:
+            sorted_states = filtered_states.sort_values(
+                "probability_on", ascending=True
+            )
 
         timestamps = sorted_states.head(3)["timestamp"]
 
@@ -221,9 +223,12 @@ class RandomForestModel:
         if timestamps.dt.tz is None:
             timestamps = timestamps.dt.tz_localize("UTC")
 
-        return (
+        result = (
             timestamps.dt.strftime("%Y-%m-%dT%H:%M:%S.%f")
             .str[:-3]
             .str.cat(["Z"] * len(timestamps))
             .tolist()
         )
+        return result
+
+
