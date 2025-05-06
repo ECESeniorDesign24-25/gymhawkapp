@@ -212,7 +212,7 @@ class RandomForestModel:
 
         # sort by time first, then probability
         sorted_states = filtered_states.sort_values(
-            ["timestamp", "probability_on"], ascending=[False, not peak]
+            ["timestamp", "probability_on"], ascending=[False, peak]
         )
 
         timestamps = sorted_states.head(3)["timestamp"]
