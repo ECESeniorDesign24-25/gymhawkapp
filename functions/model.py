@@ -210,9 +210,11 @@ class RandomForestModel:
         )
         filtered_states = predicted_states[time_mask]
 
-        # sort by time first, then probability
+        # For peak=True, we want highest probabilities
+        # For peak=False, we want lowest probabilities
         sorted_states = filtered_states.sort_values(
-            ["timestamp", "probability_on"], ascending=[False, peak]
+            ["probability_on", "timestamp"], 
+            ascending=[not peak, False]
         )
 
         timestamps = sorted_states.head(3)["timestamp"]
