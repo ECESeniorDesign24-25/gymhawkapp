@@ -214,11 +214,11 @@ export const getLineChartOptions = (machineName: string, chartStartTime: Date, c
               return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'America/Chicago' });
             },
             label: (tooltipItem: any) => tooltipItem.dataset.label || '',
-            afterBody: () => null,
-            afterLabel: () => null,
-            beforeBody: () => null,
-            beforeLabel: () => null,
-            footer: () => null
+            afterBody: () => '',
+            afterLabel: () => '',
+            beforeBody: () => '',
+            beforeLabel: () => '',
+            footer: () => ''
           }
         },
         legend: {
