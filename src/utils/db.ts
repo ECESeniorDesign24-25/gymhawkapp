@@ -453,7 +453,12 @@ export async function fetchPeakHours(
     // format the times to be more readable
     const formattedTimes = data.map((timestamp: string) => {
       const date = new Date(timestamp);
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+      // Get the hours and minutes in UTC
+      const hours = date.getUTCHours();
+      const minutes = date.getUTCMinutes().toString().padStart(2, '0');
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      const hours12 = hours % 12 || 12;
+      return `${hours12}:${minutes} ${ampm}`;
     });
     
     console.log(`[API] Formatted times for ${isPeak ? 'peak' : 'ideal'} hours:`, formattedTimes);

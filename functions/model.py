@@ -186,7 +186,7 @@ class RandomForestModel:
         end_time: str,
         peak: bool = True,
         gym_open_time: str = "06:00:00",
-        gym_close_time: str = "19:00:00",
+        gym_close_time: str = "18:30:00",
     ) -> list:
         date_obj = pd.to_datetime(date)
         min_time = pd.to_datetime(start_time).time()
