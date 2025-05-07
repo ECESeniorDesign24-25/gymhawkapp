@@ -369,7 +369,7 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
 
       if (availablePoints.length > 0) {
         datasets.push({
-          label: `${machineName} - Available`,
+          label: 'Available',
           data: availablePoints,
           backgroundColor: StateColor.AVAILABLE,
           borderColor: StateColor.AVAILABLE,
@@ -382,7 +382,7 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
 
       if (inUsePoints.length > 0) {
         datasets.push({
-          label: `${machineName} - In Use`,
+          label: 'In Use',
           data: inUsePoints,
           backgroundColor: StateColor.IN_USE,
           borderColor: StateColor.IN_USE,
@@ -395,7 +395,7 @@ const MachineUsageChart: React.FC<MachineChart & { viewMode?: 'user' | 'admin' }
 
       if (offlinePoints.length > 0) {
         datasets.push({
-          label: `${machineName} - Offline/Unknown`,
+          label: 'Offline/Unknown',
           data: offlinePoints,
           backgroundColor: StateColor.OFFLINE,
           borderColor: StateColor.OFFLINE,

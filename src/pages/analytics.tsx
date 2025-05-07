@@ -8,7 +8,7 @@ import styles from '@/styles/index.module.css';
 import { HOME_STYLE } from '@/styles/customStyles';
 import { fetchGyms, fetchMachines, fetchDeviceState, fetchLastUsedTime, fetchPeakHours } from '@/utils/db';
 import { useAuth } from '@/lib/auth';
-import { ONE_SECOND, EMAIL, STATUS_OFFLINE, STATUS_UNKNOWN, ONE_DAY } from '@/utils/consts';
+import { ONE_SECOND, EMAIL, STATUS_OFFLINE, STATUS_UNKNOWN, ONE_DAY, CACHE_PREFIX } from '@/utils/consts';
 import { RequireAuth } from '@/components/requireAuth';
 import { Machine } from '@/interfaces/machine';
 import { GymOption } from '@/interfaces/gym';
@@ -477,65 +477,84 @@ function Analytics() {
     const today = new Date().toISOString().split('T')[0];
     const peakTimesCacheKey = `peak_times_${selectedGym?.id}_${today}`;
     const idealTimesCacheKey = `ideal_times_${selectedGym?.id}_${today}`;
+    const lastUpdateKey = `last_prediction_update_${selectedGym?.id}`;
 
-    const cachedPeakTimes = getFromCache<{[key: string]: string[]}>(peakTimesCacheKey, ONE_DAY) || {};
-    const cachedIdealTimes = getFromCache<{[key: string]: string[]}>(idealTimesCacheKey, ONE_DAY) || {};
+    const cachedPeakTimes = getFromCache<{[key: string]: string[]}>(peakTimesCacheKey) || {};
+    const cachedIdealTimes = getFromCache<{[key: string]: string[]}>(idealTimesCacheKey) || {};
+    const lastUpdate = getFromCache<number>(lastUpdateKey) || 0;
+    const now = Date.now();
+    const THIRTY_SECONDS = 30 * 1000;
+
+    // If we have valid cached data and it's been less than 30 seconds, use cache
+    const hasValidCache = Object.values(cachedPeakTimes).some(times => times.length > 0) && 
+                         Object.values(cachedIdealTimes).some(times => times.length > 0);
+    if (hasValidCache && (now - lastUpdate) < THIRTY_SECONDS) {
+      console.log('[Analytics] Using cached data');
+      setMachinePeakTimes(cachedPeakTimes);
+      setMachineIdealTimes(cachedIdealTimes);
+      return;
+    }
     
     setIsLoadingPredictions(true);
 
     try {
       // Handle peak times
       const peakTimesMap = { ...cachedPeakTimes };
-      const machinesNeedingPeakTimes = machines.filter(machine =>
-        !peakTimesMap[machine.thing_id] || peakTimesMap[machine.thing_id].length === 0
-      );
-      
-      // fetch peak times for machines that need them
-      if (machinesNeedingPeakTimes.length > 0) {
-        const peakTimesPromises = machinesNeedingPeakTimes.map(machine => {
-          return fetchPeakHours(machine.thing_id, undefined, true);
-        });
-
-        const peakTimesResults = await Promise.all(peakTimesPromises);
-
-        machinesNeedingPeakTimes.forEach((machine, index) => {
-          const result = peakTimesResults[index];
-          if (result && result.length > 0) {
-            peakTimesMap[machine.thing_id] = result;
-            // update cache incrementally for each machine
-            saveToCache(peakTimesCacheKey, peakTimesMap);
-          }
-        });
-      }
-
-      // fetch ideal times for machines that need them
       const idealTimesMap = { ...cachedIdealTimes };
-      const machinesNeedingIdealTimes = machines.filter(machine =>
-        !idealTimesMap[machine.thing_id] || idealTimesMap[machine.thing_id].length === 0
-      );
+      
+      console.log('[Analytics] Fetching peak times for machines:', machines.map(m => m.thing_id));
+      // fetch peak times for all machines
+      const peakTimesPromises = machines.map(machine => {
+        return fetchPeakHours(machine.thing_id, undefined, true);
+      });
 
-      // fetch ideal times for machines that need them
-      if (machinesNeedingIdealTimes.length > 0) {
-        const idealTimesPromises = machinesNeedingIdealTimes.map(machine => {
-          return fetchPeakHours(machine.thing_id, undefined, false);
-        });
+      const peakTimesResults = await Promise.all(peakTimesPromises);
+      console.log('[Analytics] Peak times results:', peakTimesResults);
 
-        const idealTimesResults = await Promise.all(idealTimesPromises);
+      machines.forEach((machine, index) => {
+        const result = peakTimesResults[index];
+        if (result && result.length > 0) {
+          peakTimesMap[machine.thing_id] = result;
+        }
+      });
 
-        machinesNeedingIdealTimes.forEach((machine, index) => {
-          const result = idealTimesResults[index];
-          if (result && result.length > 0) {
-            idealTimesMap[machine.thing_id] = result;
-            // update cache incrementally
-            saveToCache(idealTimesCacheKey, idealTimesMap);
-          }
-        });
+      console.log('[Analytics] Fetching ideal times for machines:', machines.map(m => m.thing_id));
+      // fetch ideal times for all machines
+      const idealTimesPromises = machines.map(machine => {
+        return fetchPeakHours(machine.thing_id, undefined, false);
+      });
+
+      const idealTimesResults = await Promise.all(idealTimesPromises);
+      console.log('[Analytics] Ideal times results:', idealTimesResults);
+
+      machines.forEach((machine, index) => {
+        const result = idealTimesResults[index];
+        if (result && result.length > 0) {
+          idealTimesMap[machine.thing_id] = result;
+        }
+      });
+
+      // Only cache if we have valid data
+      const hasNewValidData = Object.values(peakTimesMap).some(times => times.length > 0) && 
+                             Object.values(idealTimesMap).some(times => times.length > 0);
+      
+      console.log('[Analytics] New data validation:', {
+        hasNewValidData,
+        peakTimesMap,
+        idealTimesMap
+      });
+      
+      if (hasNewValidData) {
+        saveToCache(peakTimesCacheKey, peakTimesMap);
+        saveToCache(idealTimesCacheKey, idealTimesMap);
+        saveToCache(lastUpdateKey, now);
+        console.log('[Analytics] Saved new data to cache');
       }
 
       // update machine peak and ideal times
       setMachinePeakTimes(peakTimesMap);
       setMachineIdealTimes(idealTimesMap);
-      setLastPredictionFetch(Date.now());
+      setLastPredictionFetch(now);
 
     } catch (error) {
       console.error('Error fetching peak and ideal times:', error);
@@ -544,12 +563,33 @@ function Analytics() {
     }
   };
 
-  // fetch peak and ideal hours when machines are loaded
+  // Set up polling for predictions every 30 seconds
   useEffect(() => {
     if (machines.length > 0) {
       fetchAllMachinePredictions();
+      const intervalId = setInterval(fetchAllMachinePredictions, 30 * 1000);
+      return () => clearInterval(intervalId);
     }
   }, [machines]);
+
+  // Clear cache every 30 seconds
+  useEffect(() => {
+    const clearCacheInterval = setInterval(() => {
+      if (selectedGym) {
+        const today = new Date().toISOString().split('T')[0];
+        const peakTimesCacheKey = `peak_times_${selectedGym.id}_${today}`;
+        const idealTimesCacheKey = `ideal_times_${selectedGym.id}_${today}`;
+        const lastUpdateKey = `last_prediction_update_${selectedGym.id}`;
+        
+        localStorage.removeItem(peakTimesCacheKey);
+        localStorage.removeItem(idealTimesCacheKey);
+        localStorage.removeItem(lastUpdateKey);
+        console.log('[Analytics] Cache cleared');
+      }
+    }, 30 * 1000);
+
+    return () => clearInterval(clearCacheInterval);
+  }, [selectedGym]);
 
   async function handleNotify(machine: Machine) {
     try {

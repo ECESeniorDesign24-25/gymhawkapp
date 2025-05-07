@@ -437,6 +437,9 @@ export async function fetchPeakHours(
     const endTime = `${date}T19:00:00.000Z`;
     
     const url = `${API_ENDPOINT}/getPeakHours?thing_id=${machineId}&date=${date}&start_time=${startTime}&end_time=${endTime}&peak=${isPeak}`;
+    console.log(`[API] Fetching ${isPeak ? 'peak' : 'ideal'} hours for machine ${machineId}`);
+    console.log(`[API] URL: ${url}`);
+    
     const response = await fetch(url);
     
     if (!response.ok) {
@@ -445,13 +448,20 @@ export async function fetchPeakHours(
     }
     
     const data = await response.json();
+    console.log(`[API] Raw response for ${isPeak ? 'peak' : 'ideal'} hours:`, data);
     
     // format the times to be more readable
     const formattedTimes = data.map((timestamp: string) => {
       const date = new Date(timestamp);
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+      // Get the hours and minutes in UTC
+      const hours = date.getUTCHours();
+      const minutes = date.getUTCMinutes().toString().padStart(2, '0');
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      const hours12 = hours % 12 || 12;
+      return `${hours12}:${minutes} ${ampm}`;
     });
     
+    console.log(`[API] Formatted times for ${isPeak ? 'peak' : 'ideal'} hours:`, formattedTimes);
     return formattedTimes;
   } catch (error) {
     console.error(`[API] Error fetching ${isPeak ? 'peak' : 'ideal'} hours for machine ${machineId}:`, error);

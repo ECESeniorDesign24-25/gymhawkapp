@@ -186,7 +186,7 @@ class RandomForestModel:
         end_time: str,
         peak: bool = True,
         gym_open_time: str = "06:00:00",
-        gym_close_time: str = "19:00:00",
+        gym_close_time: str = "18:30:00",
     ) -> list:
         date_obj = pd.to_datetime(date)
         min_time = pd.to_datetime(start_time).time()
@@ -210,9 +210,11 @@ class RandomForestModel:
         )
         filtered_states = predicted_states[time_mask]
 
-        # sort by time first, then probability
+        # For peak=True, we want highest probabilities
+        # For peak=False, we want lowest probabilities
         sorted_states = filtered_states.sort_values(
-            ["timestamp", "probability_on"], ascending=[False, peak]
+            ["probability_on", "timestamp"], 
+            ascending=[not peak, False]
         )
 
         timestamps = sorted_states.head(3)["timestamp"]

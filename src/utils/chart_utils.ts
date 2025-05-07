@@ -199,7 +199,7 @@ export const getLineChartOptions = (machineName: string, chartStartTime: Date, c
         },
         tooltip: {
           enabled: true,
-          mode: 'index' as const,
+          mode: 'nearest' as const,
           intersect: false,
           backgroundColor: (context: any) => {
             const dataset = context.tooltipItems[0]?.dataset;
@@ -213,7 +213,12 @@ export const getLineChartOptions = (machineName: string, chartStartTime: Date, c
               const date = new Date(context[0].parsed.x);
               return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'America/Chicago' });
             },
-            label: (tooltipItem: any) => tooltipItem.dataset.label || ''
+            label: (tooltipItem: any) => tooltipItem.dataset.label || '',
+            afterBody: () => '',
+            afterLabel: () => '',
+            beforeBody: () => '',
+            beforeLabel: () => '',
+            footer: () => ''
           }
         },
         legend: {
