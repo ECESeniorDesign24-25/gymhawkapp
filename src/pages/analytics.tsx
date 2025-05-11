@@ -64,7 +64,7 @@ function Analytics() {
       }
     };
     
-    const intervalId = setInterval(checkChartsLoaded, ONE_SECOND);
+    const intervalId = setInterval(checkChartsLoaded, ONE_SECOND * 1000);
     return () => clearInterval(intervalId);
   }, [selectedGym, machines.length]);
 
@@ -301,7 +301,7 @@ function Analytics() {
       // updates are async return old when processing
       return prevMachines;
     });
-  }, ONE_SECOND);
+  }, ONE_SECOND * 30);
 
   return () => clearInterval(intervalId);
 }, [selectedGym, machines.length]);
@@ -374,7 +374,7 @@ function Analytics() {
     // Save machine to localStorage as backup
     localStorage.setItem("lastMachine", JSON.stringify(machine));
 
-    setTimeout(() => setIsLoadingMachineDetails(false), ONE_SECOND / 2);
+    setTimeout(() => setIsLoadingMachineDetails(false), ONE_SECOND);
   };
 
   // handle tab change - update URL with selected tab
